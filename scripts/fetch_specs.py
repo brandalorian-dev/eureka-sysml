@@ -25,6 +25,8 @@ import hashlib
 import json
 import sys
 import tempfile
+import time
+import urllib.error
 import urllib.request
 from pathlib import Path
 
@@ -96,14 +98,44 @@ def cmd_verify(lock: dict) -> int:
     return 0
 
 
-def download(url: str, dest: Path, expected_sha: str) -> None:
-    dest.parent.mkdir(parents=True, exist_ok=True)
+# Transient upstream failures are retried: HTTP 5xx (including Cloudflare's 52x, seen from omg.org)
+# and 429, connection errors and timeouts. Other HTTP errors and checksum mismatches are not.
+ATTEMPTS = 4
+RETRY_DELAYS = (5, 15, 45)  # seconds before the 2nd, 3rd and 4th attempt
+
+
+def is_transient(err: Exception) -> bool:
+    if isinstance(err, urllib.error.HTTPError):
+        return err.code >= 500 or err.code == 429
+    return isinstance(err, (urllib.error.URLError, TimeoutError, ConnectionError))
+
+
+def download_once(url: str, dest: Path) -> Path:
+    """Download `url` into a temporary file next to `dest`, and return its path."""
     req = urllib.request.Request(url, headers={"User-Agent": "eureka-sysml-fetch-specs"})
-    with tempfile.NamedTemporaryFile(delete=False, dir=dest.parent) as tmp:
-        with urllib.request.urlopen(req, timeout=120) as resp:
+    tmp = tempfile.NamedTemporaryFile(delete=False, dir=dest.parent)
+    try:
+        with tmp, urllib.request.urlopen(req, timeout=120) as resp:
             for chunk in iter(lambda: resp.read(1 << 20), b""):
                 tmp.write(chunk)
-        tmp_path = Path(tmp.name)
+    except BaseException:
+        Path(tmp.name).unlink(missing_ok=True)  # never leave a partial download behind
+        raise
+    return Path(tmp.name)
+
+
+def download(url: str, dest: Path, expected_sha: str) -> None:
+    dest.parent.mkdir(parents=True, exist_ok=True)
+    for attempt in range(1, ATTEMPTS + 1):
+        try:
+            tmp_path = download_once(url, dest)
+            break
+        except Exception as err:
+            if attempt == ATTEMPTS or not is_transient(err):
+                raise
+            delay = RETRY_DELAYS[attempt - 1]
+            print(f"  attempt {attempt} failed ({err}); retrying in {delay} s", file=sys.stderr)
+            time.sleep(delay)
     got = sha256(tmp_path)
     if got != expected_sha:
         tmp_path.unlink()

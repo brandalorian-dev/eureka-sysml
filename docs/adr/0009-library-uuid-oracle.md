@@ -39,7 +39,14 @@ Phase 1 is test-first (CLAUDE.md), so the UUIDs our engine computes need an orac
 
 The `sysml.library.xmi/` files of 2025-02 and 2025-04 are also identical to each other (94 of 94).
 
-**Ids follow KerML 9.1.** `scripts/check_uuid_oracle.py` recomputes the expected UUIDs without pilot code, from the clause text: names, effective names through explicit redefinitions, qualified names with unrestricted-name escaping, positional paths, and the `/owningMembership` form. Over the 109,199 elements of the 2025-02 libraries:
+**Ids follow KerML 9.1.** `scripts/check_uuid_oracle.py` recomputes the expected UUIDs without pilot code, from the clause text:
+- effective names (KerML 8.3.3): the declared name when there is a declared name or short name, otherwise the name of the feature redefined by the first owned redefinition
+- escaped names: the name, else the short name, written as an unrestricted name where needed (8.3.2.1, 8.2.2.3)
+- qualified names, null for any member after the first with the same name in its namespace (8.3.2.1)
+- the owning-membership kinds from the `SysML.json` subtype closure, which includes `FeatureValue`
+- positional paths, and the `/owningMembership` form
+
+Unit tests in `scripts/tests/` cover each of these rules on small models. Over the 109,199 elements of the 2025-02 libraries:
 
 | Elements | Match KerML 9.1 | Not recomputable by the script |
 |---|---|---|
