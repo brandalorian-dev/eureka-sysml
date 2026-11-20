@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 //! The generator is deterministic, hits its size targets, and produces models whose every
-//! reference resolves (checked textually here; by the parser from Phase 1b).
+//! reference resolves to an earlier declaration (checked textually here; by the parser from
+//! Phase 1b).
 
 use std::collections::{BTreeMap, BTreeSet};
 use sysml_synth::{generate, Config, Stats};
@@ -16,6 +17,7 @@ fn tiny() -> Config {
         connections_per_def: 1,
         imports_per_package: 1,
         docs: true,
+        last_package_defs: None,
     }
 }
 
@@ -83,17 +85,50 @@ fn element_estimate_follows_the_counting_rules() {
 
 #[test]
 fn size_targets() {
-    for (target, tolerance) in [
-        (Config::SMALL, 0.05),
-        (Config::WORKING_SET, 0.02),
-        (200_000, 0.02),
-    ] {
-        let s = generate(&Config::with_target_elements(target)).stats;
-        let ratio = s.elements() as f64 / target as f64;
+    // ADR 0007: within half a definition (a non-root definition is 55 elements) of the target,
+    // so within 2% from 1,400 elements up.
+    let targets =
+        (Config::SMALL..=30_000)
+            .step_by(97)
+            .chain([Config::WORKING_SET, 200_000, Config::LARGE]);
+    for target in targets {
+        let elements = generate(&Config::with_target_elements(target))
+            .stats
+            .elements();
+        let diff = elements.abs_diff(target);
+        assert!(diff <= 28, "target {target}: {elements} elements");
         assert!(
-            (ratio - 1.0).abs() <= tolerance,
-            "target {target}: {} elements",
-            s.elements()
+            target < 1_400 || diff as f64 <= 0.02 * target as f64,
+            "target {target}: {elements} elements"
+        );
+    }
+}
+
+#[test]
+fn last_package_can_be_smaller() {
+    let c = Config {
+        last_package_defs: Some(1),
+        ..tiny()
+    };
+    let s = generate(&c).stats;
+    assert_eq!((s.part_defs, s.specializations), (3 + 1, 2));
+    check_references(&generate(&c), 2);
+}
+
+#[test]
+fn sizing_keeps_the_default_shape() {
+    // Only the number of packages and the size of the last package change.
+    let base = Config::default();
+    for target in [Config::SMALL, 5_000, Config::WORKING_SET] {
+        let c = Config::with_target_elements(target);
+        assert_eq!(
+            Config {
+                packages: 1,
+                last_package_defs: None,
+                defs_per_package: base.defs_per_package,
+                ..c
+            },
+            base
         );
     }
 }
@@ -107,22 +142,24 @@ fn every_reference_resolves() {
     );
 }
 
-/// Check, from the text alone, that each name used is declared where it can be seen: in the same
-/// package, in an imported package, or in ScalarValues. Relies on the generator writing one
-/// declaration per line.
+/// Check, from the text alone, that each name used is declared earlier where it can be seen: in
+/// the same package, in an imported earlier package, or in ScalarValues. A definition becomes
+/// visible only after its closing brace, so a self-reference, a forward reference or a
+/// specialization cycle fails. Relies on the generator writing one declaration per line.
 fn check_references(m: &sysml_synth::Model, ports: usize) {
     const SCALARS: [&str; 4] = ["Boolean", "Integer", "Real", "String"];
-    // package -> declared definitions
-    let mut defs: BTreeMap<String, BTreeSet<String>> = BTreeMap::new();
-    for f in &m.files {
-        let pkg = f
-            .text
+    let package_of = |f: &sysml_synth::File| {
+        f.text
             .lines()
             .next()
             .unwrap()
             .trim_start_matches("package ")
             .trim_end_matches(" {")
-            .to_owned();
+            .to_owned()
+    };
+    // package -> (position, declared definitions)
+    let mut defs: BTreeMap<String, (usize, BTreeSet<String>)> = BTreeMap::new();
+    for (position, f) in m.files.iter().enumerate() {
         let declared = f
             .text
             .lines()
@@ -133,18 +170,12 @@ fn check_references(m: &sysml_synth::Model, ports: usize) {
             })
             .map(|rest| rest.split([' ', ';', '{']).next().unwrap().to_owned())
             .collect();
-        defs.insert(pkg, declared);
+        defs.insert(package_of(f), (position, declared));
     }
-    for f in &m.files {
-        let pkg = f
-            .text
-            .lines()
-            .next()
-            .unwrap()
-            .trim_start_matches("package ")
-            .trim_end_matches(" {");
-        let mut visible: BTreeSet<&str> = defs[pkg].iter().map(String::as_str).collect();
-        let mut parts_in_def: BTreeSet<String> = BTreeSet::new();
+    for (position, f) in m.files.iter().enumerate() {
+        let mut visible: BTreeSet<&str> = BTreeSet::new();
+        let mut current_def: Option<&str> = None;
+        let mut parts_in_def: BTreeSet<&str> = BTreeSet::new();
         let mut depth = 0i32;
         for line in f.text.lines() {
             let l = line.trim();
@@ -155,34 +186,58 @@ fn check_references(m: &sysml_synth::Model, ports: usize) {
                 .and_then(|r| r.strip_suffix("::*;"))
             {
                 if imported != "ScalarValues" {
-                    let d = defs
+                    let (at, d) = defs
                         .get(imported)
                         .unwrap_or_else(|| panic!("{}: imports unknown {imported}", f.name));
+                    assert!(
+                        *at < position,
+                        "{}: imports {imported}, which is not an earlier package",
+                        f.name
+                    );
                     visible.extend(d.iter().map(String::as_str));
                 }
-            } else if l.starts_with("part def ") {
+            } else if let Some(rest) = l.strip_prefix("part def ") {
                 parts_in_def.clear();
-                if let Some((_, sup)) = l.split_once(" :> ") {
-                    let sup = sup.trim_end_matches(" {");
+                let (name, sup) = match rest.trim_end_matches(" {").split_once(" :> ") {
+                    Some((name, sup)) => (name, Some(sup)),
+                    None => (rest.trim_end_matches(" {"), None),
+                };
+                if let Some(sup) = sup {
                     assert!(
                         visible.contains(sup),
-                        "{}: {l}: {sup} is not visible",
+                        "{}: {l}: {sup} is not declared earlier",
                         f.name
                     );
                 }
-            } else if l.starts_with("port def ") {
-                // A declaration, collected above.
+                current_def = Some(name);
+            } else if let Some(rest) = l.strip_prefix("port def ") {
+                visible.insert(rest.trim_end_matches(';'));
+            } else if l == "}" && depth == 1 {
+                // The end of a part definition: from here on it can be referenced.
+                visible.insert(
+                    current_def
+                        .take()
+                        .expect("closing brace without a definition"),
+                );
             } else if let Some(rest) = l.strip_prefix("attribute ") {
                 let ty = rest.split(" : ").nth(1).unwrap().trim_end_matches(';');
                 assert!(SCALARS.contains(&ty), "{}: {l}", f.name);
             } else if let Some(rest) = l.strip_prefix("port ") {
                 let ty = rest.split(" : ").nth(1).unwrap().trim_end_matches(';');
-                assert!(visible.contains(ty), "{}: {l}: {ty} is not visible", f.name);
+                assert!(
+                    visible.contains(ty),
+                    "{}: {l}: {ty} is not declared earlier",
+                    f.name
+                );
             } else if let Some(rest) = l.strip_prefix("part ") {
                 let (name, ty) = rest.split_once(" : ").unwrap();
                 let ty = ty.split(['[', ';']).next().unwrap();
-                assert!(visible.contains(ty), "{}: {l}: {ty} is not visible", f.name);
-                parts_in_def.insert(name.to_owned());
+                assert!(
+                    visible.contains(ty),
+                    "{}: {l}: {ty} is not declared earlier",
+                    f.name
+                );
+                parts_in_def.insert(name);
             } else if let Some(rest) = l.strip_prefix("connect ") {
                 let (a, b) = rest.trim_end_matches(';').split_once(" to ").unwrap();
                 for end in [a, b] {
@@ -198,5 +253,6 @@ fn check_references(m: &sysml_synth::Model, ports: usize) {
             }
         }
         assert_eq!(depth, 0, "{}: unbalanced braces", f.name);
+        assert!(current_def.is_none(), "{}: unterminated definition", f.name);
     }
 }

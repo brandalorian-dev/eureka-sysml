@@ -27,8 +27,10 @@
 //! }
 //! ```
 //!
-//! The constructs and their syntax follow SysML 7.5.3 (imports), 7.6.3 (definitions, usages,
-//! specialization) and the SimpleVehicleModel example. The model is valid by construction:
+//! The constructs and their syntax follow SysML Part 1 and the SimpleVehicleModel example: 7.4.2
+//! (`doc` comments), 7.5.3 (imports), 7.6.2 and 7.6.3 (definitions, usages and `:>`
+//! specialization), 7.6.6 (the feature chains at connection ends), 7.7.2 (attributes), 7.11.2
+//! (parts), 7.12.2 (ports) and 7.13.2 (connections). The model is valid by construction:
 //! - Every name is declared before use, in the same package or in an imported one.
 //! - Feature names are unique to their definition (`x{k}_{i}_{n}`, `q{k}_{i}_{n}`), so no
 //!   definition redeclares a name it inherits.
@@ -36,8 +38,9 @@
 //!   specialization chain, so each part has the ports that connections use.
 //! - Specializations and part types point only at earlier definitions, so neither forms a cycle.
 //!
-//! The same [`Config`] always produces the same text; the seed only changes which earlier
-//! definitions are referenced, not the shape or the [`Stats`].
+//! The same [`Config`] always produces the same text. The seed chooses which earlier definitions
+//! are referenced and which parts and ports each connection joins; it does not change the shape
+//! or the [`Stats`].
 
 use std::fmt::Write as _;
 
@@ -62,10 +65,13 @@ pub struct Config {
     pub imports_per_package: usize,
     /// Whether packages and definitions get a `doc` comment.
     pub docs: bool,
+    /// Part definitions in the last package, if it differs from `defs_per_package`. Lets
+    /// [`Config::with_target_elements`] size a model to within one definition.
+    pub last_package_defs: Option<usize>,
 }
 
 impl Default for Config {
-    /// One package of the default shape, about 1,200 elements.
+    /// One package of the default shape: 1,072 elements.
     fn default() -> Self {
         Config {
             seed: 1,
@@ -77,6 +83,7 @@ impl Default for Config {
             connections_per_def: 2,
             imports_per_package: 3,
             docs: true,
+            last_package_defs: None,
         }
     }
 }
@@ -89,28 +96,44 @@ impl Config {
     /// The large branch of PROJECT_PLAN §7 ("1M-element branch").
     pub const LARGE: usize = 1_000_000;
 
-    /// The default shape, scaled to about `elements` elements (see [`Stats::elements`]). Above
-    /// one package, the number of packages is scaled; below, the definitions per package are.
+    /// The default shape, scaled to about `elements` elements (see [`Stats::elements`]): full
+    /// packages, with a last package of 1 to `defs_per_package` definitions. A non-root
+    /// definition is 55 elements, so the result is within 28 elements of the target: within 2%
+    /// from 1,400 elements up, and within 3% at 1,000.
     pub fn with_target_elements(elements: usize) -> Config {
         let base = Config::default();
-        let per_package = generate(&Config {
-            packages: 1,
-            ..base
-        })
-        .stats
-        .elements();
-        if elements >= per_package {
-            let packages = ((elements as f64 / per_package as f64).round() as usize).max(1);
-            Config { packages, ..base }
-        } else {
-            // Find the number of definitions whose single package comes closest to the target.
-            (1..=base.defs_per_package)
-                .map(|defs| Config {
+        let full_defs = base.defs_per_package;
+        // Elements of a package without imports, by number of definitions. Package k also has
+        // min(k, imports_per_package) imports of earlier packages, one element each.
+        let package: Vec<usize> = (0..=full_defs)
+            .map(|defs| match defs {
+                0 => 0,
+                _ => generate(&Config {
+                    packages: 1,
                     defs_per_package: defs,
                     ..base
                 })
-                .min_by_key(|c| generate(c).stats.elements().abs_diff(elements))
-                .unwrap()
+                .stats
+                .elements(),
+            })
+            .collect();
+        let total = |packages: usize, last: usize| {
+            let imports: usize = (0..packages).map(|k| k.min(base.imports_per_package)).sum();
+            (packages - 1) * package[full_defs] + package[last] + imports
+        };
+        // Most packages import imports_per_package earlier ones, so count those in the estimate.
+        let around = elements
+            .div_ceil(package[full_defs] + base.imports_per_package)
+            .max(1);
+        let (_, packages, last) = (around.saturating_sub(1).max(1)..=around + 1)
+            .flat_map(|packages| (1..=full_defs).map(move |last| (packages, last)))
+            .map(|(packages, last)| (total(packages, last).abs_diff(elements), packages, last))
+            .min()
+            .unwrap();
+        Config {
+            packages,
+            last_package_defs: (last != full_defs).then_some(last),
+            ..base
         }
     }
 }
@@ -241,7 +264,12 @@ pub fn generate(config: &Config) -> Model {
         writeln!(t, "    port def Port{k};").unwrap();
         stats.port_defs += 1;
 
-        for i in 0..c.defs_per_package {
+        // Imported packages come earlier, so they always have `defs_per_package` definitions.
+        let defs_here = match c.last_package_defs {
+            Some(last) if k + 1 == c.packages => last,
+            _ => c.defs_per_package,
+        };
+        for i in 0..defs_here {
             // Definitions visible here and declared earlier: in this package, or in an import.
             let mut earlier = || {
                 let choices = i + imported.len() * c.defs_per_package;

@@ -55,7 +55,7 @@ python scripts/extract_spec_text.py                  # per-clause spec text
 cargo fmt --all && cargo clippy --workspace --all-targets -- -D warnings
 cargo test --workspace
 cargo build --workspace --target wasm32-unknown-unknown
-cargo test --workspace --benches                     # run each benchmark once (as CI does)
+cargo test --workspace --bench '*'                   # run each benchmark once (as CI does)
 cargo bench -p sysml-bench                           # measure the benchmarks
 cargo deny check                                     # licenses, advisories, sources (as in CI)
 ```
