@@ -6,7 +6,7 @@
 //!
 //! The benchmarks live in `benches/` and use `divan`:
 //! - `cargo bench -p sysml-bench` measures them.
-//! - `cargo test -p sysml-bench --benches` runs each once, as CI does, so they keep working.
+//! - `cargo test --workspace --bench '*'` runs each once, as CI does, so they keep working.
 //!
 //! In Phase 0 no budget can be measured yet: each needs the parser, the store or the web client.
 //! `benches/phase0.rs` measures the building blocks the budgets will rest on: synthetic model

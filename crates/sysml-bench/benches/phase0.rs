@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 //! Phase 0 benchmarks: the building blocks that the PROJECT_PLAN §7 budgets will rest on.
 //!
-//! `cargo bench -p sysml-bench` measures; `cargo test -p sysml-bench --benches` runs each once.
+//! `cargo bench -p sysml-bench` measures; `cargo test --workspace --bench '*'` runs each once.
 
 use divan::counter::{BytesCount, ItemsCount};
 use divan::{black_box, Bencher};
@@ -20,8 +20,10 @@ fn main() {
 #[divan::bench(args = [Config::SMALL, Config::WORKING_SET, Config::LARGE], sample_count = 10, sample_size = 1)]
 fn synth_generate(bencher: Bencher, elements: usize) {
     let config = Config::with_target_elements(elements);
+    // Throughput counts the elements actually generated, which differ slightly from the target.
+    let generated = generate(&config).stats.elements();
     bencher
-        .counter(ItemsCount::new(elements))
+        .counter(ItemsCount::new(generated))
         .bench(|| generate(black_box(&config)));
 }
 
