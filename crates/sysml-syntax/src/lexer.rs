@@ -83,6 +83,11 @@ impl Lexer<'_> {
 
     fn token(&mut self) -> SyntaxKind {
         let start = self.pos;
+        // ADR 0013: a byte-order mark at the very start is trivia, kept so that the tree is lossless.
+        if start == 0 && self.text.starts_with('\u{feff}') {
+            self.pos = '\u{feff}'.len_utf8();
+            return SyntaxKind::ByteOrderMark;
+        }
         match self.bytes[self.pos] {
             // KerML 8.2.2.1: space, tab, form feed and line terminators (CR, LF, CRLF).
             b' ' | b'\t' | 0x0c | b'\n' | b'\r' => {
@@ -92,12 +97,7 @@ impl Lexer<'_> {
                 SyntaxKind::Whitespace
             }
             // KerML 8.2.2.2: `//*` starts a multiline note, `//` a single-line note, `/*` a comment.
-            b'/' if self.at(1) == Some(b'/') && self.at(2) == Some(b'*') => self.block(
-                3,
-                SyntaxKind::MultilineNote,
-                "syntax::unterminated-note",
-                "note",
-            ),
+            b'/' if self.at(1) == Some(b'/') && self.at(2) == Some(b'*') => self.multiline_note(),
             b'/' if self.at(1) == Some(b'/') => {
                 while !matches!(self.at(0), None | Some(b'\n' | b'\r')) {
                     self.pos += 1;
@@ -180,7 +180,24 @@ impl Lexer<'_> {
         }
     }
 
-    /// `/* … */` or `//* … */` (KerML 8.2.2.2). Unterminated, it runs to the end of the input.
+    /// `//* … */` (KerML 8.2.2.2). With no `*/` ahead, MULTILINE_NOTE cannot match, so the text is
+    /// a SINGLE_LINE_NOTE (`//` LINE_TEXT) instead, up to the line terminator.
+    fn multiline_note(&mut self) -> SyntaxKind {
+        match self.text[self.pos + 3..].find("*/") {
+            Some(i) => {
+                self.pos += 3 + i + 2;
+                SyntaxKind::MultilineNote
+            }
+            None => {
+                while !matches!(self.at(0), None | Some(b'\n' | b'\r')) {
+                    self.pos += 1;
+                }
+                SyntaxKind::SingleLineNote
+            }
+        }
+    }
+
+    /// `/* … */` (KerML 8.2.2.2). Unterminated, it runs to the end of the input.
     fn block(
         &mut self,
         open: usize,

@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: Apache-2.0
 [package]
 name = "sysml-model"
 description = "SysML v2 / KerML metaclass definitions, generated at build time from the normative SysML.json"

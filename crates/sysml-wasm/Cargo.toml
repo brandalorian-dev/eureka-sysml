@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: Apache-2.0
 [package]
 name = "sysml-wasm"
 description = "The wasm-bindgen interface between the browser UI and the Rust core (PROJECT_PLAN §4.2)"

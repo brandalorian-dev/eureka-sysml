@@ -6,6 +6,10 @@
 //! against all the tokens, attaching trivia, to make a lossless `rowan` green tree. A marker can
 //! also be wrapped in a new parent after the fact ([`CompletedMarker::precede`]), which the
 //! left-associative binary expressions need.
+//!
+//! The parser always terminates, and the tree is always lossless, even if a production stops
+//! making progress: after [`FUEL`] lookaheads without consuming a token the parser sees the end of
+//! the input, and [`build`] puts any tokens left over into an `Error` node.
 
 use crate::kinds::SyntaxKind;
 use crate::lexer::Token;
@@ -31,10 +35,14 @@ pub(crate) enum Event {
     Tombstone,
 }
 
+/// Lookaheads allowed between two consumed tokens before the parser treats itself as stuck.
+pub(crate) const FUEL: u32 = 256;
+
 pub(crate) struct Parser {
     kinds: Vec<SyntaxKind>,
     pos: usize,
     events: Vec<Event>,
+    fuel: std::cell::Cell<u32>,
 }
 
 impl Parser {
@@ -47,11 +55,18 @@ impl Parser {
                 .collect(),
             pos: 0,
             events: Vec::new(),
+            fuel: std::cell::Cell::new(FUEL),
         }
     }
 
-    /// The kind of the `n`-th significant token ahead, or `Eof`.
+    /// The kind of the `n`-th significant token ahead, or `Eof`. A production that looks ahead
+    /// [`FUEL`] times without consuming a token sees `Eof`, so that it terminates.
     pub(crate) fn nth(&self, n: usize) -> SyntaxKind {
+        let fuel = self.fuel.get();
+        if fuel == 0 {
+            return SyntaxKind::Eof;
+        }
+        self.fuel.set(fuel - 1);
         self.kinds
             .get(self.pos + n)
             .copied()
@@ -72,14 +87,15 @@ impl Parser {
     }
 
     pub(crate) fn at_eof(&self) -> bool {
-        self.pos >= self.kinds.len()
+        self.current() == SyntaxKind::Eof
     }
 
     /// Add the current token to the node being built.
     pub(crate) fn bump(&mut self) {
-        assert!(!self.at_eof(), "bump at the end of the input");
+        assert!(self.pos < self.kinds.len(), "bump at the end of the input");
         self.events.push(Event::Token);
         self.pos += 1;
+        self.fuel.set(FUEL);
     }
 
     /// Add the current token if it is `kind`.
@@ -103,10 +119,11 @@ impl Parser {
         if self.eat(kind) {
             return true;
         }
-        let what = kind
-            .text()
-            .map_or_else(|| format!("{kind:?}"), |t| format!("`{t}`"));
-        self.error(code, format!("expected {what}"), Some(clause));
+        self.error(
+            code,
+            format!("expected {}", kind.description()),
+            Some(clause),
+        );
         false
     }
 
@@ -125,23 +142,28 @@ impl Parser {
     }
 
     /// Report an error, and wrap the tokens up to one in `recovery` (or the end) in an `Error`
-    /// node, so that one error never hides the next.
+    /// node, so that one error never hides the next. Returns whether it consumed a token.
+    ///
+    /// At a token in `recovery` it consumes nothing: that token belongs to the enclosing
+    /// production (for example the `}` that closes a body), which must consume it. A caller that
+    /// loops must therefore also stop at its recovery tokens.
     pub(crate) fn err_recover(
         &mut self,
         code: &'static str,
         message: &str,
         clause: Option<&'static str>,
         recovery: &[SyntaxKind],
-    ) {
+    ) -> bool {
         self.error(code, message, clause);
         if self.at_eof() || self.at_any(recovery) {
-            return;
+            return false;
         }
         let m = self.start();
         while !self.at_eof() && !self.at_any(recovery) {
             self.bump();
         }
         m.complete(self, SyntaxKind::Error);
+        true
     }
 
     /// Start a node.
@@ -173,11 +195,9 @@ impl Marker {
     }
 
     #[allow(dead_code)] // used by the KerML productions from step 1a.3
-    pub(crate) fn abandon(self, p: &mut Parser) {
-        if self.pos as usize == p.events.len() - 1 {
-            p.events.pop();
-        }
-    }
+    /// Drop the node. Its start stays in the event list as a tombstone, so that no other event
+    /// takes its position: a `precede` link may still point at it.
+    pub(crate) fn abandon(self, _p: &mut Parser) {}
 }
 
 /// A completed node, which can still be wrapped in a parent.
@@ -227,15 +247,19 @@ pub(crate) fn build(
                 let mut next = forward_parent;
                 while let Some(distance) = next {
                     at += distance as usize;
-                    next = match std::mem::replace(&mut events[at], Event::Tombstone) {
-                        Event::Start {
+                    next = match events
+                        .get_mut(at)
+                        .map(|e| std::mem::replace(e, Event::Tombstone))
+                    {
+                        Some(Event::Start {
                             kind,
                             forward_parent,
-                        } => {
+                        }) => {
                             parents.push(kind);
                             forward_parent
                         }
-                        _ => unreachable!("a forward parent is a start event"),
+                        // The parent was abandoned after `precede`: the chain ends here.
+                        _ => None,
                     };
                 }
                 for kind in parents.drain(..).rev() {
@@ -249,6 +273,20 @@ pub(crate) fn build(
             Event::Finish => {
                 if depth == 1 {
                     b.trivia(); // the root keeps the trailing trivia
+                    if b.index < tokens.len() {
+                        // The grammar stopped before the end: keep the rest, so the tree stays lossless.
+                        diagnostics.push(Diagnostic::error(
+                            "syntax::parser-stuck",
+                            b.next_significant_range(),
+                            "the parser stopped before the end of the input",
+                        ));
+                        b.builder
+                            .start_node(rowan::SyntaxKind(SyntaxKind::Error as u16));
+                        while b.index < tokens.len() {
+                            b.token();
+                        }
+                        b.builder.finish_node();
+                    }
                 }
                 b.builder.finish_node();
                 depth -= 1;
@@ -269,7 +307,9 @@ pub(crate) fn build(
             Event::Tombstone => {}
         }
     }
-    diagnostics.sort_by_key(|d| d.range.start());
+    diagnostics.sort_by(|a, b| (a.range.start(), a.code).cmp(&(b.range.start(), b.code)));
+    // A production that reports the same error repeatedly (for example while stuck) reports it once.
+    diagnostics.dedup_by(|a, b| a.code == b.code && a.range == b.range);
     (b.builder.finish(), diagnostics)
 }
 
@@ -416,6 +456,101 @@ mod tests {
         assert_eq!(diags[0].message, "expected `{`");
         assert_eq!(u32::from(diags[0].range.start()), 2);
         assert_eq!(diags[0].clause, Some("KerML 8.2.3.4.1"));
+    }
+
+    #[test]
+    fn precede_then_abandon_leaves_the_node_unwrapped() {
+        // An expression production wraps the left operand, finds no operator, and gives up.
+        let (root, _) = tree("a", |p| {
+            let r = p.start();
+            let lhs = p.start();
+            p.bump();
+            let lhs = lhs.complete(p, SyntaxKind::Error);
+            let parent = lhs.precede(p);
+            parent.abandon(p);
+            r.complete(p, SyntaxKind::RootNamespace);
+        });
+        assert_eq!(shape(&root), "RootNamespace(Error)");
+        assert_eq!(root.text().to_string(), "a");
+    }
+
+    #[test]
+    fn precede_then_abandon_after_more_events() {
+        // The abandoned parent is no longer the last event, so it becomes a tombstone.
+        let (root, _) = tree("a b", |p| {
+            let r = p.start();
+            let lhs = p.start();
+            p.bump();
+            let lhs = lhs.complete(p, SyntaxKind::Error);
+            let parent = lhs.precede(p);
+            p.bump();
+            parent.abandon(p);
+            r.complete(p, SyntaxKind::RootNamespace);
+        });
+        assert_eq!(shape(&root), "RootNamespace(Error)");
+        assert_eq!(root.text().to_string(), "a b");
+    }
+
+    #[test]
+    fn a_stuck_production_terminates_and_stays_lossless() {
+        // A caller bug: looping until the end while the current token is in the recovery set.
+        // The parser must neither hang nor lose text.
+        let (root, diags) = tree("a } b", |p| {
+            let r = p.start();
+            while !p.at_eof() {
+                p.err_recover(
+                    "syntax::expected-member",
+                    "expected a member",
+                    None,
+                    &[SyntaxKind::RBrace],
+                );
+            }
+            r.complete(p, SyntaxKind::RootNamespace);
+        });
+        assert_eq!(root.text().to_string(), "a } b", "lossless");
+        assert!(
+            diags.iter().any(|d| d.code == "syntax::parser-stuck"),
+            "{diags:?}"
+        );
+        let mut seen = std::collections::HashSet::new();
+        assert!(
+            diags.iter().all(|d| seen.insert((d.code, d.range))),
+            "duplicate diagnostics are dropped"
+        );
+    }
+
+    #[test]
+    fn err_recover_reports_whether_it_consumed() {
+        let (_, _) = tree("} x", |p| {
+            let r = p.start();
+            assert!(!p.err_recover(
+                "syntax::expected-member",
+                "expected a member",
+                None,
+                &[SyntaxKind::RBrace]
+            ));
+            p.bump(); // the caller consumes the recovery token
+            assert!(p.err_recover("syntax::expected-member", "expected a member", None, &[]));
+            r.complete(p, SyntaxKind::RootNamespace);
+        });
+    }
+
+    #[test]
+    fn expected_messages_describe_kinds_without_fixed_text() {
+        let (_, diags) = tree(";", |p| {
+            let r = p.start();
+            p.expect(
+                SyntaxKind::BasicName,
+                "syntax::expected-name",
+                "KerML 8.2.2.3",
+            );
+            p.bump();
+            r.complete(p, SyntaxKind::RootNamespace);
+        });
+        assert_eq!(diags[0].message, "expected a name");
+        assert_eq!(SyntaxKind::StringValue.description(), "a string");
+        assert_eq!(SyntaxKind::Semicolon.description(), "`;`");
+        assert_eq!(SyntaxKind::PackageKw.description(), "`package`");
     }
 
     #[test]

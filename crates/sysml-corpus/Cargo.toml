@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: Apache-2.0
 [package]
 name = "sysml-corpus"
 description = "Test corpus harness: the KerML/SysML standard libraries and example models, loaded from the local docs/specs/"
