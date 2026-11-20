@@ -6,8 +6,9 @@ Usage:
   python scripts/sbom.py [--out DIR]   Generate into DIR (default target/sbom), then check.
   python scripts/sbom.py --check DIR   Only check the SBOMs already in DIR.
 
-Needs `cargo-cyclonedx` (CI pins the version). Writes one SBOM per shipped crate and target:
-`<crate>_<target>.cdx.json`, CycloneDX 1.6 JSON.
+Needs Python 3.11+ and `cargo-cyclonedx` (CI pins the version). Writes one SBOM per shipped crate
+and target, `<crate>_<target>.cdx.json` in CycloneDX 1.6 JSON, after removing any old SBOMs from
+DIR.
 
 What is shipped: workspace members that can be published. Crates with `publish = false`
 (test infrastructure such as sysml-corpus, sysml-synth and sysml-bench) are not.
@@ -19,10 +20,14 @@ Each SBOM is checked against `cargo metadata` and Cargo.lock:
     rest have scope "required"
   - every component has a package URL and a license
   - every crates.io component carries the SHA-256 checksum recorded in Cargo.lock
-  - no test-infrastructure crate appears
+  - no test-infrastructure crate appears, and no component is listed twice
+  - no absolute file path appears, so the SBOM does not depend on the checkout location
+  - DIR holds no other SBOM files
 
-The timestamp comes from SOURCE_DATE_EPOCH, or from the last commit when it is not set, so the
-same commit always produces the same SBOM.
+Reproducibility: the timestamp comes from SOURCE_DATE_EPOCH, or from the last commit when it is
+not set. Workspace crates' bom-refs are Cargo package ids, which contain the checkout's absolute
+path; they are rewritten relative to the workspace root. Every SBOM is generated twice and the two
+must be byte-identical, so the same commit gives the same SBOM wherever it is checked out.
 """
 from __future__ import annotations
 
@@ -32,8 +37,13 @@ import os
 import shutil
 import subprocess
 import sys
-import tomllib
+import tempfile
+import urllib.parse
 from pathlib import Path
+
+if sys.version_info < (3, 11):
+    sys.exit("scripts/sbom.py needs Python 3.11 or later (it reads Cargo.lock with tomllib).")
+import tomllib  # noqa: E402  (after the version check, so older Pythons get a clear message)
 
 ROOT = Path(__file__).resolve().parent.parent
 SPEC_VERSION = "1.6"
@@ -117,8 +127,10 @@ def check(sbom_dir: Path) -> list[str]:
             listed = {}
             for c in bom.get("components", []):
                 key = (c.get("name"), c.get("version"))
-                listed[key] = c
                 name = f"{key[0]} {key[1]}"
+                if key in listed:
+                    errors.append(f"{where}: {name} is listed more than once")
+                listed[key] = c
                 if not c.get("purl", "").startswith(f"pkg:cargo/{key[0]}@{key[1]}"):
                     errors.append(f"{where}: {name}: package URL {c.get('purl')!r}")
                 if not c.get("licenses"):
@@ -135,15 +147,43 @@ def check(sbom_dir: Path) -> list[str]:
                 errors.append(f"{where}: dependency {key[0]} {key[1]} is missing")
             for key in sorted(set(listed) - set(expected)):
                 errors.append(f"{where}: {key[0]} {key[1]} is not a dependency for {target}")
+            if "file:///" in path.read_text(encoding="utf-8"):
+                errors.append(f"{where}: contains an absolute file path, so it depends on the checkout location")
             if len(errors) == before:
                 print(f"{where}: {len(listed)} components")
+    expected_files = {f"{c['name']}_{t}.cdx.json" for t in TARGETS for c in shipped_crates(metadata(t))}
+    for stray in sorted(p.name for p in sbom_dir.glob("*.cdx.json") if p.name not in expected_files):
+        errors.append(f"{stray}: not the SBOM of a shipped crate and target")
     return errors
 
 
-def generate(out: Path) -> None:
-    env = dict(os.environ)
-    env.setdefault("SOURCE_DATE_EPOCH", run(["git", "log", "-1", "--format=%ct"]).strip())
-    out.mkdir(parents=True, exist_ok=True)
+def source_date_epoch() -> str:
+    value = os.environ.get("SOURCE_DATE_EPOCH", "").strip()
+    if not value:
+        try:
+            value = run(["git", "log", "-1", "--format=%ct"]).strip()
+        except (OSError, subprocess.CalledProcessError):
+            sys.exit("SOURCE_DATE_EPOCH is not set and git cannot give the last commit's time. "
+                     "Set SOURCE_DATE_EPOCH (seconds since 1970) to generate a reproducible SBOM.")
+    if not value.isdigit():
+        sys.exit(f"SOURCE_DATE_EPOCH must be a number of seconds since 1970, not {value!r}.")
+    return value
+
+
+def normalize(path: Path) -> None:
+    """Rewrite the checkout's absolute path in Cargo package ids (used as bom-refs) relative to
+    the workspace root, for example `path+file:///…/eureka-sysml/crates/x#0.0.1` becomes
+    `path+file:crates/x#0.0.1`."""
+    text = path.read_text(encoding="utf-8")
+    for root in {ROOT.as_posix(), urllib.parse.quote(ROOT.as_posix())}:
+        text = text.replace(f"file://{root}/", "file:")
+    path.write_text(json.dumps(json.loads(text), indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
+
+
+def generate_once(out: Path, epoch: str) -> list[str]:
+    """Run cargo-cyclonedx for every target and move the shipped crates' SBOMs into `out`."""
+    errors = []
+    env = dict(os.environ, SOURCE_DATE_EPOCH=epoch)
     for target in TARGETS:
         meta = metadata(target)
         cmd = ["cargo", "cyclonedx", "--format", "json", "--spec-version", SPEC_VERSION,
@@ -155,10 +195,32 @@ def generate(out: Path) -> None:
             if p["id"] not in members:
                 continue
             produced = Path(p["manifest_path"]).parent / f"{p['name']}_{target}.cdx.json"
-            if p["name"] in shipped:
-                shutil.move(produced, out / produced.name)
-            else:
+            if p["name"] not in shipped:
                 produced.unlink(missing_ok=True)  # test infrastructure: not shipped
+            elif not produced.exists():
+                found = sorted(str(f.relative_to(ROOT)) for f in ROOT.glob("crates/*/*.cdx.json"))
+                errors.append(f"cargo-cyclonedx did not write {produced.relative_to(ROOT)} (found: {found})")
+            else:
+                shutil.move(produced, out / produced.name)
+                normalize(out / produced.name)
+    return errors
+
+
+def generate(out: Path) -> list[str]:
+    """Generate into `out`, a second time into a scratch folder, and require identical output."""
+    epoch = source_date_epoch()
+    out.mkdir(parents=True, exist_ok=True)
+    for old in out.glob("*.cdx.json"):
+        old.unlink()
+    errors = generate_once(out, epoch)
+    with tempfile.TemporaryDirectory() as scratch:
+        errors += generate_once(Path(scratch), epoch)
+        first = {f.name: f.read_bytes() for f in out.glob("*.cdx.json")}
+        second = {f.name: f.read_bytes() for f in Path(scratch).glob("*.cdx.json")}
+    for name in sorted(set(first) | set(second)):
+        if first.get(name) != second.get(name):
+            errors.append(f"{name}: two runs on the same commit differ, so the SBOM is not reproducible")
+    return errors
 
 
 def main() -> int:
@@ -171,8 +233,10 @@ def main() -> int:
         if shutil.which("cargo-cyclonedx") is None:
             print("cargo-cyclonedx not found. Install it with `cargo install --locked cargo-cyclonedx`.", file=sys.stderr)
             return 1
-        generate(args.out)
-    errors = check(args.check or args.out)
+        errors = generate(args.out)
+    else:
+        errors = []
+    errors += check(args.check or args.out)
     for e in errors:
         print("ERROR:", e, file=sys.stderr)
     return 1 if errors else 0
