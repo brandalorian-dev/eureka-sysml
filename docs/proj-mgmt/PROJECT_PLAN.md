@@ -637,7 +637,7 @@ Steps 1b.1–1b.10 of the execution plan. Its bottom-up estimate is 9–13 weeks
   2. Write failing tests: corpus cases, implied-relationship tables, Annex A API cases.
   3. Implement.
   4. Review.
-- **Small, reviewable increments.** One feature branch and PR per issue. CI must pass. Use `/code-review` before merging. Keep architecture decision records in `docs/adr/` (0001–0010 so far). In practice: signed-off commits, review findings fixed in a further commit on the same PR, and a rebase merge that keeps `main` linear.
+- **Small, reviewable increments.** One feature branch and PR per issue. CI must pass. Use `/code-review` before merging. Keep architecture decision records in `docs/adr/` (0001–0012 so far). In practice: signed-off commits, review findings fixed in a further commit on the same PR, and a rebase merge that keeps `main` linear.
 - **Decisions on evidence.** Each design decision starts as a recommended default and is evaluated in the step that first depends on it: against at least one alternative, with evidence from spikes, benchmarks or corpus tests, recorded in an ADR, and with owner approval where it changes scope, budgets, licensing, release obligations or the schedule (`PHASE_1_EXECUTION_PLAN.md` §2.5). Spike evidence is kept in `docs/proj-mgmt/evidence/`.
 - **Generated code where possible.** Metaclass types, API types and the API client come from the normative JSON and OpenAPI files, which reduces hand-written surface area.
 - **Parallel Claude Code sessions** for independent work (for example, grammar productions in one, API endpoints in another), using git worktrees, with the developer integrating.
