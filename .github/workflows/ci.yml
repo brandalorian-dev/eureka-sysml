@@ -20,16 +20,16 @@ jobs:
     name: Rust (fmt, clippy, test, wasm)
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
-      - uses: actions/setup-python@v5
+      - uses: actions/setup-python@v7
         with:
           python-version: "3.12"
 
       # docs/specs/ is never committed. Fetch it from the pinned upstream URLs and
       # verify the checksums, using a cache keyed on the lock file.
       - name: Cache spec files
-        uses: actions/cache@v4
+        uses: actions/cache@v6
         with:
           path: docs/specs
           key: specs-${{ hashFiles('specs.lock.json') }}
@@ -63,14 +63,14 @@ jobs:
     name: cargo-deny (licenses, advisories, sources)
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - uses: EmbarkStudios/cargo-deny-action@v2
 
   repo-hygiene:
     name: Repository hygiene
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - name: No spec material committed
         run: |
           if git ls-files docs/specs | grep -q .; then
