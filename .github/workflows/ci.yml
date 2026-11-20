@@ -56,6 +56,11 @@ jobs:
       - name: test
         run: cargo test --workspace
 
+      # Runs each benchmark once, so they keep compiling and working. Timings are not gated on
+      # shared runners (ADR 0007); measure with `cargo bench -p sysml-bench`.
+      - name: benchmarks (run once)
+        run: cargo test --workspace --benches
+
       - name: wasm build
         run: cargo build --workspace --target wasm32-unknown-unknown
 
