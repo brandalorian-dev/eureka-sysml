@@ -11,7 +11,7 @@
 //! - 182 `<Metaclass>Request` element schemas plus `Identified`. These are not generated here:
 //!   element payloads use the hand-written `Element` and `ElementRequest` (see ADR 0005).
 //! - Record properties: `@id` (uuid), `@type` (`const`), `Identified` references (with the target
-//!   record in `$comment`), `oneOf [X, null]`, arrays, inline string enums, strings (plain,
+//!   record in `$comment`), `oneOf [X, null]`, arrays (with `minItems`), inline string enums, strings (plain,
 //!   `uuid`, `date-time`, `uri`), booleans, and the PrimitiveConstraint value list.
 
 use serde_json::{Map, Value};
@@ -129,14 +129,37 @@ struct Ty {
     rust: String,
     nullable: bool,
     many: bool,
+    /// `minItems` of the list, enforced on deserialization.
+    min_items: Option<u64>,
 }
+
+/// The JSON Schema keywords that the generator understands. Any other keyword in a property
+/// schema is a constraint the generated types would silently ignore, so it stops the build.
+const KNOWN_KEYWORDS: &[&str] = &[
+    "$comment", "$ref", "const", "enum", "format", "items", "minItems", "oneOf", "type",
+];
 
 impl Gen {
     fn ty(&mut self, record: &str, prop: &str, s: &Value) -> Ty {
+        for k in s
+            .as_object()
+            .expect("property schema is not an object")
+            .keys()
+        {
+            assert!(
+                KNOWN_KEYWORDS.contains(&k.as_str()),
+                "{record}.{prop}: schema keyword {k} is not supported by build.rs"
+            );
+        }
+        assert!(
+            s.get("minItems").is_none() || s.get("type").and_then(Value::as_str) == Some("array"),
+            "{record}.{prop}: minItems outside an array schema"
+        );
         let plain = |rust: &str| Ty {
             rust: rust.to_owned(),
             nullable: false,
             many: false,
+            min_items: None,
         };
         if let Some(alts) = s.get("oneOf").and_then(Value::as_array) {
             let is_null = |a: &&Value| a.get("type").and_then(Value::as_str) == Some("null");
@@ -176,16 +199,23 @@ impl Gen {
                 rust: format!("Vec<{}>", item.rust),
                 nullable: false,
                 many: true,
+                min_items: s
+                    .get("minItems")
+                    .map(|n| n.as_u64().expect("minItems is not an integer")),
             };
         }
         if let Some(r) = s.get("$ref").and_then(Value::as_str) {
             let target = last_segment(r);
             if target == "Identified" {
-                let comment = s.get("$comment").and_then(Value::as_str);
-                if let Some(to) = reference_target(record, prop, comment) {
-                    self.references
-                        .insert((record.to_owned(), prop.to_owned()), to);
-                }
+                let comment = s
+                    .get("$comment")
+                    .and_then(Value::as_str)
+                    .unwrap_or_else(|| {
+                        panic!("{record}.{prop}: reference without a $comment target")
+                    });
+                let to = reference_target(record, prop, Some(comment)).unwrap();
+                self.references
+                    .insert((record.to_owned(), prop.to_owned()), to);
             }
             return plain(target);
         }
@@ -203,7 +233,7 @@ impl Gen {
             return plain(name);
         }
         let kind = match (s["type"].as_str(), s.get("format").and_then(Value::as_str)) {
-            (Some("string"), Some("uuid")) => "Uuid",
+            (Some("string"), Some("uuid")) => "Id",
             (Some("string"), Some("date-time")) => "DateTime",
             (Some("string"), Some("uri")) => "Iri",
             (Some("string"), None) => "String",
@@ -254,7 +284,7 @@ impl Gen {
                 .split(['<', '>'])
             {
                 let known = [
-                    "Uuid",
+                    "Id",
                     "DateTime",
                     "Iri",
                     "String",
@@ -280,28 +310,104 @@ impl Gen {
             if let Some(to) = self.references.get(&(name.to_owned(), pname.clone())) {
                 write!(doc, ": reference to a `{to}`").unwrap();
             }
-            let (rust, attrs, note) = match (is_required, ty.nullable) {
-                (true, false) if ty.many => (ty.rust, ", default", "Required; a missing list reads as empty (ADR 0005)."),
-                (true, false) => (ty.rust, "", "Required."),
-                (true, true) => (format!("Option<{}>", ty.rust), ", default", "Required, nullable: `None` is written as `null`."),
-                (false, false) => (
+            // Everything is checked strictly against `required`, except that a response record may
+            // omit the Record attributes `alias` and `name` (API 7.1.1), as the MergeCommit example
+            // does (ADR 0005). Both are always written.
+            let lenient = !name.ends_with("Request") && (pname == "alias" || pname == "name");
+            let min = ty.min_items;
+            let mut default = false;
+            let mut skip = false;
+            let (rust, deser, note) = match (is_required, ty.nullable) {
+                (true, false) => {
+                    default = ty.many && lenient;
+                    let note = if default {
+                        "Required; a missing list in a response reads as empty (ADR 0005)."
+                    } else {
+                        "Required."
+                    };
+                    (
+                        ty.rust,
+                        min.map(|n| format!("crate::min_items::<_, _, {n}>")),
+                        note,
+                    )
+                }
+                (true, true) if !lenient => (
                     format!("Option<{}>", ty.rust),
-                    ", default, skip_serializing_if = \"Option::is_none\"",
-                    "Optional: `None` is omitted.",
+                    Some(match min {
+                        Some(n) => format!("crate::min_items_opt::<_, _, {n}>"),
+                        None => "crate::present".to_owned(),
+                    }),
+                    "Required, nullable: must be present; `None` is `null`.",
                 ),
-                (false, true) => (
-                    format!("Option<Option<{}>>", ty.rust),
-                    ", default, skip_serializing_if = \"Option::is_none\", deserialize_with = \"crate::double_option\"",
-                    "Optional, nullable: `None` is absent, `Some(None)` is `null`.",
-                ),
+                (true, true) => {
+                    default = true;
+                    (
+                        format!("Option<{}>", ty.rust),
+                        min.map(|n| format!("crate::min_items_opt::<_, _, {n}>")),
+                        "Required, nullable: `None` is written as `null`; a missing value in a response reads as `null` (ADR 0005).",
+                    )
+                }
+                (false, false) => {
+                    (default, skip) = (true, true);
+                    (
+                        format!("Option<{}>", ty.rust),
+                        min.map(|n| format!("crate::min_items_opt::<_, _, {n}>")),
+                        "Optional: `None` is omitted.",
+                    )
+                }
+                (false, true) => {
+                    (default, skip) = (true, true);
+                    (
+                        format!("Option<Option<{}>>", ty.rust),
+                        {
+                            assert!(min.is_none(), "{name}.{pname}: minItems on an optional nullable list is not supported");
+                            Some("crate::double_option".to_owned())
+                        },
+                        "Optional, nullable: `None` is absent, `Some(None)` is `null`.",
+                    )
+                }
             };
-            writeln!(fields, "    /// {doc}. {note}\n    #[serde(rename = \"{pname}\"{attrs})]\n    pub {}: {rust},", raw(&field)).unwrap();
+            let mut attrs = format!("rename = \"{pname}\"");
+            if default {
+                attrs.push_str(", default");
+            }
+            if skip {
+                attrs.push_str(", skip_serializing_if = \"Option::is_none\"");
+            }
+            if let Some(f) = deser {
+                write!(attrs, ", deserialize_with = \"{f}\"").unwrap();
+            }
+            let min_note = min
+                .map(|n| format!(" At least {n} items."))
+                .unwrap_or_default();
+            writeln!(
+                fields,
+                "    /// {doc}. {note}{min_note}\n    #[serde({attrs})]\n    pub {}: {rust},",
+                raw(&field)
+            )
+            .unwrap();
         }
         if open {
-            fields.push_str(
-                "    /// Properties not named by the schema (`additionalProperties: true`).\n",
+            // The flattened map must not repeat a named property, or the JSON would have the key twice.
+            let helper = format!(
+                "serialize_{}_additional",
+                snake(name).trim_start_matches('_')
             );
-            fields.push_str("    #[serde(flatten)]\n    pub additional: Map<String, Value>,\n");
+            let reserved = props
+                .keys()
+                .map(|k| format!("\"{k}\""))
+                .collect::<Vec<_>>()
+                .join(", ");
+            fields.push_str(
+                "    /// Properties not named by the schema (`additionalProperties: true`). Must not\n",
+            );
+            fields.push_str("    /// repeat a named property; serialization fails if it does.\n");
+            writeln!(fields, "    #[serde(flatten, serialize_with = \"{helper}\")]\n    pub additional: Map<String, Value>,").unwrap();
+            writeln!(
+                self.out,
+                "fn {helper}<S: serde::Serializer>(m: &Map<String, Value>, s: S) -> Result<S::Ok, S::Error> {{\n    crate::without_reserved(m, &[{reserved}], s)\n}}\n"
+            )
+            .unwrap();
         }
 
         writeln!(self.out, "/// {doc}").unwrap();
@@ -324,9 +430,12 @@ impl Gen {
                 (base(&target).to_owned(), target)
             })
             .collect();
-        // Elements are matched last: they accept any metaclass and open-ended properties.
+        // Elements come last: any `@type` that is not another member is read as a metaclass.
         variants.sort_by_key(|(v, _)| v == "Element");
         let b = base(name);
+        let has_element = variants.iter().any(|(v, _)| v == "Element");
+        let tagged: Vec<&(String, String)> =
+            variants.iter().filter(|(v, _)| v != "Element").collect();
         writeln!(
             self.out,
             "/// {} ({}). Members are told apart by `@type`.",
@@ -338,11 +447,49 @@ impl Gen {
             clause(b)
         )
         .unwrap();
-        writeln!(self.out, "#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]\n#[serde(untagged)]\npub enum {name} {{").unwrap();
+        // Serialization writes the member as is. Deserialization reads `@type` first and hands the
+        // value to that member, so errors name the member and the offending property.
+        writeln!(
+            self.out,
+            "#[derive(Clone, Debug, PartialEq, Serialize)]\n#[serde(untagged)]\npub enum {name} {{"
+        )
+        .unwrap();
         for (v, target) in &variants {
             writeln!(self.out, "    /// `{target}`\n    {v}({target}),").unwrap();
         }
         self.out.push_str("}\n\n");
+
+        writeln!(
+            self.out,
+            "impl<'de> Deserialize<'de> for {name} {{\n    fn deserialize<D: Deserializer<'de>>(d: D) -> Result<Self, D::Error> {{\n        let v = Value::deserialize(d)?;\n        let tag = crate::type_of::<D::Error>(&v, \"{name}\")?;\n        match tag.as_str() {{"
+        )
+        .unwrap();
+        for (v, _) in &tagged {
+            writeln!(
+                self.out,
+                "            \"{v}\" => crate::member(v, \"{v}\").map({name}::{v}),"
+            )
+            .unwrap();
+        }
+        let expected = tagged
+            .iter()
+            .map(|(v, _)| v.as_str())
+            .collect::<Vec<_>>()
+            .join(", ");
+        if has_element {
+            writeln!(
+                self.out,
+                "            _ => crate::member(v, \"Element\").map({name}::Element),"
+            )
+            .unwrap();
+        } else {
+            writeln!(
+                self.out,
+                "            other => Err(serde::de::Error::custom(format!(\"`@type` {{other}} is not a member of {name} (expected one of: {expected})\"))),"
+            )
+            .unwrap();
+        }
+        self.out.push_str("        }\n    }\n}\n\n");
     }
 
     fn finish(&mut self, api: &[&str]) {
