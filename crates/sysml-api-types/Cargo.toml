@@ -20,3 +20,10 @@ sysml-model.workspace = true
 
 [build-dependencies]
 serde_json.workspace = true
+
+[dev-dependencies]
+sysml-corpus.workspace = true
+
+[target.'cfg(target_arch = "wasm32")'.dev-dependencies]
+# Runs the tests as WebAssembly under Node (step 1a.1).
+wasm-bindgen-test.workspace = true

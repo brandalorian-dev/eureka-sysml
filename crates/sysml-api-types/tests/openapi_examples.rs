@@ -7,21 +7,19 @@
 use serde::{de::DeserializeOwned, Serialize};
 use serde_json::Value;
 use std::collections::BTreeSet;
-use std::path::PathBuf;
 use std::sync::OnceLock;
 use sysml_api_types::*;
 use sysml_model::Metaclass;
+#[cfg(target_arch = "wasm32")]
+use wasm_bindgen_test::wasm_bindgen_test as test;
 
 fn openapi() -> &'static Value {
     static DOC: OnceLock<Value> = OnceLock::new();
     DOC.get_or_init(|| {
-        let specs = std::env::var_os("EUREKA_SPECS_DIR")
-            .map(PathBuf::from)
-            .unwrap_or_else(|| PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../docs/specs"));
-        let path = specs.join("api/omg/normative/OpenAPI.json");
-        let text = std::fs::read_to_string(&path)
-            .unwrap_or_else(|e| panic!("cannot read {}: {e}", path.display()));
-        serde_json::from_str(&text).expect("OpenAPI.json is not valid JSON")
+        // Through sysml-corpus, so that it also works on wasm32, which has no file system.
+        let bytes = sysml_corpus::read_spec("api/omg/normative/OpenAPI.json")
+            .unwrap_or_else(|e| panic!("{e}"));
+        serde_json::from_slice(&bytes).expect("OpenAPI.json is not valid JSON")
     })
 }
 

@@ -71,6 +71,65 @@ jobs:
       - name: wasm build
         run: cargo build --workspace --target wasm32-unknown-unknown
 
+  # Runs every test as WebAssembly under Node and checks that the same tests pass as natively,
+  # then builds the sysml-wasm package and calls it from JavaScript (step 1a.1, ADR 0010).
+  wasm:
+    name: Rust (wasm tests)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.12"
+
+      - name: Cache spec files
+        uses: actions/cache@v6
+        with:
+          path: docs/specs
+          key: specs-${{ hashFiles('specs.lock.json') }}
+
+      - name: Fetch and verify specs
+        run: python scripts/fetch_specs.py fetch
+
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: wasm32-unknown-unknown
+
+      # The test runner must be the exact version of the wasm-bindgen crate in Cargo.lock.
+      - name: Read the wasm-bindgen version from Cargo.lock
+        id: wasm-bindgen
+        run: |
+          v=$(python -c "import tomllib; print(next(p['version'] for p in tomllib.load(open('Cargo.lock', 'rb'))['package'] if p['name'] == 'wasm-bindgen'))")
+          echo "wasm-bindgen $v"
+          echo "version=$v" >> "$GITHUB_OUTPUT"
+
+      - uses: taiki-e/install-action@v2
+        with:
+          tool: wasm-bindgen@${{ steps.wasm-bindgen.outputs.version }},wasm-pack@0.15.1
+
+      - uses: Swatinem/rust-cache@v2
+        with:
+          key: wasm
+
+      - name: tests, native (for the parity check)
+        run: cargo test --workspace --locked --no-fail-fast 2>&1 | tee native.log
+
+      - name: tests, WebAssembly under Node
+        env:
+          CARGO_TARGET_WASM32_UNKNOWN_UNKNOWN_RUNNER: wasm-bindgen-test-runner
+        run: cargo test --workspace --locked --target wasm32-unknown-unknown --no-fail-fast 2>&1 | tee wasm.log
+
+      # wasm-bindgen-test-runner silently skips plain #[test] functions ("no tests to run!").
+      - name: the same tests pass natively and on WASM
+        run: python scripts/check_wasm_parity.py native.log wasm.log
+
+      - name: wasm-pack build of sysml-wasm
+        run: wasm-pack build crates/sysml-wasm --target web --out-dir ../../target/wasm-pkg/sysml-wasm
+
+      - name: smoke-test the package from JavaScript
+        run: node scripts/smoke_wasm_pkg.mjs
+
   # Builds and tests with exactly the minimum Rust version that Cargo.toml declares, so a
   # dependency update that needs a newer compiler fails here instead of going unnoticed.
   msrv:

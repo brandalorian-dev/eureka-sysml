@@ -5,6 +5,8 @@
 
 use std::collections::{BTreeMap, BTreeSet};
 use sysml_synth::{generate, Config, Stats};
+#[cfg(target_arch = "wasm32")]
+use wasm_bindgen_test::wasm_bindgen_test as test;
 
 fn tiny() -> Config {
     Config {

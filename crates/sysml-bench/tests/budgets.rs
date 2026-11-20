@@ -3,14 +3,16 @@
 //! harness cannot drift apart.
 
 use sysml_bench::{Phase, BUDGETS};
+#[cfg(target_arch = "wasm32")]
+use wasm_bindgen_test::wasm_bindgen_test as test;
 
 /// The rows of the §7 table: (operation, budget).
 fn plan_rows() -> Vec<(String, String)> {
-    let plan = std::fs::read_to_string(concat!(
+    // A repository file, compiled in so that the test also runs on wasm32 (no file system).
+    let plan = include_str!(concat!(
         env!("CARGO_MANIFEST_DIR"),
         "/../../docs/proj-mgmt/PROJECT_PLAN.md"
-    ))
-    .unwrap();
+    ));
     let section = plan
         .split("\n## ")
         .find(|s| s.starts_with("7. Performance budgets"))

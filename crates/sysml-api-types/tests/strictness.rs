@@ -5,6 +5,8 @@
 use serde_json::{json, Value};
 use sysml_api_types::*;
 use sysml_model::Metaclass;
+#[cfg(target_arch = "wasm32")]
+use wasm_bindgen_test::wasm_bindgen_test as test;
 
 const ID: &str = "3fa85f64-5717-4562-b3fc-2c963f66afa6";
 

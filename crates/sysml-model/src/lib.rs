@@ -49,6 +49,8 @@ pub const METAMODEL_IRI: &str = "https://www.omg.org/spec/SysML/20250201";
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[cfg(target_arch = "wasm32")]
+    use wasm_bindgen_test::wasm_bindgen_test as test;
 
     #[test]
     fn counts_match_schema() {
