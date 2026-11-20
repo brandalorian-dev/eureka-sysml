@@ -54,6 +54,13 @@ fn unexpected_tokens_are_wrapped_in_an_error_node_and_reported_once() {
 }
 
 #[test]
+fn a_leading_byte_order_mark_parses_cleanly() {
+    let p = parse(Language::SysML, "\u{feff}// note\n");
+    assert!(p.diagnostics().is_empty(), "{:?}", p.diagnostics());
+    assert_eq!(p.syntax().text().to_string(), "\u{feff}// note\n");
+}
+
+#[test]
 fn lexical_diagnostics_are_reported_by_the_parser() {
     let p = parse(Language::KerML, "/* open");
     assert_eq!(p.syntax().text().to_string(), "/* open");

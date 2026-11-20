@@ -129,13 +129,34 @@ fn unterminated_comments_are_errors() {
         codes(Language::KerML, "/* open"),
         ["syntax::unterminated-comment"]
     );
+}
+
+#[test]
+fn a_note_opener_without_a_terminator_is_a_single_line_note() {
+    // KerML 8.2.2.2: with no `*/` ahead, MULTILINE_NOTE cannot match, and `//` LINE_TEXT does.
+    let text = "//******** Section ********\npackage P;\n";
     assert_eq!(
-        tokens(Language::KerML, "//* open"),
-        vec![(K::ErrorToken, "//* open")]
+        tokens(Language::KerML, text)[0],
+        (K::SingleLineNote, "//******** Section ********")
+    );
+    assert!(codes(Language::KerML, text).is_empty());
+    assert_eq!(
+        significant(Language::KerML, text).first(),
+        Some(&(K::PackageKw, "package"))
     );
     assert_eq!(
-        codes(Language::KerML, "//* open"),
-        ["syntax::unterminated-note"]
+        tokens(Language::KerML, "//* open"),
+        vec![(K::SingleLineNote, "//* open")]
+    );
+}
+
+#[test]
+fn a_note_opener_with_a_later_terminator_is_a_multiline_note() {
+    // KerML 8.2.2.7: the longest token wins, so a later `*/` ends a multiline note even past code.
+    let text = "//** banner\npackage P;\n/* doc */";
+    assert_eq!(
+        tokens(Language::KerML, text)[0],
+        (K::MultilineNote, "//** banner\npackage P;\n/* doc */")
     );
 }
 
@@ -623,7 +644,7 @@ fn characters_outside_the_lexical_structure_are_errors() {
         ("a é b", "é"),
         ("x ! y", "!"),
         ("`", "`"),
-        ("\u{feff}package", "\u{feff}"),
+        ("a\u{feff}b", "\u{feff}"),
     ] {
         let t = tokens(Language::KerML, text);
         assert!(t.contains(&(K::ErrorToken, bad)), "{text:?}: {t:?}");
@@ -633,6 +654,20 @@ fn characters_outside_the_lexical_structure_are_errors() {
             "{text:?}"
         );
     }
+}
+
+// ---- a leading byte-order mark (ADR 0013) ----
+
+#[test]
+fn a_leading_byte_order_mark_is_trivia() {
+    let text = "\u{feff}package P;";
+    assert_eq!(
+        tokens(Language::KerML, text)[0],
+        (K::ByteOrderMark, "\u{feff}")
+    );
+    assert!(K::ByteOrderMark.is_trivia());
+    assert!(codes(Language::KerML, text).is_empty());
+    // Anywhere else it is an unexpected character (characters_outside_the_lexical_structure_are_errors).
 }
 
 // ---- robustness ----

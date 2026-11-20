@@ -59,6 +59,8 @@ syntax_kinds! {
     tokens {
         /// White space and line terminators (KerML 8.2.2.1). Trivia.
         Whitespace,
+        /// A byte-order mark (U+FEFF) at the very start of the text (ADR 0013). Trivia.
+        ByteOrderMark,
         /// `// …` (KerML 8.2.2.2). Trivia.
         SingleLineNote,
         /// `//* … */` (KerML 8.2.2.2). Trivia.
@@ -312,8 +314,33 @@ impl SyntaxKind {
     pub const fn is_trivia(self) -> bool {
         matches!(
             self,
-            SyntaxKind::Whitespace | SyntaxKind::SingleLineNote | SyntaxKind::MultilineNote
+            SyntaxKind::Whitespace
+                | SyntaxKind::ByteOrderMark
+                | SyntaxKind::SingleLineNote
+                | SyntaxKind::MultilineNote
         )
+    }
+
+    /// How the kind is named in a message: `` `;` `` for a fixed text, otherwise in words, for
+    /// example "a name".
+    pub fn description(self) -> String {
+        if let Some(text) = self.text() {
+            return format!("`{text}`");
+        }
+        match self {
+            SyntaxKind::BasicName | SyntaxKind::UnrestrictedName => "a name",
+            SyntaxKind::DecimalValue | SyntaxKind::ExponentialValue => "a number",
+            SyntaxKind::StringValue => "a string",
+            SyntaxKind::RegularComment => "a comment",
+            SyntaxKind::Whitespace => "white space",
+            SyntaxKind::ByteOrderMark => "a byte-order mark",
+            SyntaxKind::SingleLineNote | SyntaxKind::MultilineNote => "a note",
+            SyntaxKind::ErrorToken => "an invalid token",
+            SyntaxKind::Eof => "the end of the input",
+            SyntaxKind::RootNamespace => "a root namespace",
+            _ => "an element",
+        }
+        .to_owned()
     }
 
     pub(crate) fn from_raw(raw: u16) -> SyntaxKind {

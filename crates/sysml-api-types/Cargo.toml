@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: Apache-2.0
 [package]
 name = "sysml-api-types"
 description = "Systems Modeling API and Services record types, generated at build time from the normative Schema.json"
