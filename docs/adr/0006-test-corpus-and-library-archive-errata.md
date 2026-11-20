@@ -9,11 +9,15 @@ PROJECT_PLAN §8 makes a conformance corpus the acceptance gate. The `sysml-corp
 
 ## Decision
 
-**What is in the corpus.** Every `.kpar` and every `.kerml`/`.sysml` file listed in `specs.lock.json`. The lock file is the single list; a test fails if a listed model file is missing from the corpus. Annex A of the API specification (API test cases, not models) belongs to the API conformance suite (Phase 2). Textual notation snippets from the specification text are a later addition, because the extracted text does not reliably separate code from prose.
+**What is in the corpus.** Every `.kpar` and every `.kerml`/`.sysml` file listed in `specs.lock.json`. The lock file is the single list. The completeness test classifies lock entries independently of the loader: documents, metamodel and schema files, and API pilot material are not models, and every other entry must be in the corpus. Annex A of the API specification (API test cases, not models) belongs to the API conformance suite (Phase 2). Textual notation snippets from the specification text are a later addition, because the extracted text does not reliably separate code from prose.
+
+**Integrity.** Every corpus file is checked against its SHA-256 in `specs.lock.json` when it is loaded, so a modified archive or model fails with a clear error. `EUREKA_SPECS_DIR` must therefore hold the files that the repository's lock pins. A lock entry without a `path`, a library without a `url` (its usage IRI) and a file without a `sha256` are errors.
 
 **Project root.** KerML 10.3 places `.project.json` and `.meta.json` "at its top level", and Table 13 note 2 makes paths relative to the archive root. Every OMG archive instead wraps the project in a single folder (for example `Kernel Semantic Library/.meta.json`), with index paths relative to that folder. When every entry is inside one top-level folder, that folder is the project root.
 
-**Operating-system metadata.** Archive entries named `.DS_Store`, `Thumbs.db` or `desktop.ini`, and anything under `__MACOSX/`, are ignored and listed in `Library::ignored`. The Systems Library contains two such entries. Any other entry that is neither project metadata nor a `.kerml`/`.sysml` file is an error.
+**Operating-system metadata.** Archive entries named `.DS_Store`, `Thumbs.db` or `desktop.ini`, and anything under `__MACOSX/`, are ignored and listed in `Library::ignored`. The Systems Library contains two such entries. JSON (`.json`) and XMI (`.xmi`) model interchange files are allowed by KerML 10.2. They are recorded in `Library::interchange_files` but not loaded as sources; the OMG archives contain none. Any other entry is an error. An entry larger than 16 MiB is an error too, so a malformed or hostile archive cannot exhaust memory; the largest library file is about 150 KB.
+
+**Checksums.** `.meta.json` checksums are verified when present. KerML 10.3 Table 13 describes a list of checksum objects per file, while the normative `KerML-Model-Interchange.json` defines a single object; both forms are read. Only `SHA256` is supported, and any other algorithm is an error rather than being skipped. The OMG archives have no checksums.
 
 **Errata.** These defects are corrected by the `ERRATA` table in `sysml-corpus`:
 
@@ -24,7 +28,7 @@ PROJECT_PLAN §8 makes a conformance corpus the acceptance gate. The `sysml-corp
 | SysML Analysis Library | Usage `…/KerML/20250201/Quantities-and-Units-Library.kpar` | `…/SysML/20250201/Quantities-and-Units-Domain-Library.kpar` |
 | SysML Geometry Library | Usage `…/SysML/20250201/Quantities-and-Units-Library.kpar` | `…/SysML/20250201/Quantities-and-Units-Domain-Library.kpar` |
 
-A library's usage IRI is its pinned download URL in `specs.lock.json`. Every other usage matches one exactly.
+A library's usage IRI is its pinned download URL in `specs.lock.json`. Every other usage matches one exactly. A usage correction applies only to the library it is recorded for, so the same broken IRI in another library is reported, not corrected.
 
 The tests assert that the set of defects found equals the errata table. When OMG publishes corrected archives, the test fails and the entry is removed.
 
