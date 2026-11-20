@@ -30,6 +30,8 @@ Every phase of the engine reports problems: the lexer and parser (step 1a.2), na
 - Option 2 means each of the three consumers converts from each phase's type: one conversion per phase per consumer, and codes and severities that drift apart.
 - The crates of option 3 are built for presenting diagnostics in a terminal. Using one as the engine's model would tie the core library, which also runs in the browser, to one presentation. The CLI can still use such a crate to render the common type (step 1b.7).
 
+How strong this is: the first two points are measured, in the spike. The case against options 2 and 3 is reasoning about their structure; neither was prototyped.
+
 ## Decision
 
 Adopt option 1. One `Diagnostic` type, in `sysml-syntax`, used by every phase:
@@ -45,6 +47,15 @@ Adopt option 1. One `Diagnostic` type, in `sysml-syntax`, used by every phase:
 - **`related`:** optionally, further locations with a message each.
 
 The type derives `Clone, PartialEq, Eq, Hash, Debug`. Line and column numbers are computed only at a boundary: the language server converts to UTF-16 columns, and the CLI to whatever its renderer needs. The model depends on no presentation crate.
+
+## Open points
+
+Not settled by this decision. Each is decided deliberately in the step named, with its own evidence, under the execution plan's §2.5 methodology:
+
+1. **File identity.** "The file it belongs to" needs a concrete type, most likely a `salsa` input identifying the source file. It is decided with D2 (`salsa` and the query graph) in step 1a.7. Until then, a diagnostic's range is relative to the text the parser was given.
+2. **Crossing into JavaScript.** The browser worker (Phase 3) and `sysml-wasm` need diagnostics as JavaScript values, for example through `serde` and `serde-wasm-bindgen`. This was not tested in the spike. Deciding it is due no later than the first `sysml-wasm` call that returns diagnostics.
+3. **Language Server Protocol fields the model lacks:** diagnostic tags (`Unnecessary`, `Deprecated`), a link to documentation for a code (`codeDescription`), and opaque `data` for quick fixes (code actions). Phase 1a needs none of them. They are decided in step 1b.8, where the language server is built; quick fixes may need the `data` field.
+4. **Severity policy.** Which violations are errors and which are warnings. The default is that every `validate…` violation is an error, because "the semantics of a model are only defined if it meets all semantic and validation constraints" (KerML 8.4.2). Warnings are for findings that are not spec violations, for example deprecated library elements. The policy is confirmed in step 1a.10, when the validation constraints are implemented.
 
 ## Consequences
 
