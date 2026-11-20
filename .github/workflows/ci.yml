@@ -115,6 +115,34 @@ jobs:
           RUSTUP_TOOLCHAIN: ${{ steps.msrv.outputs.version }}
         run: cargo build --workspace --locked --target wasm32-unknown-unknown
 
+  # CycloneDX SBOMs of the shipped crates for each shipped target (PROJECT_PLAN §4.8, ADR 0008),
+  # checked against Cargo metadata and Cargo.lock, and kept as a build artifact. Releases will
+  # attach and sign them.
+  sbom:
+    name: SBOM (CycloneDX)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.12"
+
+      - uses: dtolnay/rust-toolchain@stable
+
+      - uses: taiki-e/install-action@v2
+        with:
+          tool: cargo-cyclonedx@0.5.10
+
+      - name: Generate and check SBOMs
+        run: python scripts/sbom.py --out sbom
+
+      - uses: actions/upload-artifact@v7
+        with:
+          name: sbom-${{ github.sha }}
+          path: sbom/*.cdx.json
+          if-no-files-found: error
+
   licenses-and-advisories:
     name: cargo-deny (licenses, advisories, sources)
     runs-on: ubuntu-latest

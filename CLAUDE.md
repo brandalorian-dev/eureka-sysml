@@ -57,6 +57,7 @@ cargo test --workspace
 cargo build --workspace --target wasm32-unknown-unknown
 cargo test --workspace --bench '*'                   # run each benchmark once (as CI does)
 cargo bench -p sysml-bench                           # measure the benchmarks
+python scripts/sbom.py                               # CycloneDX SBOMs into target/sbom (needs cargo-cyclonedx)
 cargo deny check                                     # licenses, advisories, sources (as in CI)
 ```
 
