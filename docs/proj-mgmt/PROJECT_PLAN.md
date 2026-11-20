@@ -1,6 +1,6 @@
 # Eureka SysML — Project Plan
 
-Status: Draft v0.6 · 2026-11-19 · Project name: **Eureka SysML** (`eureka-sysml`)
+Status: Draft v0.7 · 2026-11-20 · Project name: **Eureka SysML** (`eureka-sysml`)
 
 Change history:
 - v0.1: initial plan
@@ -9,6 +9,7 @@ Change history:
 - v0.4: aligned with the Systems Modeling API & Services (OpenAPI and pilot implementation)
 - v0.5: aligned with the formal OMG Systems Modeling API & Services v1.0 (PIM, PSMs, versioning rules, conformance suite)
 - v0.6: owner decisions applied: a solo developer with Claude Code, free and open-source software, all diagram views and document generation in 1.0, ITAR/FedRAMP-ready self-hosting, staged releases
+- v0.7: review after the Phase 0 work (PRs #1–#5). Facts corrected against the normative files, Phase 0 status recorded, its remaining items moved to the phases that need them, and the lessons on spec-artifact defects and code review added to the risks.
 
 ## 1. Goal
 
@@ -40,7 +41,7 @@ Build a web application that lets **multiple concurrent users** create, edit, vi
   - **Root:** elements, relationships, dependencies, annotations, namespaces, imports.
   - **Core:** types, classifiers, features, specialization, subsetting, redefinition, conjugation. Semantics are defined mathematically.
   - **Kernel:** data types, classes, structures, associations, connectors, behaviors, functions, expressions, interactions, feature values, multiplicities, metadata, packages.
-- **One combined metamodel.** `KerML.json` defines 85 metaclasses. All 85 also appear in `SysML.json`, which adds 98 SysML metaclasses for 183 in total. Generating code from `SysML.json` therefore covers both languages.
+- **One combined metamodel.** `KerML.json` defines 82 metaclasses and 2 enumerations. All 82 also appear in `SysML.json`, which adds 93 SysML metaclasses for 175 in total, plus 7 enumerations. (With the `Identified` reference type, the two schemas have 85 and 183 definitions.) Generating code from `SysML.json` therefore covers both languages; `sysml-model` does this (§4.2).
 - **Semantics come from a library written in KerML itself.** Kernel constructs get their meaning by specializing elements of the Kernel Semantic Library. For example, a `DataType` must specialize `Base::DataValue`. The three KerML libraries are textual `.kerml` models (36 files):
   - Semantic Library: 16 files
   - Data Type Library: 3 files
@@ -58,9 +59,10 @@ Build a web application that lets **multiple concurrent users** create, edit, vi
 - **Interchange (KerML Clause 10):**
   - Each file holds one root namespace, as text (`.kerml` / `.sysml`), JSON or XMI.
   - JSON (10.4) serializes each element as `@id` and `@type` plus all owned and inherited properties. References are written as `{"@id": …}`.
-  - A `.kpar` archive is a ZIP holding the model files plus `.project.json` and `.meta.json`. Their schemas are in `KerML-Model-Interchange.json`. Project usages carry semver version constraints.
+  - A `.kpar` archive is a ZIP holding the model files plus `.project.json` and `.meta.json`. Their schemas are in `KerML-Model-Interchange.json`. Project usages carry version constraints; in the standard libraries these are all bare versions such as `1.0.0`.
+  - **The OMG library archives do not follow 10.3 exactly.** Each wraps its project in one folder, two index entries name files that do not exist, two usages name a library IRI that does not exist, and one archive contains macOS metadata. The test corpus corrects these with an errata table that fails when OMG fixes them (ADR 0006).
 - **Element identity.** Library elements have **deterministic v5 UUIDs**, derived from the library package URL and each element's `path()`.
-- **Execution.** Annex A (informative) describes a procedure for incrementally instantiating structures and behaviors. It is the basis for later simulation work.
+- **Execution.** KerML Annex A (informative) describes a procedure for incrementally instantiating structures and behaviors. It is the basis for later simulation work.
 
 ### 2.2 SysML v2 essentials that shape the design
 
@@ -110,7 +112,7 @@ The machine-readable files take precedence over the document. The pilot implemen
 - **Derived properties:**
   - **Passthrough:** store whatever derived values the client sends.
   - **Full:** the provider always returns correctly computed, up-to-date derived properties and can query on them. This also covers elements affected by commits that never touched them.
-- Annex A has a **conformance test suite** of about 37 test cases, written in OCL:
+- API Annex A has a **conformance test suite** of about 37 test cases, written in OCL:
   - 4 for ProjectService
   - 5 for ElementNavigationService
   - 15 for ProjectDataVersioningService
@@ -131,7 +133,7 @@ The machine-readable files take precedence over the document. The pilot implemen
   - Branches are mutable and can be deleted. A project always has one default branch.
   - Tags are immutable and can be deleted.
 - **Timestamps** are ISO 8601 with an explicit UTC offset (UTC recommended). They must be **strictly increasing** along every commit's parent chain, with fine enough resolution for the commit rate.
-- **Data** is one of Element, ExternalData (an IRI), ExternalRelationship (element ↔ external data, with an optional `specification`/`language` mapping) or ProjectUsage (`usedProject` plus `usedProjectCommit`).
+- **Data** is one of Element, ExternalData (an IRI), ExternalRelationship (element ↔ external data, with an optional `specification`/`language` mapping) or ProjectUsage (`usedProject` plus `usedCommit`).
 - **The Project is the permission target.** Access control is left to the provider.
 
 **Queries.** A `select` list, a `where` tree (primitive constraints `=`, `<`, `<=`, `>`, `>=`, `in`, `instanceOf` with `inverse`; composite constraints `and`/`or`), and in the PIM also `scope` and `orderBy`. **The normative REST `Query` schema leaves out `scope` and `orderBy`**, so we offer them as extensions. Queries run at a given commit, or at the default branch's head if none is given.
@@ -142,7 +144,9 @@ The machine-readable files take precedence over the document. The pilot implemen
 
 **Still not covered by the spec**, so these are our extensions: authentication and authorization mechanics, locks, drafts, live notifications and presence, layouts, comments.
 
-**Version skew:** API records are `20230201`, the metamodel `20250201` and KerML interchange `20240201`. `Schema.json` references both the API (`20230201`) and SysML (`20250201`) IRIs.
+**Version skew:** API records are `20230201`, the metamodel `20250201` and KerML interchange `20240201`. `Schema.json` mixes them: the API records are `SystemsModelingAPI/20230201`, `Identified` is defined as `SysML/20250201` but referenced as `SysML/20230201`, and `Data` refers to a `SysML/20230201/Element` that `Schema.json` does not define.
+
+**Defects in the normative API files** (handled in `sysml-api-types`, ADR 0005): `Schema.json` annotates `Commit.owningProject` as a Branch where the PIM says Project, and gives `PrimitiveConstraintRequest` the `$id` of `PrimitiveConstraint`. In `OpenAPI.json`, the `MergeCommit` example omits required properties and the `Commits` example links to the wrong place.
 
 ### 2.4 Reference product: Cameo Systems Modeler and Teamwork Cloud
 
@@ -215,9 +219,19 @@ The options were compared in detail during planning:
 | `sysml-views` | View and filter evaluation, and producing diagram, tree and grid view models for the UI | native + wasm |
 | `sysml-store` | PostgreSQL persistence: commits, element versions, snapshots, locks | native |
 | `sysml-server` | HTTP and WebSocket API (axum). It provides the standard SysML v2 API & Services endpoints (§4.4), our own extensions under `/x/…`, authentication and permissions, sessions and presence | native |
-| `sysml-api-types` | API record types (Project, Branch, Tag, Commit, DataIdentity, DataVersion, ProjectUsage, External*, Query/Constraint, DataDifference, Error) generated from the **normative** `docs/specs/api/omg/normative/Schema.json`, plus a typed TypeScript client generated from `OpenAPI.json` | native + TS |
+| `sysml-api-types` | API record types (Project, Branch, Tag, Commit, DataIdentity, DataVersion, ProjectUsage, External*, Query/Constraint, DataDifference, Error) generated from the **normative** `docs/specs/api/omg/normative/Schema.json`, plus a typed TypeScript client generated from `OpenAPI.json` (Phase 3) | native + wasm, TS |
 | `sysml-versioning` | The PIM 7.1.2 rules as pure, storage-independent logic: computing `versionedData`, checking create/update/delete validity, delete cascades, three-way diff, merge conflict detection and resolution, monotonic timestamps. Fully covered by property-based tests. | native + wasm |
 | `sysml-wasm` | The `wasm-bindgen` interface the UI calls, with small, coarse-grained calls | wasm |
+
+**Test infrastructure** (`publish = false`, never shipped, and not in the SBOM):
+
+| Crate | Responsibility |
+|---|---|
+| `sysml-corpus` | The conformance corpus (§8): the 10 standard libraries from their `.kpar` archives and the example models, checked against `specs.lock.json` and the KerML 10.3 archive rules (ADR 0006) |
+| `sysml-synth` | Deterministic synthetic SysML models of any size, valid by construction, for benchmarks and scale tests (ADR 0007) |
+| `sysml-bench` | The §7 budgets as data, kept equal to this plan by a test, and the `divan` benchmarks (ADR 0007) |
+
+**Status at the end of Phase 0.** Built: `sysml-model` (the metaclass and enumeration types and property descriptors; the arena element graph comes in Phase 1a), `sysml-api-types` (the Rust records; the TypeScript client comes in Phase 3), and the three test-infrastructure crates. The other crates start in the phases listed in §6.
 
 ### 4.3 Editing model: element storage with text as a view
 
@@ -240,7 +254,7 @@ The options were compared in detail during planning:
 
 ### 4.4 Concurrency and collaboration
 
-**API surface.** The SysML v2 API endpoints are implemented as defined in `openapi-sans-schemas.json`. Our extensions follow the pilot's `/x/` convention, so standard clients never see them.
+**API surface.** The SysML v2 API endpoints (35 operations on 23 paths) are implemented as defined in the normative `OpenAPI.json`; the pilot's `openapi-sans-schemas.json` is informative only. Our extensions follow the pilot's `/x/` convention, so standard clients never see them.
 
 | Area | Standard API (implemented as defined) | Our extensions (`/x/…`) |
 |---|---|---|
@@ -308,7 +322,7 @@ Main indexes: `data_versions(identity_id, commit_id)`, `qualified_name` (trigram
 
 ### 4.7 Web client (TypeScript)
 
-- React shell. Monaco for text projections. Diagrams with Sprotty or React Flow plus ELK.js, chosen in Phase 5. A virtualized data grid for tables and matrices.
+- A web shell whose UI framework is still open (§10, decision 27; needed by Phase 3). Monaco for text projections. Diagrams with Sprotty or React Flow plus ELK.js, chosen in Phase 5 (decision 28). A virtualized data grid for tables and matrices.
 - The WASM core runs in a **web worker**. The UI calls coarse operations ("tree page", "diagram view model", "validate scope") rather than moving model data across element by element.
 - Language features (completion, hover, go-to-definition, rename, diagnostics) call the worker directly in the browser.
 - **The same crates also ship as a standalone language server and CLI** (`eureka-lsp`, `eureka` for parse, validate, format and convert). This costs little, comes early (Release 0.1), and gives the open-source project users before the web application exists.
@@ -330,6 +344,8 @@ Deployment targets regulated, self-hosted environments first, including ITAR-con
   - signed releases and images (Sigstore/cosign)
   - `cargo audit` / `cargo deny` / `pnpm audit` as CI gates
   - reproducible builds where feasible
+
+  **Status:** CI checks licenses, advisories and sources with `cargo deny` on every push, and builds with the declared minimum Rust version. It generates a CycloneDX 1.6 SBOM per shipped crate and target (server and WASM), checks it against `cargo metadata` and `Cargo.lock`, and keeps it as a build artifact. The SBOMs are byte-reproducible across machines and checkout paths (ADR 0008). Still to come: signing (Phase 10), an npm SBOM and `pnpm audit` (Phase 3), and the bundled standard libraries in the release SBOM.
 - **Hardening guide:** a NIST 800-53 control mapping, written as documentation for the operator's authorization package.
 
   FedRAMP authorizes a *service*, not the software. As an open-source product, we provide controls and evidence, and the deploying organization holds the authorization.
@@ -380,39 +396,56 @@ Deployment targets regulated, self-hosted environments first, including ITAR-con
 
 **Estimating basis.** One developer and Claude Code. Claude Code writes most of the code. The developer owns the architecture, specification interpretation, review, test design and integration. Estimates are calendar weeks of full-time work. **They are highly uncertain and will be recalibrated after Phase 1a** using measured throughput. The total scope has grown since v0.5, because all views and document generation are now in 1.0.
 
+**Phase 0 data point.** Phase 0 was estimated at 2–3 weeks. Its delivered part took two days (2026-11-19 to 2026-11-20), with the items listed under Phase 0 moved to later phases. Foundations are mostly tooling, which Claude Code produces quickly, so this says little about the language core. The recalibration after Phase 1a stands.
+
 The work is delivered as **staged open-source releases**, so each one is useful on its own. This builds a user and contributor base and reduces risk on a long solo project.
 
 | Release | Contents | Cumulative (calendar) |
 |---|---|---|
 | **0.1 "Language"** | Phases 0, 1a and 1b: KerML/SysML parser, semantics and validation, standard libraries, **CLI and language server** (VS Code extension), `.kpar`/JSON conversion | ~5–7 months |
-| **0.2 "Repository"** | Phase 2: a SysML v2 API & Services server conformant with Annex A (except merge), on PostgreSQL. Usable headless by other tools. | ~7–9.5 months |
+| **0.2 "Repository"** | Phase 2: a SysML v2 API & Services server conformant with API Annex A (except merge), on PostgreSQL. Usable headless by other tools. | ~7–9.5 months |
 | **0.3 "Editor"** | Phases 3 and 4: web text editor, browser tree and specification panel, collaboration and merge, full API conformance | ~10.5–14 months |
 | **0.5 "Diagrams"** | Phases 5 and 6: General and Interconnection Views, requirements and Grid View | ~14.5–19.5 months |
 | **0.8 "Behavior"** | Phases 7 and 8: Action Flow, State Transition, Sequence and Geometry Views | ~17.5–24 months |
 | **1.0** | Phases 9 and 10: document generation, interchange finalized, security hardening, deployment packaging, documentation | **~20–28 months** |
 
-### Phase 0 — Foundations (2–3 wks)
+### Phase 0 — Foundations (estimated 2–3 wks) — done 2026-11-20
+Delivered in PRs #1–#5 (ADRs 0004–0008):
 - GitHub repository `brandalorian-dev/eureka-sysml`: license, `CLAUDE.md` (§12), contribution guide, code of conduct, issue and PR templates
-- A Cargo workspace (`crates/*`) plus a pnpm workspace (`apps/web`, `packages/*`)
+- A Cargo workspace (`crates/*`), with the toolchain pinned in `rust-toolchain.toml` and a declared minimum Rust version (1.89)
 - GitHub Actions CI covering:
-  - Rust tests, clippy and fmt
-  - the `wasm-pack` build
-  - Vitest and Playwright
-  - PostgreSQL integration tests (service container)
-  - `cargo deny` / audit
-  - SBOM generation
-- Code generators: `SysML.json` → Rust metaclass types (and TypeScript types). `Schema.json` / `OpenAPI.json` → API types and client.
+  - Rust tests, clippy (warnings are errors) and fmt
+  - the `wasm32-unknown-unknown` build of every crate
+  - tests with exactly the declared minimum Rust version
+  - `cargo deny` (licenses, advisories, crate sources)
+  - running every benchmark once
+  - SBOM generation: CycloneDX, per shipped crate and target, checked and reproducible (ADR 0008)
+  - repository hygiene: nothing under `docs/specs/` is tracked
+- Code generators: `SysML.json` → Rust metaclass types (`sysml-model`), and `Schema.json` → Rust API records (`sysml-api-types`, ADR 0005). `scripts/check_schema_assumptions.py` stops CI with a readable message if a schema revision changes the layout the generators rely on.
 - **Spec material stays local.** `docs/specs/` is excluded from git entirely (§13). `scripts/fetch_specs.py` downloads every spec file the build and tests need, from pinned upstream URLs with SHA-256 checksums, into `docs/specs/`. CI and contributors run it. The manifest (`specs.lock.json`) lives at the repository root.
-- **Spec text extraction:** split the spec PDFs into per-clause Markdown under `docs/specs/text/` (local only), so Claude Code can cite and load exact clauses
-- Test corpus (KerML/SysML libraries, SimpleVehicleModel, Annex A examples, spec snippets), the synthetic large-model generator, and benchmark harnesses
+- **Spec text extraction:** the spec PDFs are split into per-clause Markdown under `docs/specs/text/` (local only), so Claude Code can cite and load exact clauses
+- Test corpus (`sysml-corpus`, ADR 0006): the 10 standard libraries (94 `.kerml`/`.sysml` files) and SimpleVehicleModel, the example model of SysML Annex A: 95 sources, each checked against its SHA-256 in `specs.lock.json`
+- The synthetic large-model generator (`sysml-synth`) and the benchmark harness (`sysml-bench`), ADR 0007
 
-**Exit:** CI is green, the types are generated, the corpus and benchmark harnesses run, and the spec clauses can be looked up.
+**Moved to the phases that need them** (v0.7, 2026-11-20):
+
+| Item | Moved to | Why |
+|---|---|---|
+| The `wasm-pack` build, and running the test suite (the corpus included) on WASM | Phase 1a | It needs the `sysml-wasm` crate, and Phase 1a's exit already requires the WASM build to pass the same tests. CI already builds every crate for wasm32. |
+| Spec text snippets in the corpus | Phase 1a | The extracted text does not reliably separate code from prose. This needs a font-aware extraction, or the parser to tell them apart. |
+| PostgreSQL integration tests (service container) | Phase 2 | They need `sysml-store`. |
+| The pnpm workspace (`apps/web`, `packages/*`), TypeScript types from `SysML.json`, the TypeScript API client from `OpenAPI.json`, Vitest and Playwright in CI, `pnpm audit`, an npm SBOM | Phase 3 | They depend on the UI framework (decision 27, needed by Phase 3), and before then there is nothing to test. |
+
+**Exit:** met. CI is green, the Rust types are generated, the corpus and the benchmark harness run, and the spec clauses can be looked up. No §7 budget can be measured yet: each needs a component from a later phase.
 
 ### Phase 1a — KerML core in Rust (10–14 wks), the critical path
 - Error-tolerant KerML parser (8.2.2–8.2.5) producing a lossless syntax tree, mapped to the arena-based model
 - Namespaces, imports, aliases, visibility, specialization, subsetting, redefinition, conjugation, feature chains, multiplicities
 - Implied relationships (8.4.3/8.4.4) with the redundancy rules. Validation constraints. Incremental recomputation with salsa.
 - Load the circular KerML libraries, compute v5 UUIDs, and produce the pre-resolved snapshot
+- The `sysml-wasm` crate and the `wasm-pack` build. Run the test suite, the corpus included, on WASM; the corpus harness reads from disk, so WASM tests get the sources passed in or embedded (moved from Phase 0, ADR 0006).
+- Spec text snippets added to the corpus (moved from Phase 0)
+- The first §7 benchmark, `library-load`, with a timing regression gate on a dedicated runner or with instruction counts (ADR 0007)
 
 **Exit:** the KerML libraries resolve with zero errors, the UUIDs follow the scheme, the WASM build passes the same tests, and the estimates are recalibrated.
 
@@ -421,21 +454,24 @@ The work is delivered as **staged open-source releases**, so each one is useful 
 - Serializer/formatter that preserves comments and formatting, with a text → model → text round-trip
 - `.kpar` and JSON (KerML 10.4) import/export
 - `eureka` CLI (validate, format, convert, query) and `eureka-lsp`, plus a VS Code extension
+- Parse and resolve the synthetic models, and confirm or correct the element-count rules of `sysml-synth` against the parser (ADR 0007). Benchmarks for the `re-resolve`, `language-features` and `find-references` budgets.
 
-**Exit:** all libraries, SimpleVehicleModel and Annex A resolve with zero errors, the round-trip is stable, and the 1M-element resolve meets its budget. **Release 0.1.**
+**Exit:** all libraries, SimpleVehicleModel (SysML Annex A) and the spec snippets resolve with zero errors, the round-trip is stable, and the `re-resolve` and `find-references` budgets (§7) are met on the 1M-element synthetic model. **Release 0.1.**
 
 ### Phase 2 — Server and persistence (8–10 wks)
 - PostgreSQL schema with the database rules from PIM 7.1.2, the `sysml-versioning` crate, snapshots
 - REST endpoints for the six PIM services (except merge), with cursor paging, `/meta/datatypes` and `/x/named`
 - Derived properties computed on read. Standard libraries as read-only ProjectUsages.
 - OIDC authentication, role-based access, audit log. A single self-contained server binary.
+- PostgreSQL integration tests in CI with a service container (moved from Phase 0). The `branch-cold-load` benchmark.
 
-**Exit:** the 1M-element import/commit/reload/query test passes, the Annex A suite passes except merge, the OpenAPI contract tests pass, and the Annex B cookbook runs. **Release 0.2.**
+**Exit:** the 1M-element import/commit/reload/query test passes, the API Annex A suite passes except merge, the OpenAPI contract tests pass, and the Annex B cookbook runs. **Release 0.2.**
 
 ### Phase 3 — Web client: text editing and browsing (8–10 wks)
 - Web shell (UI framework still to be decided), WASM worker, working set and name index
 - Text projection editor with ID matching, deltas and drafts on the server. Language features.
 - Browser View tree and specification panel. Guided and expert modes.
+- The pnpm workspace, TypeScript types from `SysML.json`, the TypeScript API client from `OpenAPI.json`, Vitest and Playwright in CI, `pnpm audit` and an npm SBOM (moved from Phase 0). The `keystroke-diagnostics` and `browser-memory` benchmarks.
 
 **Exit:** SimpleVehicleModel can be built entirely in the browser, and per-keystroke feedback stays within budget on a 1M-element model.
 
@@ -443,29 +479,30 @@ The work is delivered as **staged open-source releases**, so each one is useful 
 - WebSocket live updates and presence, incremental working-set updates
 - `mergeIntoBranch` per PIM 7.2.3 plus semantic validation, and the conflict UI
 - Locks, history, commit diff
+- The `commit-delivery` benchmark
 
-**Exit:** the 20-editor simulation loses no data, and the **full Annex A suite** passes. **Release 0.3.**
+**Exit:** the 20-editor simulation loses no data, and the **full API Annex A suite** passes. **Release 0.3.**
 
 ### Phase 5 — Graphical framework, General View and Interconnection View (10–14 wks)
 - Rendering engine (diagram library still to be decided): nodes, textual and graphical compartments, edges, boundary ports, nested views
 - General View and Interconnection View, with editing on the canvas. Every edit produces deltas.
 - Views as model elements. Layouts in the database. ELK auto-layout. SVG/PNG export. Live updates.
 
-**Exit:** the Annex A structure figures render and edit to match the spec, and two users see each other's changes.
+**Exit:** the SysML Annex A structure figures render and edit to match the spec, and two users see each other's changes.
 
 ### Phase 6 — Requirements, traceability, Grid View (5–7 wks)
 - Requirements, satisfy, verify, derivation, allocation
 - Grid View tables and matrices computed on the server, with inline editing
 - Coverage and impact queries
 
-**Exit:** the Annex A requirements and verification examples work end to end, and a matrix over 1M elements renders within budget. **Release 0.5.**
+**Exit:** the SysML Annex A requirements and verification examples work end to end, and a matrix over 1M elements renders within budget. **Release 0.5.**
 
 ### Phase 7 — Behavior views (10–14 wks)
 - **Action Flow View:** actions, parameters, successions, control nodes, flows, swimlanes, send/accept, if/loop, triggers
 - **State Transition View:** states, transitions with trigger/guard/effect, entry/do/exit, parallel regions
 - **Sequence View:** lifelines, messages, events, occurrences
 
-**Exit:** the Annex A action and state examples render and edit to match the spec.
+**Exit:** the SysML Annex A action and state examples render and edit to match the spec.
 
 ### Phase 8 — Geometry View (3–4 wks)
 - Rendering of Geometry Domain Library spatial items and shapes (2D, with basic 3D through WebGL) and coordinate frames
@@ -484,7 +521,9 @@ The work is delivered as **staged open-source releases**, so each one is useful 
 
 **Exit:** an air-gapped install from the offline bundle passes the full test suite. **Release 1.0.**
 
-## 7. Performance budgets (validated by the Phase 0 benchmark harness)
+## 7. Performance budgets (measured by the benchmark harness, ADR 0007)
+
+`sysml-bench` holds this table as data (`BUDGETS`), with the phase from which each budget can be measured, and a test keeps the two identical: change them together. Each budget is measured once its component exists: `library-load` in Phase 1a; `re-resolve`, `language-features` and `find-references` in Phase 1b; `branch-cold-load` in Phase 2; `keystroke-diagnostics` and `browser-memory` in Phase 3; `commit-delivery` in Phase 4. The 1M-element and 50k-element inputs come from `sysml-synth`.
 
 | Operation | Budget |
 |---|---|
@@ -499,16 +538,19 @@ The work is delivered as **staged open-source releases**, so each one is useful 
 
 ## 8. Quality strategy
 
-- **Conformance corpus as the acceptance gate.** The KerML and SysML libraries, Annex A, SimpleVehicleModel and the spec snippets run in CI, on both native and WASM builds.
+- **Conformance corpus as the acceptance gate.** The KerML and SysML libraries, SimpleVehicleModel (the SysML Annex A example model) and the spec snippets run in CI, on both native and WASM builds. Today `sysml-corpus` checks that the corpus is complete and intact and that the archives follow KerML 10.3 (ADR 0006). Parsing and resolving every source, the WASM run and the spec snippets come in Phase 1a.
 - **Implied-relationship golden tests** checked against the KerML 8.4.3/8.4.4 tables, plus **UUID conformance** tests for the library elements.
 - **Round-trip tests:** text → model → text, JSON, `.kpar`, and the database (commit, reload, compare).
 - **API conformance suite:** the about 37 OCL test cases in API spec Annex A, automated against the REST PSM in CI. An OCL postcondition becomes an assertion on the response.
 - **Versioning property tests:** generate random commit graphs and check the `versionedData` algorithm, the delete rules, merge conflict resolution and monotonic timestamps against an executable model of the PIM OCL.
 - **Concurrency tests:** simulated multi-user editing, merges, lock contention and reconnects.
-- **Performance regression gates** in CI using the synthetic models (§7).
+- **Performance regression gates** in CI using the synthetic models (§7). CI already runs every benchmark once, so they keep working. Timing gates start with the first measurable budget, on a dedicated runner or with instruction counts, because timings on shared runners vary too much (ADR 0007).
 - **Visual regression tests** for each standard view. End-to-end browser tests (Playwright).
-- **Security:** dependency audits (`cargo audit` / `cargo deny`, `pnpm audit`), permission tests for every endpoint, an air-gapped install test (no network egress allowed) in CI, and static analysis (CodeQL).
+- **Security:** dependency audits (`cargo deny`, in CI since Phase 0, covers the RustSec advisories that `cargo audit` checks; `pnpm audit` from Phase 3), a checked CycloneDX SBOM (ADR 0008), permission tests for every endpoint, an air-gapped install test (no network egress allowed) in CI, and static analysis (CodeQL).
+- **Toolchain:** CI builds and tests with exactly the declared minimum Rust version, so a dependency update that needs a newer compiler fails at once.
 - **AI-generated code gates:** every change goes through CI plus review (the developer, and `/code-review` in Claude Code). No unreviewed generated code is merged. Spec-derived tests are written before the implementation.
+
+  In Phase 0, `/code-review` found at least one important defect in each of the four PRs it reviewed, all fixed before merging. Examples: a commit change without a payload was read as a delete, a synthetic model missed its size target by 33%, the declared minimum Rust version was too low, and the "reproducible" SBOM contained the checkout path. The tests had passed in every case. Review stays mandatory.
 
 ## 9. Risks
 
@@ -521,7 +563,9 @@ The work is delivered as **staged open-source releases**, so each one is useful 
 | A merge produces a model that doesn't validate | Validate every merge semantically, reject or flag the result, and offer locks to prevent conflicts in the first place |
 | Server memory for many active branches of a 1M-element model | Share immutable data across branches, evict idle branches, shard projects across instances |
 | Cost of passing data between WASM and JavaScript, and the bundle size | Coarse-grained calls, the worker owns the model, lazy loading, a cached snapshot |
-| Spec revisions. The IRIs are date-versioned: metamodel `20250201`, KerML interchange `20240201`, API records `20230201`. | Generate code from the machine-readable files, keep the IRIs in one configuration point, and check payloads against `SysML.json` rather than the copy of the metamodel embedded in the API |
+| Spec revisions. The IRIs are date-versioned: metamodel `20250201`, KerML interchange `20240201`, API records `20230201`. | Generate code from the machine-readable files, keep the IRIs in one configuration point, and check payloads against `SysML.json` rather than the copy of the metamodel embedded in the API. `check_schema_assumptions.py` fails readably when a revision changes the schema layout. |
+| **Defects in the OMG files themselves.** Phase 0 found them in `Schema.json`, in the `OpenAPI.json` examples, in the library `.kpar` archives, and a conflict between KerML 10.3 Table 13 and its normative schema. More are likely. | Treat the normative files as data to verify, not as ground truth: schema checks, errata tables whose tests fail when OMG fixes the defect, and an ADR for each interpretation (ADRs 0005, 0006). Report the defects to OMG. |
+| A dependency update raises the minimum Rust version unnoticed (it happened in Phase 0: `zip` and `uuid` needed 1.89 while 1.85 was declared) | CI builds and tests with the declared `rust-version` |
 | The pilot doesn't implement merge or diff, and the normative REST schema differs from the PIM (`Query` has no `scope`/`orderBy`) | Use the normative files and the PIM document as the contract (the files take precedence). Offer the PIM-only features as `/x/` extensions. Write down every interpretation. |
 | Derived Property Full Conformance is costly: commits change derived values of elements they never touched | Compute derived values on read from the incrementally maintained in-memory model, not stored per version. Fall back to Passthrough for exports from historical commits that aren't loaded. |
 | Strictly monotonic commit timestamps on a busy branch | Microsecond `timestamptz`, a per-branch serialized commit path, and nudging the clock forward when two commits collide |
@@ -529,7 +573,7 @@ The work is delivered as **staged open-source releases**, so each one is useful 
 | No standard layout interchange | Layouts stored in the database, with auto-layout as the fallback |
 | **Bus factor of one.** A solo developer over 20–28 months risks burnout and stalls. | Staged releases that are each useful on their own, a public roadmap, a contributor-friendly repository (good first issues, a design-doc folder), and `CLAUDE.md` plus decision records so anyone can pick up the work |
 | **Scope versus capacity.** All views and document generation in 1.0 with one developer. | Releases 0.1–0.8 deliver value early. Review scope at each release, and defer the Geometry View or the DOCX output if the schedule slips. |
-| Plausible but wrong code from Claude Code, especially for spec semantics | Spec-first tests (corpus, Annex A, implied-relationship tables) as the oracle, cited spec clauses in code comments, and mandatory review |
+| Plausible but wrong code from Claude Code, especially for spec semantics | Spec-first tests (corpus, API Annex A, implied-relationship tables) as the oracle, cited spec clauses in code comments, and mandatory review. In Phase 0, review caught an important defect in every reviewed PR even though the tests passed (§8). |
 | Compliance claims (FIPS, NIST mappings) that go beyond what an open-source project can certify | Ship controls and evidence, never claim authorization, and document the operator's responsibilities |
 | Redistribution restrictions on the OMG documents and machine-readable files | `docs/specs/` is never committed. Specs are fetched from upstream with checksums. Shipped libraries come from the EPL-2.0 SysML-v2-Release repository, with attribution (§13). |
 | Upstream URLs move or change content | The checksum manifest detects changes. A CI artifact cache keeps the last good copy. |
@@ -537,6 +581,8 @@ The work is delivered as **staged open-source releases**, so each one is useful 
 ## 10. Open decisions for the project owner
 
 **Decided** (2026-11-19): see §1. Each of these is the owner's decision or the default the owner accepted.
+
+**Decided** (2026-11-20, v0.7): Phase 0's remaining items (the TypeScript side, `wasm-pack`, PostgreSQL in CI) move to Phases 1a, 2 and 3, as listed under Phase 0 in §6.
 
 **Still open:**
 
@@ -585,7 +631,7 @@ The work is delivered as **staged open-source releases**, so each one is useful 
   2. Write failing tests: corpus cases, implied-relationship tables, Annex A API cases.
   3. Implement.
   4. Review.
-- **Small, reviewable increments.** One feature branch and PR per issue. CI must pass. Use `/code-review` before merging. Keep architecture decision records in `docs/adr/`.
+- **Small, reviewable increments.** One feature branch and PR per issue. CI must pass. Use `/code-review` before merging. Keep architecture decision records in `docs/adr/` (0001–0008 so far). In practice: signed-off commits, review findings fixed in a further commit on the same PR, and a rebase merge that keeps `main` linear.
 - **Generated code where possible.** Metaclass types, API types and the API client come from the normative JSON and OpenAPI files, which reduces hand-written surface area.
 - **Parallel Claude Code sessions** for independent work (for example, grammar productions in one, API endpoints in another), using git worktrees, with the developer integrating.
 - **Recalibration:** throughput is measured at the end of Phase 1a and each release, and §6 is updated.
