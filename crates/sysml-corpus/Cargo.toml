@@ -8,6 +8,7 @@ license.workspace = true
 repository.workspace = true
 authors.workspace = true
 publish = false
+build = "build.rs"
 
 [lints]
 workspace = true
@@ -19,3 +20,10 @@ zip.workspace = true
 # zip's deflate support needs a backend; miniz_oxide (pure Rust) also builds for wasm32.
 flate2.workspace = true
 sha2.workspace = true
+
+[build-dependencies]
+serde_json.workspace = true
+
+[target.'cfg(target_arch = "wasm32")'.dev-dependencies]
+# Runs the tests as WebAssembly under Node (step 1a.1).
+wasm-bindgen-test.workspace = true

@@ -1,0 +1,23 @@
+[package]
+name = "sysml-wasm"
+description = "The wasm-bindgen interface between the browser UI and the Rust core (PROJECT_PLAN §4.2)"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+authors.workspace = true
+
+[lib]
+crate-type = ["cdylib", "rlib"]
+
+[lints]
+workspace = true
+
+[dependencies]
+sysml-model.workspace = true
+wasm-bindgen.workspace = true
+
+[target.'cfg(target_arch = "wasm32")'.dev-dependencies]
+# Runs the tests as WebAssembly under Node (step 1a.1).
+wasm-bindgen-test.workspace = true

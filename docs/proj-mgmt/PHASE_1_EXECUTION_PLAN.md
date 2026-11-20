@@ -1,6 +1,6 @@
 # Eureka SysML: Phase 1 execution plan
 
-Status: Draft v1.2 · 2026-11-20 · Covers PROJECT_PLAN v0.7 §6, Phases 1a and 1b (Release 0.1 "Language")
+Status: Draft v1.3 · 2026-11-20 · Covers PROJECT_PLAN v0.7 §6, Phases 1a and 1b (Release 0.1 "Language")
 
 This plan breaks Phase 1 into ordered steps, each small enough for one or a few pull requests. PROJECT_PLAN.md remains the source of truth for scope, architecture and budgets. Where this plan finds something the project plan does not settle, it is listed under [decisions](#24-decisions-and-their-recommended-defaults), and settled by the [decision methodology](#25-decision-methodology): each recommended default is evaluated during the step that first depends on it.
 
@@ -8,6 +8,7 @@ Change history:
 - v1.0: first version
 - v1.1: the decision methodology (§2.5). Each decision is evaluated in its execution step, so the decisions are no longer entry criteria.
 - v1.2: step 1a.0 done. D7 adopted (ADR 0009); the dependency spike recorded as evidence for D1 and D2 (`docs/proj-mgmt/evidence/1a.0-dependency-spike.md`).
+- v1.3: step 1a.1 done (ADR 0010). All 75 tests run as WebAssembly with a parity check; `wasm-pack build` packages `sysml-wasm`.
 
 ## 1. Executive summary
 
@@ -78,7 +79,7 @@ All entry criteria are met. The open questions of §2.3 and §2.4 (the UUID refe
 Already in place: Rust 1.100 stable and the 1.89 minimum toolchain, the wasm32 target, Python 3.11+, `pdftotext`, `cargo-deny`, `cargo-cyclonedx`, `gh`, Node 26, Docker, and (since step 1a.0) `wasm-bindgen-cli` 0.2.130 for running WASM tests under Node.
 
 To add:
-- `wasm-pack`, in step 1a.1. The WASM test runner itself works: `wasm-bindgen-test-runner`, at the exact version of the `wasm-bindgen` crate (1a.0 spike).
+- `wasm-pack` 0.15.1 (installed in step 1a.1), for `wasm-pack build`.
 - `poppler-utils` `pdftohtml` (font information), if step 1a.5 uses font-aware snippet extraction.
 - The VS Code extension packaging tool (`@vscode/vsce`), in step 1b.8.
 
@@ -157,6 +158,7 @@ Each step below gives its goal, the spec clauses, what it delivers, the tests to
 - **Effort:** 0.5
 
 #### 1a.1 WASM test harness (moved from Phase 0)
+- **Status:** done 2026-11-20 (ADR 0010). All 75 tests in 13 test binaries pass as WebAssembly under Node, with the same counts as natively. The tests run through `wasm-bindgen-test-runner` rather than `wasm-pack test` (ADR 0010 explains why), and `wasm-pack build` packages `sysml-wasm`, which a Node script calls.
 - **Goal:** the existing tests run on WASM before there is much code to port.
 - **Clauses:** none; this is PROJECT_PLAN §8 (corpus on native and WASM).
 - **Delivers:**

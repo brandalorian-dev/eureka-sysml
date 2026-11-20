@@ -12,13 +12,16 @@
 //!
 //! The OMG archives deviate from KerML 10.3 in a few places. Those are corrected by the
 //! [`ERRATA`] table and recorded in ADR 0006.
+//!
+//! The corpus loads on every target. WebAssembly has no file system, so on wasm32 [`read_spec`]
+//! serves copies of the spec files that `build.rs` embeds at build time.
 
 use serde::Deserialize;
 use serde_json::Value;
 use std::collections::BTreeMap;
 use std::fmt;
 use std::io::Read;
-use std::path::{Path, PathBuf};
+use std::path::PathBuf;
 
 /// The local spec folder: `EUREKA_SPECS_DIR` if set, otherwise `docs/specs/` in this repository.
 pub fn specs_dir() -> PathBuf {
@@ -27,9 +30,46 @@ pub fn specs_dir() -> PathBuf {
         .unwrap_or_else(|| PathBuf::from(concat!(env!("CARGO_MANIFEST_DIR"), "/../../docs/specs")))
 }
 
-/// The repository's `specs.lock.json`. [`Corpus::load`] checks every corpus file against it, so
-/// `EUREKA_SPECS_DIR` must point at a folder holding the files this lock pins.
+/// The path of the repository's `specs.lock.json`. [`Corpus::load`] checks every corpus file
+/// against it, so `EUREKA_SPECS_DIR` must point at a folder holding the files this lock pins.
 pub const LOCK_PATH: &str = concat!(env!("CARGO_MANIFEST_DIR"), "/../../specs.lock.json");
+
+/// The contents of `specs.lock.json`, compiled in so that it is available on every target.
+pub const LOCK: &str = include_str!(concat!(
+    env!("CARGO_MANIFEST_DIR"),
+    "/../../specs.lock.json"
+));
+
+#[cfg(target_arch = "wasm32")]
+mod embedded {
+    include!(concat!(env!("OUT_DIR"), "/embedded_specs.rs"));
+}
+
+/// Read a spec file by its path in `specs.lock.json`, for example
+/// `KerML/normative/KerML-Model-Interchange.json`.
+///
+/// Natively this reads from [`specs_dir`]. On wasm32, which has no file system, it serves the
+/// copy embedded at build time; `build.rs` embeds the corpus files and the few others the tests
+/// read.
+pub fn read_spec(path: &str) -> Result<Vec<u8>, CorpusError> {
+    #[cfg(not(target_arch = "wasm32"))]
+    {
+        let full = specs_dir().join(path);
+        std::fs::read(&full).map_err(|e| CorpusError(format!("{}: {e}", full.display())))
+    }
+    #[cfg(target_arch = "wasm32")]
+    {
+        embedded::FILES
+            .iter()
+            .find(|(p, _)| *p == path)
+            .map(|(_, bytes)| bytes.to_vec())
+            .ok_or_else(|| {
+                CorpusError(format!(
+                    "{path} is not embedded for wasm32; add it to EXTRA in crates/sysml-corpus/build.rs"
+                ))
+            })
+    }
+}
 
 /// The largest archive entry the loader reads, in bytes. The largest standard library file is
 /// about 150 KB; the limit stops a malformed or hostile archive from exhausting memory.
@@ -297,14 +337,17 @@ pub struct Corpus {
 }
 
 impl Corpus {
-    /// Load the corpus from [`specs_dir`], as pinned by the repository's `specs.lock.json`.
+    /// Load the corpus, as pinned by the repository's `specs.lock.json`, through [`read_spec`].
     pub fn load() -> Result<Corpus, CorpusError> {
-        Corpus::load_with(&specs_dir(), &read_text(Path::new(LOCK_PATH))?)
+        Corpus::from_lock(LOCK, read_spec)
     }
 
-    /// Load the files that the lock file `lock` lists from `specs`. Every file must match its
-    /// SHA-256 in the lock.
-    pub fn load_with(specs: &Path, lock: &str) -> Result<Corpus, CorpusError> {
+    /// Load the files that the lock file `lock` lists, reading each one with `read` (given its
+    /// path in the lock). Every file must match its SHA-256 in the lock.
+    pub fn from_lock(
+        lock: &str,
+        read: impl Fn(&str) -> Result<Vec<u8>, CorpusError>,
+    ) -> Result<Corpus, CorpusError> {
         let lock: Value =
             serde_json::from_str(lock).map_err(|e| CorpusError(format!("specs.lock.json: {e}")))?;
         let entries = lock["files"]
@@ -322,12 +365,12 @@ impl Corpus {
             if path.ends_with(".kpar") {
                 let url = field("url")
                     .ok_or_else(|| lock_err("a library needs a url (its usage IRI)"))?;
-                let bytes = read_locked(specs, path, field("sha256"))?;
+                let bytes = read_locked(&read, path, field("sha256"))?;
                 corpus
                     .libraries
                     .push(Library::from_archive(&bytes, path, url)?);
             } else if let Some(language) = Language::of_path(path) {
-                let bytes = read_locked(specs, path, field("sha256"))?;
+                let bytes = read_locked(&read, path, field("sha256"))?;
                 let text = String::from_utf8(bytes).map_err(|_| lock_err("not valid UTF-8"))?;
                 corpus.models.push(Source {
                     id: path.to_owned(),
@@ -384,10 +427,6 @@ impl fmt::Display for CorpusError {
 
 impl std::error::Error for CorpusError {}
 
-fn read_text(path: &Path) -> Result<String, CorpusError> {
-    std::fs::read_to_string(path).map_err(|e| CorpusError(format!("{}: {e}", path.display())))
-}
-
 fn hex_sha256(data: &[u8]) -> String {
     use sha2::{Digest, Sha256};
     Sha256::digest(data)
@@ -397,16 +436,17 @@ fn hex_sha256(data: &[u8]) -> String {
 }
 
 /// Read a corpus file and check it against its SHA-256 in `specs.lock.json`.
-fn read_locked(specs: &Path, path: &str, sha256: Option<&str>) -> Result<Vec<u8>, CorpusError> {
+fn read_locked(
+    read: &impl Fn(&str) -> Result<Vec<u8>, CorpusError>,
+    path: &str,
+    sha256: Option<&str>,
+) -> Result<Vec<u8>, CorpusError> {
     let expected =
         sha256.ok_or_else(|| CorpusError(format!("specs.lock.json: {path}: no sha256")))?;
-    let full = specs.join(path);
-    let bytes =
-        std::fs::read(&full).map_err(|e| CorpusError(format!("{}: {e}", full.display())))?;
+    let bytes = read(path)?;
     if !hex_sha256(&bytes).eq_ignore_ascii_case(expected) {
         return Err(CorpusError(format!(
-            "{} does not match its sha256 in specs.lock.json (modified, or EUREKA_SPECS_DIR holds another release)",
-            full.display()
+            "{path} does not match its sha256 in specs.lock.json (modified, or EUREKA_SPECS_DIR holds another release)"
         )));
     }
     Ok(bytes)

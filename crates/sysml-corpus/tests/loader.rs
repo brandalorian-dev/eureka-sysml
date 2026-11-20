@@ -5,7 +5,9 @@
 use serde_json::{json, Value};
 use sha2::{Digest, Sha256};
 use std::io::{Cursor, Write};
-use sysml_corpus::{specs_dir, Corpus, Language, Library, MAX_ENTRY_BYTES};
+use sysml_corpus::{read_spec, Corpus, Language, Library, MAX_ENTRY_BYTES};
+#[cfg(target_arch = "wasm32")]
+use wasm_bindgen_test::wasm_bindgen_test as test;
 use zip::write::SimpleFileOptions;
 
 const PROJECT: &[u8] = br#"{"name": "P", "version": "1.0.0"}"#;
@@ -130,14 +132,7 @@ fn oversized_entries_are_rejected() {
 // ---- specs.lock.json ----
 
 fn lock() -> Value {
-    serde_json::from_str(
-        &std::fs::read_to_string(concat!(
-            env!("CARGO_MANIFEST_DIR"),
-            "/../../specs.lock.json"
-        ))
-        .unwrap(),
-    )
-    .unwrap()
+    serde_json::from_str(sysml_corpus::LOCK).unwrap()
 }
 
 fn lock_entry(path: &str) -> Value {
@@ -151,9 +146,9 @@ fn lock_entry(path: &str) -> Value {
 }
 
 fn load_with(files: Vec<Value>) -> Result<Corpus, String> {
-    Corpus::load_with(
-        &specs_dir(),
+    Corpus::from_lock(
         &json!({"version": 1, "files": files}).to_string(),
+        read_spec,
     )
     .map_err(|e| e.to_string())
 }

@@ -61,6 +61,10 @@ cargo test --workspace --bench '*'                   # run each benchmark once (
 cargo bench -p sysml-bench                           # measure the benchmarks
 python scripts/check_uuid_oracle.py                  # the UUID oracle still follows KerML 9.1
 python -m unittest discover -s scripts/tests         # tests of the Python scripts
+CARGO_TARGET_WASM32_UNKNOWN_UNKNOWN_RUNNER=wasm-bindgen-test-runner \
+  cargo test --workspace --target wasm32-unknown-unknown --no-fail-fast   # every test as WebAssembly (ADR 0010)
+python scripts/check_wasm_parity.py NATIVE_LOG WASM_LOG   # same tests pass on both (CI does this)
+wasm-pack build crates/sysml-wasm --target web --out-dir ../../target/wasm-pkg/sysml-wasm && node scripts/smoke_wasm_pkg.mjs
 python scripts/sbom.py                               # CycloneDX SBOMs into target/sbom (needs cargo-cyclonedx)
 cargo deny check                                     # licenses, advisories, sources (as in CI)
 ```
@@ -74,6 +78,7 @@ A Rust core in `crates/` compiles natively (for the server) and to WASM (for the
 - `sysml-model`: generated metaclasses plus an arena element graph
 - `sysml-api-types`: API records (Project, Commit, DataVersion, Query, …) generated from the API `Schema.json`; spec corrections in ADR 0005
 - `sysml-synth` (test infrastructure): deterministic synthetic SysML models at any size (`Config::with_target_elements`), for benchmarks and scale tests
+- `sysml-wasm`: the `wasm-bindgen` interface the browser worker calls; a skeleton since step 1a.1 (ADR 0010)
 - `sysml-bench` (test infrastructure): the PROJECT_PLAN §7 budgets as data (`BUDGETS`, kept equal to the plan by a test) and the `divan` benchmarks; ADR 0007
 - `sysml-corpus` (test infrastructure): the standard libraries and example models from `docs/specs/`. Corpus tests use `sysml_corpus::Corpus::load()` and iterate `sources()`; library archive errata in ADR 0006
 - `sysml-semantics`: salsa-based incremental resolution and implied relationships
@@ -88,3 +93,4 @@ The TypeScript UI (`apps/web`, from Phase 3) talks to the server and to the WASM
 - Rust edition 2021, `unsafe` forbidden, clippy warnings are errors in CI.
 - Licenses: our code is Apache-2.0, and dependency licenses must pass `deny.toml`. Each new file starts with `SPDX-License-Identifier: Apache-2.0`.
 - Python scripts use only the standard library unless there is a strong reason.
+- **Every test also runs as WebAssembly (ADR 0010).** Each test module and test file starts with `#[cfg(target_arch = "wasm32")] use wasm_bindgen_test::wasm_bindgen_test as test;`, or CI's parity check fails. Tests read spec files with `sysml_corpus::read_spec(path)` and repository files with `include_str!`, never `std::fs`, because wasm32 has no file system. A spec file a test needs on WASM goes into `EXTRA` in `crates/sysml-corpus/build.rs`.

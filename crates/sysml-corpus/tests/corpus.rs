@@ -5,6 +5,8 @@
 use std::collections::BTreeSet;
 use std::sync::OnceLock;
 use sysml_corpus::{Corpus, Erratum, Expectation, Language, ERRATA};
+#[cfg(target_arch = "wasm32")]
+use wasm_bindgen_test::wasm_bindgen_test as test;
 
 fn corpus() -> &'static Corpus {
     static CORPUS: OnceLock<Corpus> = OnceLock::new();
@@ -253,11 +255,8 @@ fn metadata_follows_the_interchange_schema() {
     // KerML 10.3: .project.json and .meta.json follow the Project and Meta definitions in the
     // normative KerML-Model-Interchange.json. Every property the archives use must be one the
     // schema defines, so the typed `Project` and `Meta` lose nothing.
-    let schema: serde_json::Value = serde_json::from_str(
-        &std::fs::read_to_string(
-            sysml_corpus::specs_dir().join("KerML/normative/KerML-Model-Interchange.json"),
-        )
-        .unwrap(),
+    let schema: serde_json::Value = serde_json::from_slice(
+        &sysml_corpus::read_spec("KerML/normative/KerML-Model-Interchange.json").unwrap(),
     )
     .unwrap();
     let keys = |def: &str| -> BTreeSet<String> {
@@ -312,14 +311,7 @@ fn is_not_a_model(path: &str) -> bool {
 
 #[test]
 fn every_model_file_in_the_lock_is_in_the_corpus() {
-    let lock: serde_json::Value = serde_json::from_str(
-        &std::fs::read_to_string(concat!(
-            env!("CARGO_MANIFEST_DIR"),
-            "/../../specs.lock.json"
-        ))
-        .unwrap(),
-    )
-    .unwrap();
+    let lock: serde_json::Value = serde_json::from_str(sysml_corpus::LOCK).unwrap();
     let c = corpus();
     let in_corpus: BTreeSet<&str> = c
         .libraries
