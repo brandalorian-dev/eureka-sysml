@@ -60,6 +60,7 @@ cargo build --workspace --target wasm32-unknown-unknown
 cargo test --workspace --bench '*'                   # run each benchmark once (as CI does)
 cargo bench -p sysml-bench                           # measure the benchmarks
 python scripts/check_uuid_oracle.py                  # the UUID oracle still follows KerML 9.1
+python -m unittest discover -s scripts/tests         # tests of the Python scripts
 python scripts/sbom.py                               # CycloneDX SBOMs into target/sbom (needs cargo-cyclonedx)
 cargo deny check                                     # licenses, advisories, sources (as in CI)
 ```
