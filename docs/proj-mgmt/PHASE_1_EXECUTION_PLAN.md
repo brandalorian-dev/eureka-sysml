@@ -1,6 +1,6 @@
 # Eureka SysML: Phase 1 execution plan
 
-Status: Draft v1.3 · 2026-11-20 · Covers PROJECT_PLAN v0.7 §6, Phases 1a and 1b (Release 0.1 "Language")
+Status: Draft v1.4 · 2026-11-20 · Covers PROJECT_PLAN v0.7 §6, Phases 1a and 1b (Release 0.1 "Language")
 
 This plan breaks Phase 1 into ordered steps, each small enough for one or a few pull requests. PROJECT_PLAN.md remains the source of truth for scope, architecture and budgets. Where this plan finds something the project plan does not settle, it is listed under [decisions](#24-decisions-and-their-recommended-defaults), and settled by the [decision methodology](#25-decision-methodology): each recommended default is evaluated during the step that first depends on it.
 
@@ -9,6 +9,7 @@ Change history:
 - v1.1: the decision methodology (§2.5). Each decision is evaluated in its execution step, so the decisions are no longer entry criteria.
 - v1.2: step 1a.0 done. D7 adopted (ADR 0009); the dependency spike recorded as evidence for D1 and D2 (`docs/proj-mgmt/evidence/1a.0-dependency-spike.md`).
 - v1.3: step 1a.1 done (ADR 0010). All 77 tests run as WebAssembly with a parity check; `wasm-pack build` packages `sysml-wasm`.
+- v1.4: D1 and D4 adopted (ADRs 0011, 0012), from the step 1a.2 parser spike.
 
 ## 1. Executive summary
 
@@ -103,10 +104,10 @@ Each recommended default is a starting hypothesis, not a decision. It is evaluat
 
 | # | Decision | Evaluated in | Recommended default |
 |---|---|---|---|
-| D1 | Parser architecture: hand-written recursive descent producing a `rowan` lossless tree, or a parser generator | 1a.2 | Hand-written recursive descent with `rowan`, the rust-analyzer approach PROJECT_PLAN §4.2 names. It gives the best error recovery and full control over trivia. *1a.0 spike: `rowan` 0.17.0, the newest stable release, meets the constraints; 0.18 is still alpha.* |
+| D1 | Parser architecture: hand-written recursive descent producing a `rowan` lossless tree, or a parser generator | 1a.2, **adopted** (ADR 0011) | Hand-written recursive descent with `rowan`, the rust-analyzer approach PROJECT_PLAN §4.2 names. It gives the best error recovery and full control over trivia. *1a.0 spike: `rowan` 0.17.0, the newest stable release, meets the constraints; 0.18 is still alpha.* *Adopted, with a hand-written lexer: `logos` was faster but silent on an unterminated comment; tree-sitter does not build for wasm32 without clang and needs Rust 1.90; `pest` reports only the first error and gives no tree.* |
 | D2 | `salsa` version and the boundaries of the incremental query graph (file → tree → elements → resolution → semantics) | 1a.7 | The current `salsa` release, provided the 1a.0 spike shows it builds for wasm32 and on Rust 1.89. *1a.0 spike: `salsa` 0.28.5 builds and works on wasm32 and on Rust 1.89, with the minimal features `macros` and `inventory`. It needs `Zlib` in `deny.toml` (for `foldhash`, which cannot be turned off). The owner approved adding `Zlib` on 2026-11-20, so the license policy no longer blocks D2.* |
 | D3 | Arena and ID design for the element graph: element ids as API `DataIdentity` ids (PROJECT_PLAN §4.3), and storage of implied versus owned relationships | 1a.6 | Interned dense indices in an arena, mapped to UUIDs. Implied relationships are kept apart from owned ones, so serialization can include or omit them (KerML 10.3 `includesImplied`). |
-| D4 | Diagnostics model: codes, severity, spans, the constraint name and the spec clause | 1a.2 | One diagnostic type across the parser, resolver and validator. Every semantic diagnostic names its constraint, for example `validateFeatureMultiplicityDomain`. |
+| D4 | Diagnostics model: codes, severity, spans, the constraint name and the spec clause | 1a.2, **adopted** (ADR 0012) | One diagnostic type across the parser, resolver and validator. Every semantic diagnostic names its constraint, for example `validateFeatureMultiplicityDomain`. *Adopted: works as a `salsa` query result; ranges are bytes, converted to UTF-16 columns at the Language Server Protocol boundary.* |
 | D5 | Snapshot format for the pre-resolved libraries | 1a.11 | A versioned binary format through a serde-compatible crate such as `postcard`, keyed by metamodel IRI, library version and crate version |
 | D6 | How CI gates timings (ADR 0007): a dedicated runner or instruction counts | 1a.11 | Instruction counts on GitHub-hosted runners (for example a Cachegrind-based harness), with wall-clock budgets measured but not gated until a dedicated runner exists |
 | D7 | Library UUID oracle (§2.3) | 1a.0, **adopted** (ADR 0009) | The library serializations in the SysML-v2-Release repository, if they carry element ids. *Adopted at release 2025-02.* |
@@ -173,6 +174,7 @@ Each step below gives its goal, the spec clauses, what it delivers, the tests to
 #### 1a.2 Lexer and lossless syntax tree
 - **Goal:** turn any text into tokens and a lossless tree, never failing.
 - **Evaluates:** D1 (parser architecture) and D4 (diagnostics model), in the step's first PR.
+- **Status:** D1 and D4 adopted 2026-11-20 (ADRs 0011, 0012; evidence in `docs/proj-mgmt/evidence/1a.2-parser-spike.md`). The lexer and the framework follow.
 - **Clauses:** KerML 8.2.2 (8.2.2.1 line terminators and white space, 8.2.2.2 notes and comments, 8.2.2.3 names including unrestricted names, 8.2.2.4 numeric values, 8.2.2.5 strings, 8.2.2.6 reserved words, 8.2.2.7 symbols).
 - **Delivers:**
   - the `sysml-syntax` crate: the token kinds, a hand-written lexer, and the `rowan` tree types
