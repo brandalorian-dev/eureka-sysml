@@ -9,7 +9,9 @@ PROJECT_PLAN §8 makes a conformance corpus the acceptance gate. The `sysml-corp
 
 ## Decision
 
-**What is in the corpus.** Every `.kpar` and every `.kerml`/`.sysml` file listed in `specs.lock.json`. The lock file is the single list. The completeness test classifies lock entries independently of the loader: documents, metamodel and schema files, and API pilot material are not models, and every other entry must be in the corpus. Annex A of the API specification (API test cases, not models) belongs to the API conformance suite (Phase 2). Textual notation snippets from the specification text are a later addition, because the extracted text does not reliably separate code from prose.
+**What is in the corpus.** Every `.kpar` and every `.kerml`/`.sysml` file listed in `specs.lock.json`. The lock file is the single list. The completeness test classifies lock entries independently of the loader: documents, metamodel and schema files, and API pilot material are not models, and every other entry must be in the corpus. The "Annex A examples" of PROJECT_PLAN §6 and §8 are SysML Part 1 Annex A, "Example Model": the SimpleVehicleModel, whose complete machine-readable form (`informative/ptc-25-04-31.sysml`) is in the corpus. The excerpts printed in the annex are spec snippets. Textual notation snippets from the specification text, those excerpts included, are a later addition (Phase 1a), because the extracted text does not reliably separate code from prose. API Annex A (OCL test cases for the API, not models) belongs to the API conformance suite (Phase 2), not to this corpus.
+
+*Amended 2026-11-20:* the first version of this ADR read "Annex A examples" as API Annex A and deferred them to Phase 2. They are SysML Annex A, and the corpus already holds its model.
 
 **Integrity.** Every corpus file is checked against its SHA-256 in `specs.lock.json` when it is loaded, so a modified archive or model fails with a clear error. `EUREKA_SPECS_DIR` must therefore hold the files that the repository's lock pins. A lock entry without a `path`, a library without a `url` (its usage IRI) and a file without a `sha256` are errors.
 
