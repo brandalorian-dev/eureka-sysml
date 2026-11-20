@@ -1,0 +1,46 @@
+# --- Specification material: NEVER committed (owner decision, 2026-11-19) ---
+# Fetched locally with `python scripts/fetch_specs.py fetch` (see specs.lock.json).
+/docs/specs/
+
+# Rust
+/target/
+**/*.rs.bk
+
+# Node / web
+node_modules/
+/apps/*/dist/
+/packages/*/dist/
+.pnpm-store/
+*.tsbuildinfo
+
+# WASM build output
+/crates/*/pkg/
+
+# Generated code (produced at build time from the fetched specs)
+/generated/
+
+# Test / benchmark artifacts
+/test-output/
+/bench-output/
+/playwright-report/
+/coverage/
+
+# Environment and secrets
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+
+# Editors / OS
+.vscode/*
+!.vscode/extensions.json
+!.vscode/settings.json
+.idea/
+.DS_Store
+Thumbs.db
+__pycache__/
+*.pyc
+
+# Claude Code local settings
+.claude/settings.local.json

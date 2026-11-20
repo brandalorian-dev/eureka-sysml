@@ -1,0 +1,36 @@
+# cargo-deny configuration: licenses, advisories, crate sources.
+# Our code is Apache-2.0. Dependencies must use licenses compatible with distributing an
+# Apache-2.0 product, including in air-gapped and regulated deployments.
+
+[graph]
+all-features = true
+
+[advisories]
+version = 2
+yanked = "deny"
+
+[licenses]
+version = 2
+allow = [
+  "Apache-2.0",
+  "Apache-2.0 WITH LLVM-exception",
+  "MIT",
+  "BSD-2-Clause",
+  "BSD-3-Clause",
+  "ISC",
+  "Unicode-3.0",
+  "Unicode-DFS-2016",
+  "CC0-1.0",
+  "MPL-2.0",   # weak copyleft per file; allowed when unmodified
+  "EPL-2.0",   # weak copyleft; OMG libraries, ELK, Sprotty (when unmodified)
+]
+confidence-threshold = 0.9
+
+[bans]
+multiple-versions = "warn"
+wildcards = "deny"
+
+[sources]
+unknown-registry = "deny"
+unknown-git = "deny"
+allow-registry = ["https://github.com/rust-lang/crates.io-index"]

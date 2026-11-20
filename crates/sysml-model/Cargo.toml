@@ -1,0 +1,16 @@
+[package]
+name = "sysml-model"
+description = "SysML v2 / KerML metaclass definitions, generated at build time from the normative SysML.json"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+authors.workspace = true
+build = "build.rs"
+
+[lints]
+workspace = true
+
+[build-dependencies]
+serde_json.workspace = true

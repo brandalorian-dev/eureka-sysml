@@ -1,0 +1,318 @@
+{
+  "version": 1,
+  "files": [
+    {
+      "path": "KerML/OMG KerML v1.0 (formal-26-03-01).pdf",
+      "url": "https://www.omg.org/spec/KerML/1.0/PDF",
+      "size": 1821407,
+      "sha256": "3bcc96f989bfa9d05cd28e026df3351b795fe8d494187b87bff3db7d96373697",
+      "landing": "https://www.omg.org/spec/KerML/1.0/",
+      "license": "OMG specification terms"
+    },
+    {
+      "path": "KerML/normative/Data-Type-Library.kpar",
+      "url": "https://www.omg.org/spec/KerML/20250201/Data-Type-Library.kpar",
+      "size": 4260,
+      "sha256": "957e4ff5c60f7fc5eedaf0b6d4f776856061c0aa7a424e260eeccb8d6ed7bfbd",
+      "landing": "https://www.omg.org/spec/KerML/1.0/",
+      "license": "OMG specification terms"
+    },
+    {
+      "path": "KerML/normative/Function-Library.kpar",
+      "url": "https://www.omg.org/spec/KerML/20250201/Function-Library.kpar",
+      "size": 15929,
+      "sha256": "a8319da3ab1d8ffc0f390ea1aef29d85a00451655c41a9267ce396845c2b1c8d",
+      "landing": "https://www.omg.org/spec/KerML/1.0/",
+      "license": "OMG specification terms"
+    },
+    {
+      "path": "KerML/normative/KerML-Model-Interchange.json",
+      "url": "https://www.omg.org/spec/KerML/20250201/KerML-Model-Interchange.json",
+      "size": 2398,
+      "sha256": "c94b43f0f634902e9e1043498449fccde492b13bad1ccaed8289de7ecbf03bb6",
+      "landing": "https://www.omg.org/spec/KerML/1.0/",
+      "license": "OMG specification terms"
+    },
+    {
+      "path": "KerML/normative/KerML.json",
+      "url": "https://www.omg.org/spec/KerML/20250201/KerML.json",
+      "size": 1240573,
+      "sha256": "e454fe4b7c04f3d95874b6c1a4e6ef056ea5874c71fd3d17e3180319c2f58ab2",
+      "landing": "https://www.omg.org/spec/KerML/1.0/",
+      "license": "OMG specification terms"
+    },
+    {
+      "path": "KerML/normative/KerML.xmi",
+      "url": "https://www.omg.org/spec/KerML/20250201/KerML.xmi",
+      "size": 962254,
+      "sha256": "45b18775afe2b2fcdc70e24f37c6d2f344defcc3f38a02075a193354e2d7b466",
+      "landing": "https://www.omg.org/spec/KerML/1.0/",
+      "license": "OMG specification terms"
+    },
+    {
+      "path": "KerML/normative/Semantic-Library.kpar",
+      "url": "https://www.omg.org/spec/KerML/20250201/Semantic-Library.kpar",
+      "size": 33031,
+      "sha256": "6d9e311646a557cb08b64313cab6a7931109751b2ac7fbfcefad5c2216a6167b",
+      "landing": "https://www.omg.org/spec/KerML/1.0/",
+      "license": "OMG specification terms"
+    },
+    {
+      "path": "OMG SysML v2.0 Part 1 - Language Specification (formal-26-03-02).pdf",
+      "url": "https://www.omg.org/spec/SysML/2.0/Language/PDF",
+      "size": 3804140,
+      "sha256": "46e6c0476a6f1f34f367d57e039d56659bff75e41d2e4b3d37ca4cadea84a83a",
+      "landing": "https://www.omg.org/spec/SysML/2.0/",
+      "license": "OMG specification terms"
+    },
+    {
+      "path": "OMG SysML v2.0 Part 2 - v1 to v2 Transformation (formal-26-03-03).pdf",
+      "url": "https://www.omg.org/spec/SysML/2.0/Transformation/PDF",
+      "size": 1137764,
+      "sha256": "64366027dfef1ab630f741884695a68471939fcf68c3c7d874790d2c86ea518c",
+      "landing": "https://www.omg.org/spec/SysML/2.0/",
+      "license": "OMG specification terms"
+    },
+    {
+      "path": "api/LICENSE",
+      "url": "https://raw.githubusercontent.com/Systems-Modeling/SysML-v2-API-Services/0af711b14bbcea7b240bb0a3a65817ae68302092/LICENSE",
+      "size": 14198,
+      "sha256": "0becf16567beb77fa252b7664631dd177c8f9a1889e48995b45379c7130e5303",
+      "landing": "https://github.com/Systems-Modeling/SysML-v2-API-Services",
+      "license": "EPL-2.0"
+    },
+    {
+      "path": "api/README.md",
+      "url": "https://raw.githubusercontent.com/Systems-Modeling/SysML-v2-API-Services/0af711b14bbcea7b240bb0a3a65817ae68302092/README.md",
+      "size": 5649,
+      "sha256": "d72f9c8cf4d0c706ea4fa4081f0713cf8cfcdbf3e92e33f0d244dd76f6687b73",
+      "landing": "https://github.com/Systems-Modeling/SysML-v2-API-Services",
+      "license": "EPL-2.0"
+    },
+    {
+      "path": "api/conf/META-INF/persistence.xml",
+      "url": "https://raw.githubusercontent.com/Systems-Modeling/SysML-v2-API-Services/0af711b14bbcea7b240bb0a3a65817ae68302092/conf/META-INF/persistence.xml",
+      "size": 15395,
+      "sha256": "5cf983ee06a820ba1722b9348b6d72c9544b27e623f45db43c98bc1395bbc115",
+      "landing": "https://github.com/Systems-Modeling/SysML-v2-API-Services",
+      "license": "EPL-2.0"
+    },
+    {
+      "path": "api/conf/application.conf",
+      "url": "https://raw.githubusercontent.com/Systems-Modeling/SysML-v2-API-Services/0af711b14bbcea7b240bb0a3a65817ae68302092/conf/application.conf",
+      "size": 832,
+      "sha256": "84aa5078509ac0843c2e8e22bb4c529755345868f6a7673d13172cc9bb823e22",
+      "landing": "https://github.com/Systems-Modeling/SysML-v2-API-Services",
+      "license": "EPL-2.0"
+    },
+    {
+      "path": "api/conf/json/schema/api/ExternalData.json",
+      "url": "https://raw.githubusercontent.com/Systems-Modeling/SysML-v2-API-Services/0af711b14bbcea7b240bb0a3a65817ae68302092/conf/json/schema/api/ExternalData.json",
+      "size": 510,
+      "sha256": "42c7e04c44019ae9211e76d0876a2c2514390ea6e805d0e8d9e2a5f4699ce3f7",
+      "landing": "https://github.com/Systems-Modeling/SysML-v2-API-Services",
+      "license": "EPL-2.0"
+    },
+    {
+      "path": "api/conf/json/schema/api/ExternalRelationship.json",
+      "url": "https://raw.githubusercontent.com/Systems-Modeling/SysML-v2-API-Services/0af711b14bbcea7b240bb0a3a65817ae68302092/conf/json/schema/api/ExternalRelationship.json",
+      "size": 1493,
+      "sha256": "8d6a6f5387724c2063bd342319fe65ff24c2c86204652cd384f68d24e038ad02",
+      "landing": "https://github.com/Systems-Modeling/SysML-v2-API-Services",
+      "license": "EPL-2.0"
+    },
+    {
+      "path": "api/conf/json/schema/api/ProjectUsage.json",
+      "url": "https://raw.githubusercontent.com/Systems-Modeling/SysML-v2-API-Services/0af711b14bbcea7b240bb0a3a65817ae68302092/conf/json/schema/api/ProjectUsage.json",
+      "size": 1148,
+      "sha256": "bf5a0788f1e1ad374c8494e9c2d50a4c0c794ab760e33b3272a507417ff52daa",
+      "landing": "https://github.com/Systems-Modeling/SysML-v2-API-Services",
+      "license": "EPL-2.0"
+    },
+    {
+      "path": "api/conf/json/schema/api/schemas-sans-metamodel-requests.json",
+      "url": "https://raw.githubusercontent.com/Systems-Modeling/SysML-v2-API-Services/0af711b14bbcea7b240bb0a3a65817ae68302092/conf/json/schema/api/schemas-sans-metamodel-requests.json",
+      "size": 31391,
+      "sha256": "a3483f82f84a40fa46c4d05a4d60de0a588de2d8f57fbd35df0dc340f3f24878",
+      "landing": "https://github.com/Systems-Modeling/SysML-v2-API-Services",
+      "license": "EPL-2.0"
+    },
+    {
+      "path": "api/conf/routes",
+      "url": "https://raw.githubusercontent.com/Systems-Modeling/SysML-v2-API-Services/0af711b14bbcea7b240bb0a3a65817ae68302092/conf/routes",
+      "size": 8923,
+      "sha256": "e81d7614cb575ec68b82fcfebdfd8a84463703a1de456b97a0109076582da0d3",
+      "landing": "https://github.com/Systems-Modeling/SysML-v2-API-Services",
+      "license": "EPL-2.0"
+    },
+    {
+      "path": "api/omg/OMG Systems Modeling API and Services v1.0 (formal-26-03-04).pdf",
+      "url": "https://www.omg.org/spec/SystemsModelingAPI/1.0/PDF",
+      "size": 757624,
+      "sha256": "1a93ffb9214573ec38b00b89f7ce4c7b7ff6559ccbff534a6a97e08e1f145e0a",
+      "landing": "https://www.omg.org/spec/SystemsModelingAPI/1.0/",
+      "license": "OMG specification terms"
+    },
+    {
+      "path": "api/omg/normative/KerML-shapes.ttl",
+      "url": "https://www.omg.org/spec/SystemsModelingAPI/20250201/KerML-shapes.ttl",
+      "size": 631633,
+      "sha256": "8a2c5eba8c76ec0906995a5628dbcdc470d712c9430111115d9af3ef479627aa",
+      "landing": "https://www.omg.org/spec/SystemsModelingAPI/1.0/",
+      "license": "OMG specification terms"
+    },
+    {
+      "path": "api/omg/normative/KerML-vocab.ttl",
+      "url": "https://www.omg.org/spec/SystemsModelingAPI/20250201/KerML-vocab.ttl",
+      "size": 90585,
+      "sha256": "da13e961361cf8844449cfa417c64239f52925936a00fcd96ae8546462ce2b4a",
+      "landing": "https://www.omg.org/spec/SystemsModelingAPI/1.0/",
+      "license": "OMG specification terms"
+    },
+    {
+      "path": "api/omg/normative/OpenAPI.json",
+      "url": "https://www.omg.org/spec/SystemsModelingAPI/20250201/OpenAPI.json",
+      "size": 7568661,
+      "sha256": "17e7e8586df6c51ada09d802f48bec6dd68d141454fae05d3f45e9b9879e01ab",
+      "landing": "https://www.omg.org/spec/SystemsModelingAPI/1.0/",
+      "license": "OMG specification terms"
+    },
+    {
+      "path": "api/omg/normative/Schema.json",
+      "url": "https://www.omg.org/spec/SystemsModelingAPI/20250201/Schema.json",
+      "size": 3533868,
+      "sha256": "cd1d74359d275fdb5c9182a390daffbff51c9c8c30f2a8955b2d9e4eb7589274",
+      "landing": "https://www.omg.org/spec/SystemsModelingAPI/1.0/",
+      "license": "OMG specification terms"
+    },
+    {
+      "path": "api/omg/normative/SysML-shapes.ttl",
+      "url": "https://www.omg.org/spec/SystemsModelingAPI/20250201/SysML-shapes.ttl",
+      "size": 2148176,
+      "sha256": "d2cecf07b66657e5a4bc81c5a7fc301f0da43f53201687e1d16d9ecb63d8bd9a",
+      "landing": "https://www.omg.org/spec/SystemsModelingAPI/1.0/",
+      "license": "OMG specification terms"
+    },
+    {
+      "path": "api/omg/normative/SysML-vocab.ttl",
+      "url": "https://www.omg.org/spec/SystemsModelingAPI/20250201/SysML-vocab.ttl",
+      "size": 183115,
+      "sha256": "03592b7e61d4bf81797da6cf8ad10dd9d15949d4e4430f52fdb1969c6e478aba",
+      "landing": "https://www.omg.org/spec/SystemsModelingAPI/1.0/",
+      "license": "OMG specification terms"
+    },
+    {
+      "path": "api/omg/normative/Systems-Modeling-API.xmi",
+      "url": "https://www.omg.org/spec/SystemsModelingAPI/20250201/Systems-Modeling-API.xmi",
+      "size": 151304,
+      "sha256": "9b76ece17e6fea1fbedb9242eddd7f90df3397d6347c13d711435d561dc7698e",
+      "landing": "https://www.omg.org/spec/SystemsModelingAPI/1.0/",
+      "license": "OMG specification terms"
+    },
+    {
+      "path": "api/public/docs/openapi-extensions.json",
+      "url": "https://raw.githubusercontent.com/Systems-Modeling/SysML-v2-API-Services/0af711b14bbcea7b240bb0a3a65817ae68302092/public/docs/openapi-extensions.json",
+      "size": 4384,
+      "sha256": "3ebdf66886811f8f24f09d3aa770b42367fa8447919ee683a2475cd454e1afb7",
+      "landing": "https://github.com/Systems-Modeling/SysML-v2-API-Services",
+      "license": "EPL-2.0"
+    },
+    {
+      "path": "api/public/docs/openapi-sans-schemas.json",
+      "url": "https://raw.githubusercontent.com/Systems-Modeling/SysML-v2-API-Services/0af711b14bbcea7b240bb0a3a65817ae68302092/public/docs/openapi-sans-schemas.json",
+      "size": 68096,
+      "sha256": "bdf6d632c9369dc544d663bc106c625e65888140c00332fd8687fec3775a233d",
+      "landing": "https://github.com/Systems-Modeling/SysML-v2-API-Services",
+      "license": "EPL-2.0"
+    },
+    {
+      "path": "informative/ptc-25-04-31.sysml",
+      "url": "https://www.omg.org/cgi-bin/doc?ptc/25-04-31.sysml",
+      "size": 73519,
+      "sha256": "545b68c1da2f2fb63667011b0b21ed4fefb307adf713e5ec038345723600e912",
+      "landing": "https://www.omg.org/spec/SysML/2.0/",
+      "license": "OMG specification terms"
+    },
+    {
+      "path": "normative/Analysis-Domain-Library.kpar",
+      "url": "https://www.omg.org/spec/SysML/20250201/Analysis-Domain-Library.kpar",
+      "size": 6035,
+      "sha256": "96f0230cd7091faa2d27345b7f7748e0249fb42cfbdc48265ce6e82d6ecc1b38",
+      "landing": "https://www.omg.org/spec/SysML/2.0/",
+      "license": "OMG specification terms"
+    },
+    {
+      "path": "normative/Cause-and-Effect-Domain-Library.kpar",
+      "url": "https://www.omg.org/spec/SysML/20250201/Cause-and-Effect-Domain-Library.kpar",
+      "size": 3135,
+      "sha256": "c097c70232b8c9d38acbc92b402d8caa3b67f4d847dade0f29994164a4e25e94",
+      "landing": "https://www.omg.org/spec/SysML/2.0/",
+      "license": "OMG specification terms"
+    },
+    {
+      "path": "normative/Geometry-Domain-Library.kpar",
+      "url": "https://www.omg.org/spec/SysML/20250201/Geometry-Domain-Library.kpar",
+      "size": 7169,
+      "sha256": "9cc40d628dfe8717b79af74297a7115103e3469708a54221cac0e42344ed8427",
+      "landing": "https://www.omg.org/spec/SysML/2.0/",
+      "license": "OMG specification terms"
+    },
+    {
+      "path": "normative/Metadata-Domain-Library.kpar",
+      "url": "https://www.omg.org/spec/SysML/20250201/Metadata-Domain-Library.kpar",
+      "size": 4573,
+      "sha256": "5c51cd3b21b60c89742dbba0f59f25bdbc34224d05e32975d77bb93092458b9b",
+      "landing": "https://www.omg.org/spec/SysML/2.0/",
+      "license": "OMG specification terms"
+    },
+    {
+      "path": "normative/Quantities-and-Units-Domain-Library.kpar",
+      "url": "https://www.omg.org/spec/SysML/20250201/Quantities-and-Units-Domain-Library.kpar",
+      "size": 154748,
+      "sha256": "81a6e7264a9f287e482ec5b35f8ef98725b81f393e0b2e82dae3599511c0adc7",
+      "landing": "https://www.omg.org/spec/SysML/2.0/",
+      "license": "OMG specification terms"
+    },
+    {
+      "path": "normative/Requirement-Derivation-Domain-Library.kpar",
+      "url": "https://www.omg.org/spec/SysML/20250201/Requirement-Derivation-Domain-Library.kpar",
+      "size": 2650,
+      "sha256": "a136e72ac6afbd96ede220cfec77fd54c75242d577d3f5ab9e5278b25baee6e5",
+      "landing": "https://www.omg.org/spec/SysML/2.0/",
+      "license": "OMG specification terms"
+    },
+    {
+      "path": "normative/SysML.json",
+      "url": "https://www.omg.org/spec/SysML/20250201/SysML.json",
+      "size": 3875821,
+      "sha256": "bb0d8af159cf2cbe4a0df4ed6b903505a57e33d047068e5a50a7008a18d546c5",
+      "landing": "https://www.omg.org/spec/SysML/2.0/",
+      "license": "OMG specification terms"
+    },
+    {
+      "path": "normative/SysML.xmi",
+      "url": "https://www.omg.org/spec/SysML/20250201/SysML.xmi",
+      "size": 1135635,
+      "sha256": "caa65d54f56798bf7582d173f7567e1eea37a49c45984f8bd7df145011cf8c6f",
+      "landing": "https://www.omg.org/spec/SysML/2.0/",
+      "license": "OMG specification terms"
+    },
+    {
+      "path": "normative/SysMLv1Tov2.xmi",
+      "url": "https://www.omg.org/spec/SysML/20250201/SysMLv1Tov2.xmi",
+      "size": 4634217,
+      "sha256": "093359439fb62cb3a9b1e89fd850ac4ac0b4bbe135b4b54f7861492722cc8459",
+      "landing": "https://www.omg.org/spec/SysML/2.0/",
+      "license": "OMG specification terms"
+    },
+    {
+      "path": "normative/Systems-Library.kpar",
+      "url": "https://www.omg.org/spec/SysML/20250201/Systems-Library.kpar",
+      "size": 27577,
+      "sha256": "df7d8b2c6e08232ca7ce123a63148949c383fcbeaeba8d89c27ceece43793a1f",
+      "landing": "https://www.omg.org/spec/SysML/2.0/",
+      "license": "OMG specification terms"
+    }
+  ],
+  "note": "Spec files live only in docs/specs/ (never committed). Entries without a url must be downloaded manually from their landing page. Regenerate checksums with: python scripts/fetch_specs.py lock"
+}

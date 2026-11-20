@@ -1,0 +1,14 @@
+Eureka SysML
+Copyright 2026 The Eureka SysML Authors
+
+This product is licensed under the Apache License, Version 2.0 (see LICENSE).
+
+This product implements the following Object Management Group (OMG) specifications:
+  - Kernel Modeling Language (KerML) 1.0          https://www.omg.org/spec/KerML/1.0/
+  - Systems Modeling Language (SysML) 2.0         https://www.omg.org/spec/SysML/2.0/
+  - Systems Modeling API and Services 1.0         https://www.omg.org/spec/SystemsModelingAPI/1.0/
+OMG, SysML, KerML and related marks are trademarks of the Object Management Group, Inc.
+Eureka SysML is not affiliated with or endorsed by OMG.
+
+Third-party components distributed with binary releases are listed in
+THIRD_PARTY_NOTICES.md together with their licenses.

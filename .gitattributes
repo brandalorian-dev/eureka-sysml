@@ -1,0 +1,7 @@
+* text=auto eol=lf
+*.sysml text eol=lf linguist-language=Text
+*.kerml text eol=lf linguist-language=Text
+*.png binary
+*.pdf binary
+*.kpar binary
+*.wasm binary
