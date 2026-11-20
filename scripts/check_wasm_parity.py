@@ -10,7 +10,9 @@ target), the number of passed tests must be equal.
 
 This guards against the silent failure mode of WASM tests: `wasm-bindgen-test-runner` runs only
 `#[wasm_bindgen_test]` functions and reports "no tests to run!" for plain `#[test]`, which looks
-like success. Doc-tests do not run on WASM and are ignored.
+like success. Doc-tests do not run on WASM and are ignored. ANSI color codes (cargo colors its
+status lines when CARGO_TERM_COLOR=always, even through a pipe) are stripped first. Two binaries
+that map to the same key are an error, so one cannot hide behind the other.
 """
 from __future__ import annotations
 
@@ -18,31 +20,52 @@ import re
 import sys
 from pathlib import Path
 
+ANSI = re.compile(r"\x1b\[[0-9;?]*[A-Za-z]")
 RUNNING = re.compile(r"^\s*Running (\S+(?: \S+)?) \((\S+)\)")
 RESULT = re.compile(r"^test result: \w+\. (\d+) passed;")
 
 
 def binary_key(target: str, path: str) -> tuple[str, str]:
-    """(crate, target), with the crate taken from the build directory (target/…/build/<crate>/…)."""
+    """(crate, target), with the crate taken from the last build directory (…/build/<crate>/…).
+
+    The last one, because the target directory itself may contain a `build` folder. Without one
+    (the older `deps/` layout) the binary's name is used, which can collide; `parse_binaries`
+    reports collisions.
+    """
     parts = path.replace("\\", "/").split("/")
-    crate = parts[parts.index("build") + 1] if "build" in parts else Path(path).name.split("-")[0]
-    return crate, target
+    if "build" in parts[:-1]:
+        i = len(parts) - 1 - parts[::-1].index("build")
+        if i + 1 < len(parts):
+            return parts[i + 1], target
+    return Path(path).name.split("-")[0], target
 
 
-def parse(log: str) -> dict[tuple[str, str], int]:
-    """Passed-test counts per test binary. A binary with "no tests to run!" counts 0."""
+def parse_binaries(log: str) -> tuple[dict[tuple[str, str], int], list[tuple[str, str]]]:
+    """Passed-test counts per test binary, and the keys that more than one binary mapped to.
+
+    A binary with "no tests to run!" counts 0.
+    """
     counts: dict[tuple[str, str], int] = {}
+    duplicates: list[tuple[str, str]] = []
     current = None
-    for line in log.splitlines():
+    for raw in log.splitlines():
+        line = ANSI.sub("", raw)
         if m := RUNNING.match(line):
             current = binary_key(m.group(1), m.group(2))
+            if current in counts and current not in duplicates:
+                duplicates.append(current)
             counts[current] = 0
         elif line.strip().startswith("Doc-tests "):
             current = None
         elif current is not None and (m := RESULT.match(line.strip())):
             counts[current] = int(m.group(1))
             current = None
-    return counts
+    return counts, duplicates
+
+
+def parse(log: str) -> dict[tuple[str, str], int]:
+    """Passed-test counts per test binary (see `parse_binaries`)."""
+    return parse_binaries(log)[0]
 
 
 def compare(native: dict, wasm: dict) -> list[str]:
@@ -60,13 +83,23 @@ def compare(native: dict, wasm: dict) -> list[str]:
     return errors
 
 
+def check(native_log: str, wasm_log: str) -> list[str]:
+    """All parity errors between a native and a WASM test log."""
+    native, native_dupes = parse_binaries(native_log)
+    wasm, wasm_dupes = parse_binaries(wasm_log)
+    errors = [f"{k[0]} {k[1]}: more than one test binary has this key in the {where} log"
+              for where, dupes in (("native", native_dupes), ("WASM", wasm_dupes)) for k in dupes]
+    return errors + compare(native, wasm)
+
+
 def main() -> int:
     if len(sys.argv) != 3:
         print(__doc__, file=sys.stderr)
         return 2
-    native = parse(Path(sys.argv[1]).read_text(encoding="utf-8", errors="replace"))
-    wasm = parse(Path(sys.argv[2]).read_text(encoding="utf-8", errors="replace"))
-    errors = compare(native, wasm)
+    native_log = Path(sys.argv[1]).read_text(encoding="utf-8", errors="replace")
+    wasm_log = Path(sys.argv[2]).read_text(encoding="utf-8", errors="replace")
+    native = parse(native_log)
+    errors = check(native_log, wasm_log)
     for e in errors:
         print("ERROR:", e, file=sys.stderr)
     if not errors:

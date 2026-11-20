@@ -23,6 +23,10 @@ use std::fmt;
 use std::io::Read;
 use std::path::PathBuf;
 
+mod files;
+use files::is_library_archive;
+pub use files::{is_corpus_file, Language};
+
 /// The local spec folder: `EUREKA_SPECS_DIR` if set, otherwise `docs/specs/` in this repository.
 pub fn specs_dir() -> PathBuf {
     std::env::var_os("EUREKA_SPECS_DIR")
@@ -30,11 +34,10 @@ pub fn specs_dir() -> PathBuf {
         .unwrap_or_else(|| PathBuf::from(concat!(env!("CARGO_MANIFEST_DIR"), "/../../docs/specs")))
 }
 
-/// The path of the repository's `specs.lock.json`. [`Corpus::load`] checks every corpus file
-/// against it, so `EUREKA_SPECS_DIR` must point at a folder holding the files this lock pins.
-pub const LOCK_PATH: &str = concat!(env!("CARGO_MANIFEST_DIR"), "/../../specs.lock.json");
-
-/// The contents of `specs.lock.json`, compiled in so that it is available on every target.
+/// The contents of the repository's `specs.lock.json`, compiled in so that it is available on
+/// every target. [`Corpus::load`] checks every corpus file against it, so `EUREKA_SPECS_DIR` must
+/// point at a folder holding the files this lock pins. Editing the file takes effect at the next
+/// build.
 pub const LOCK: &str = include_str!(concat!(
     env!("CARGO_MANIFEST_DIR"),
     "/../../specs.lock.json"
@@ -74,28 +77,6 @@ pub fn read_spec(path: &str) -> Result<Vec<u8>, CorpusError> {
 /// The largest archive entry the loader reads, in bytes. The largest standard library file is
 /// about 150 KB; the limit stops a malformed or hostile archive from exhausting memory.
 pub const MAX_ENTRY_BYTES: u64 = 16 * 1024 * 1024;
-
-/// The language of a textual model file, from its extension (KerML 10.2, SysML 10.2).
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, PartialOrd, Ord)]
-pub enum Language {
-    /// `.kerml`
-    KerML,
-    /// `.sysml`
-    SysML,
-}
-
-impl Language {
-    /// The language of a file path, or `None` if it is not a textual model file.
-    pub fn of_path(path: &str) -> Option<Language> {
-        if path.ends_with(".kerml") {
-            Some(Language::KerML)
-        } else if path.ends_with(".sysml") {
-            Some(Language::SysML)
-        } else {
-            None
-        }
-    }
-}
 
 /// What a corpus case is expected to do.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -362,7 +343,7 @@ impl Corpus {
             let path = field("path")
                 .ok_or_else(|| CorpusError(format!("specs.lock.json: entry {i} has no path")))?;
             let lock_err = |msg: &str| CorpusError(format!("specs.lock.json: {path}: {msg}"));
-            if path.ends_with(".kpar") {
+            if is_library_archive(path) {
                 let url = field("url")
                     .ok_or_else(|| lock_err("a library needs a url (its usage IRI)"))?;
                 let bytes = read_locked(&read, path, field("sha256"))?;

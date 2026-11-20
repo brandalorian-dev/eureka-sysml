@@ -113,9 +113,15 @@ jobs:
           key: wasm
 
       - name: tests, native (for the parity check)
+        # `shell: bash` runs with -eo pipefail, so a failing cargo test fails the step despite `| tee`.
+        # (Without it, GitHub runs `bash -e`, and the pipeline's status is tee's.)
+        shell: bash
         run: cargo test --workspace --locked --no-fail-fast 2>&1 | tee native.log
 
       - name: tests, WebAssembly under Node
+        # `shell: bash` runs with -eo pipefail, so a failing cargo test fails the step despite `| tee`.
+        # (Without it, GitHub runs `bash -e`, and the pipeline's status is tee's.)
+        shell: bash
         env:
           CARGO_TARGET_WASM32_UNKNOWN_UNKNOWN_RUNNER: wasm-bindgen-test-runner
         run: cargo test --workspace --locked --target wasm32-unknown-unknown --no-fail-fast 2>&1 | tee wasm.log

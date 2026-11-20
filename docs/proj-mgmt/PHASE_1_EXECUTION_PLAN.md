@@ -8,7 +8,7 @@ Change history:
 - v1.0: first version
 - v1.1: the decision methodology (§2.5). Each decision is evaluated in its execution step, so the decisions are no longer entry criteria.
 - v1.2: step 1a.0 done. D7 adopted (ADR 0009); the dependency spike recorded as evidence for D1 and D2 (`docs/proj-mgmt/evidence/1a.0-dependency-spike.md`).
-- v1.3: step 1a.1 done (ADR 0010). All 75 tests run as WebAssembly with a parity check; `wasm-pack build` packages `sysml-wasm`.
+- v1.3: step 1a.1 done (ADR 0010). All 77 tests run as WebAssembly with a parity check; `wasm-pack build` packages `sysml-wasm`.
 
 ## 1. Executive summary
 
@@ -158,7 +158,7 @@ Each step below gives its goal, the spec clauses, what it delivers, the tests to
 - **Effort:** 0.5
 
 #### 1a.1 WASM test harness (moved from Phase 0)
-- **Status:** done 2026-11-20 (ADR 0010). All 75 tests in 13 test binaries pass as WebAssembly under Node, with the same counts as natively. The tests run through `wasm-bindgen-test-runner` rather than `wasm-pack test` (ADR 0010 explains why), and `wasm-pack build` packages `sysml-wasm`, which a Node script calls.
+- **Status:** done 2026-11-20 (ADR 0010). All 77 tests in 13 test binaries pass as WebAssembly under Node, with the same counts as natively. The tests run through `wasm-bindgen-test-runner` rather than `wasm-pack test` (ADR 0010 explains why), and `wasm-pack build` packages `sysml-wasm`, which a Node script calls.
 - **Goal:** the existing tests run on WASM before there is much code to port.
 - **Clauses:** none; this is PROJECT_PLAN §8 (corpus on native and WASM).
 - **Delivers:**

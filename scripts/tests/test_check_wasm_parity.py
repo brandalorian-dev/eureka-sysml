@@ -58,6 +58,39 @@ class Parse(unittest.TestCase):
         self.assertEqual(parity.parse(log), {("c", "tests/x.rs"): 2})
 
 
+class ColoredLogs(unittest.TestCase):
+    def test_ansi_colored_running_lines(self):
+        # CI sets CARGO_TERM_COLOR=always, so cargo colors its status lines even through `tee`.
+        log = ("\x1b[1m\x1b[92m     Running\x1b[0m tests/corpus.rs "
+               "(target/debug/build/sysml-corpus/3c4d/out/corpus-3c4d)\n"
+               "test result: \x1b[32mok\x1b[0m. 13 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; "
+               "finished in 0.02s\n"
+               "\x1b[1m\x1b[92m   Doc-tests\x1b[0m sysml_corpus\n"
+               "test result: \x1b[32mok\x1b[0m. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; "
+               "finished in 0.00s\n")
+        counts, duplicates = parity.parse_binaries(log)
+        self.assertEqual(counts, {("sysml-corpus", "tests/corpus.rs"): 13})
+        self.assertEqual(duplicates, [])
+
+
+class BinaryKeys(unittest.TestCase):
+    def test_crate_from_the_last_build_directory(self):
+        # An absolute target dir may itself contain "build".
+        key = parity.binary_key("unittests src/lib.rs", "/build/target/debug/build/sysml-corpus/5e6f/out/sysml_corpus-5e6f")
+        self.assertEqual(key, ("sysml-corpus", "unittests src/lib.rs"))
+
+    def test_duplicate_keys_are_errors(self):
+        # Without a build directory (the older deps/ layout) two crates' tests/x.rs collide.
+        log = ("     Running tests/x.rs (target/debug/deps/x-1111)\n"
+               "test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s\n"
+               "     Running tests/x.rs (target/debug/deps/x-2222)\n"
+               "test result: ok. 3 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s\n")
+        counts, duplicates = parity.parse_binaries(log)
+        self.assertEqual(duplicates, [("x", "tests/x.rs")])
+        errors = parity.check(log, log)
+        self.assertTrue(any("tests/x.rs" in e and "more than one" in e for e in errors), errors)
+
+
 class Compare(unittest.TestCase):
     def test_equal_counts_pass(self):
         self.assertEqual(parity.compare(parity.parse(NATIVE), parity.parse(WASM)), [])
