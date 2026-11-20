@@ -1,0 +1,24 @@
+[package]
+name = "sysml-bench"
+description = "Benchmark harness: the PROJECT_PLAN §7 performance budgets and the benchmarks that measure them"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+authors.workspace = true
+publish = false
+
+[lints]
+workspace = true
+
+[dev-dependencies]
+divan.workspace = true
+serde_json.workspace = true
+sysml-api-types.workspace = true
+sysml-corpus.workspace = true
+sysml-synth.workspace = true
+
+[[bench]]
+name = "phase0"
+harness = false

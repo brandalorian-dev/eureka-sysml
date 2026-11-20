@@ -55,6 +55,8 @@ python scripts/extract_spec_text.py                  # per-clause spec text
 cargo fmt --all && cargo clippy --workspace --all-targets -- -D warnings
 cargo test --workspace
 cargo build --workspace --target wasm32-unknown-unknown
+cargo test --workspace --benches                     # run each benchmark once (as CI does)
+cargo bench -p sysml-bench                           # measure the benchmarks
 cargo deny check                                     # licenses, advisories, sources (as in CI)
 ```
 
@@ -66,6 +68,8 @@ A Rust core in `crates/` compiles natively (for the server) and to WASM (for the
 - `sysml-syntax`: lossless, error-tolerant parser
 - `sysml-model`: generated metaclasses plus an arena element graph
 - `sysml-api-types`: API records (Project, Commit, DataVersion, Query, …) generated from the API `Schema.json`; spec corrections in ADR 0005
+- `sysml-synth` (test infrastructure): deterministic synthetic SysML models at any size (`Config::with_target_elements`), for benchmarks and scale tests
+- `sysml-bench` (test infrastructure): the PROJECT_PLAN §7 budgets as data (`BUDGETS`, kept equal to the plan by a test) and the `divan` benchmarks; ADR 0007
 - `sysml-corpus` (test infrastructure): the standard libraries and example models from `docs/specs/`. Corpus tests use `sysml_corpus::Corpus::load()` and iterate `sources()`; library archive errata in ADR 0006
 - `sysml-semantics`: salsa-based incremental resolution and implied relationships
 - `sysml-versioning`: API PIM commit, diff and merge rules
