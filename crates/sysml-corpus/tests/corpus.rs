@@ -299,13 +299,15 @@ fn simple_vehicle_model() {
 }
 
 /// Lock entries that are not models: the specification documents, the metamodel and schema
-/// files, and the API pilot material. This list is independent of the loader's own filter, so a
+/// files, the API pilot material, and the library UUID reference (the XMI serializations of
+/// SysML-v2-Release 2025-02, ADR 0009). This list is independent of the loader's own filter, so a
 /// model the loader skips (for example a new extension) fails the completeness test.
 fn is_not_a_model(path: &str) -> bool {
     let ext = path.rsplit_once('.').map(|(_, e)| e).unwrap_or_default();
     ext == "pdf"
         || path.starts_with("api/")
         || (path.contains("normative/") && matches!(ext, "json" | "xmi"))
+        || (path.starts_with("SysML-v2-Release/") && matches!(ext, "kermlx" | "sysmlx"))
 }
 
 #[test]

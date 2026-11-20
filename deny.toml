@@ -20,6 +20,7 @@ allow = [
   "ISC",
   "Unicode-3.0",
   "Unicode-DFS-2016",
+  "Zlib",      # permissive; foldhash, required by salsa (owner approval 2026-11-20, 1a.0 spike)
   "CC0-1.0",
   "MPL-2.0",   # weak copyleft per file; allowed when unmodified
   "EPL-2.0",   # weak copyleft; OMG libraries, ELK, Sprotty (when unmodified)

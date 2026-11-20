@@ -22,6 +22,7 @@ Run `python scripts/fetch_specs.py fetch` and then `python scripts/extract_spec_
 | Standard libraries | `docs/specs/KerML/normative/*.kpar` (KerML) and `docs/specs/normative/*.kpar` (SysML), which are ZIP files of `.kerml`/`.sysml` sources |
 | API | `docs/specs/api/omg/normative/OpenAPI.json`, `Schema.json` |
 | Example model | `docs/specs/informative/ptc-25-04-31.sysml` (SimpleVehicleModel) |
+| Library element UUIDs (test oracle) | `docs/specs/SysML-v2-Release/2025-02/sysml.library.xmi/` (`elementId` attributes; ADR 0009). Root namespace ids are not normative. |
 
 Commonly needed clauses:
 - KerML 8.2: textual grammar
@@ -43,7 +44,8 @@ Development happens in WSL2 (Ubuntu); CI runs on `ubuntu-latest`.
 - Rust comes from `rustup`, and `rust-toolchain.toml` pins stable with rustfmt, clippy and `wasm32-unknown-unknown`.
 - `pdftotext` (`poppler-utils`) is needed for `extract_spec_text.py`.
 - Installed: `cargo-deny` (run `cargo deny check` before a PR), `gh` (run `gh auth login` once before PR work), Node and pnpm (for `apps/web`), and Docker.
-- Not installed yet: `wasm-pack` (`cargo install --locked wasm-pack`, needed for the Phase 0 wasm-pack CI build) and PostgreSQL. For the `sysml-store` integration tests, run PostgreSQL in Docker rather than installing it in WSL, to match the CI service container.
+- `wasm-bindgen-cli` 0.2.130 (`wasm-bindgen-test-runner`) runs WASM tests under Node. It must match the `wasm-bindgen` crate's version exactly, and it does not accept `cargo test -q`: `CARGO_TARGET_WASM32_UNKNOWN_UNKNOWN_RUNNER=wasm-bindgen-test-runner cargo test --target wasm32-unknown-unknown`.
+- Not installed yet: `wasm-pack` (`cargo install --locked wasm-pack`, needed in Phase 1a step 1a.1) and PostgreSQL. For the `sysml-store` integration tests, run PostgreSQL in Docker rather than installing it in WSL, to match the CI service container.
 - There is no `rustfmt.toml`, so rustfmt's default width of 100 applies.
 
 ## Commands
@@ -57,6 +59,7 @@ cargo test --workspace
 cargo build --workspace --target wasm32-unknown-unknown
 cargo test --workspace --bench '*'                   # run each benchmark once (as CI does)
 cargo bench -p sysml-bench                           # measure the benchmarks
+python scripts/check_uuid_oracle.py                  # the UUID oracle still follows KerML 9.1
 python scripts/sbom.py                               # CycloneDX SBOMs into target/sbom (needs cargo-cyclonedx)
 cargo deny check                                     # licenses, advisories, sources (as in CI)
 ```
