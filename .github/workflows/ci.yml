@@ -59,6 +59,56 @@ jobs:
       - name: wasm build
         run: cargo build --workspace --target wasm32-unknown-unknown
 
+  # Builds and tests with exactly the minimum Rust version that Cargo.toml declares, so a
+  # dependency update that needs a newer compiler fails here instead of going unnoticed.
+  msrv:
+    name: Rust MSRV (test, wasm)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.12"
+
+      - name: Cache spec files
+        uses: actions/cache@v6
+        with:
+          path: docs/specs
+          key: specs-${{ hashFiles('specs.lock.json') }}
+
+      - name: Fetch and verify specs
+        run: python scripts/fetch_specs.py fetch
+
+      - name: Read rust-version from Cargo.toml
+        id: msrv
+        run: |
+          v=$(python -c "import tomllib; print(tomllib.load(open('Cargo.toml', 'rb'))['workspace']['package']['rust-version'])")
+          echo "Declared minimum Rust version: $v"
+          echo "version=$v" >> "$GITHUB_OUTPUT"
+
+      - uses: dtolnay/rust-toolchain@master
+        with:
+          toolchain: ${{ steps.msrv.outputs.version }}
+          targets: wasm32-unknown-unknown
+
+      - uses: Swatinem/rust-cache@v2
+        with:
+          key: msrv
+
+      # rust-toolchain.toml pins `stable`; RUSTUP_TOOLCHAIN takes precedence over it.
+      - name: test
+        env:
+          RUSTUP_TOOLCHAIN: ${{ steps.msrv.outputs.version }}
+        run: |
+          cargo --version
+          cargo test --workspace --locked
+
+      - name: wasm build
+        env:
+          RUSTUP_TOOLCHAIN: ${{ steps.msrv.outputs.version }}
+        run: cargo build --workspace --locked --target wasm32-unknown-unknown
+
   licenses-and-advisories:
     name: cargo-deny (licenses, advisories, sources)
     runs-on: ubuntu-latest
