@@ -20,11 +20,20 @@ PROJECT_PLAN §4.8 requires "an SBOM (CycloneDX) for every release", alongside s
 - the components are exactly the crate's dependencies for that target, and each has the right scope
 - every component has a package URL and a license
 - every crates.io component carries the SHA-256 recorded in `Cargo.lock`
-- no test-infrastructure crate appears
+- no test-infrastructure crate appears, and no component is listed twice
+- no absolute file path appears
+- the output folder holds no other SBOM files; old ones are removed before generating
 
 So an SBOM cannot silently drift from what is built. Licenses themselves are checked by `cargo deny` against `deny.toml`.
 
-**Reproducibility.** The SBOM timestamp comes from `SOURCE_DATE_EPOCH`, which the script sets to the last commit's time when it is not given. The same commit always produces byte-identical SBOMs.
+**Reproducibility.** The same commit produces byte-identical SBOMs wherever it is checked out:
+- The timestamp comes from `SOURCE_DATE_EPOCH`, or from the last commit's time when it is not set. Without either (for example in a source tarball), the script stops with a message.
+- `cargo-cyclonedx` uses Cargo package ids as `bom-ref` values. For workspace crates these contain the checkout's absolute path (`path+file:///…/crates/sysml-model#0.0.1`), which would also leak local paths. The script rewrites them relative to the workspace root (`path+file:crates/sysml-model#0.0.1`), and the check rejects any remaining absolute path.
+- `cargo-cyclonedx` 0.5.10 writes no `serialNumber`. To catch a random serial number, or any other random value, in a future version, the script generates every SBOM twice and requires the two to be identical.
+
+This was verified by generating from a second checkout of the same commit at another path (one containing a space): the SBOMs were identical.
+
+The script needs Python 3.11 or later, for `tomllib`. Python 3.10 reached its end of life in October 2026, and the repository's documented minimum is now 3.11.
 
 **CI.** The `sbom` job runs the script on every push and pull request and uploads the SBOMs as the `sbom-<commit>` build artifact.
 

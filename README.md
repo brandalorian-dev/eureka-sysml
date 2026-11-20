@@ -24,7 +24,7 @@ The details are in the [project plan](docs/proj-mgmt/PROJECT_PLAN.md) §3–4.
 
 Requirements:
 - Rust (stable, installed through `rustup`; the toolchain is pinned in `rust-toolchain.toml`)
-- Python 3.10+
+- Python 3.11+
 - `pdftotext` (poppler-utils), optional, for spec text extraction
 
 ```sh
