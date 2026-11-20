@@ -8,14 +8,18 @@
 //! Hand-written here:
 //! - [`Element`] and [`ElementRequest`]: element payloads, kept as open property maps keyed by
 //!   their metaclass. Typed element access belongs to `sysml-model` (ADR 0005).
-//! - [`Identified`], [`ConstraintValue`], [`DateTime`] and [`Iri`].
+//! - [`Id`], [`Identified`], [`ConstraintValue`], [`DateTime`] and [`Iri`].
 //!
-//! Field presence follows `required` in the schema. A property that is optional and nullable in a
+//! Field presence follows `required` in the schema. Request bodies are checked strictly; response
+//! records accept the omissions listed in ADR 0005. A property that is optional and nullable in a
 //! request is an `Option<Option<T>>`, so that "absent" (leave unchanged) and `null` (clear) stay
-//! distinct.
+//! distinct. `minItems` is enforced on deserialization.
 
-use serde::{Deserialize, Deserializer, Serialize};
+use serde::de::{DeserializeOwned, Error as _};
+use serde::{Deserialize, Deserializer, Serialize, Serializer};
 use serde_json::{Map, Value};
+use std::fmt;
+use std::str::FromStr;
 use sysml_model::Metaclass;
 
 pub use uuid::Uuid;
@@ -62,13 +66,77 @@ mod generated {
 }
 pub use generated::*;
 
+/// A record or element identifier (Schema.json `"format": "uuid"`).
+///
+/// Only the RFC 9562 §4 string form is accepted: 8-4-4-4-12 hexadecimal digits with hyphens. The
+/// URN, braced and unhyphenated forms are rejected. Hex digits are case-insensitive on input and
+/// always written in lower case, as RFC 9562 recommends (ADR 0005).
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, PartialOrd, Ord)]
+pub struct Id(pub Uuid);
+
+/// The error for a string that is not a hyphenated UUID.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct InvalidId(pub String);
+
+impl fmt::Display for InvalidId {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(
+            f,
+            "invalid id {:?}: expected a hyphenated UUID (8-4-4-4-12 hex digits)",
+            self.0
+        )
+    }
+}
+
+impl std::error::Error for InvalidId {}
+
+impl FromStr for Id {
+    type Err = InvalidId;
+
+    fn from_str(s: &str) -> Result<Self, InvalidId> {
+        let b = s.as_bytes();
+        let hyphenated = b.len() == 36 && [8, 13, 18, 23].iter().all(|&i| b[i] == b'-');
+        if !hyphenated {
+            return Err(InvalidId(s.to_owned()));
+        }
+        Uuid::try_parse(s)
+            .map(Id)
+            .map_err(|_| InvalidId(s.to_owned()))
+    }
+}
+
+impl fmt::Display for Id {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        fmt::Display::fmt(&self.0.hyphenated(), f)
+    }
+}
+
+impl From<Uuid> for Id {
+    fn from(u: Uuid) -> Self {
+        Id(u)
+    }
+}
+
+impl Serialize for Id {
+    fn serialize<S: Serializer>(&self, s: S) -> Result<S::Ok, S::Error> {
+        s.collect_str(self)
+    }
+}
+
+impl<'de> Deserialize<'de> for Id {
+    fn deserialize<D: Deserializer<'de>>(d: D) -> Result<Self, D::Error> {
+        let s = String::deserialize(d)?;
+        s.parse().map_err(D::Error::custom)
+    }
+}
+
 /// A reference to another record or element by its identifier: `{"@id": "…"}` (KerML 10.4.4).
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct Identified {
     /// The identifier of the referenced record or element.
     #[serde(rename = "@id")]
-    pub id: Uuid,
+    pub id: Id,
 }
 
 /// A timestamp in ISO 8601 format (API 7.1.2, `ISO8601DateTime`), kept as written.
@@ -107,12 +175,13 @@ pub enum ConstraintValue {
 pub struct Element {
     /// The element identifier (`@id`).
     #[serde(rename = "@id")]
-    pub id: Uuid,
+    pub id: Id,
     /// The metaclass named by `@type`.
     #[serde(rename = "@type", with = "metaclass_name")]
     pub metaclass: Metaclass,
-    /// Every other serialized property.
-    #[serde(flatten)]
+    /// Every other serialized property. Must not contain `@id` or `@type`; serialization fails if
+    /// it does.
+    #[serde(flatten, serialize_with = "element_properties")]
     pub properties: Map<String, Value>,
 }
 
@@ -121,13 +190,32 @@ pub struct Element {
 pub struct ElementRequest {
     /// The element identifier (`@id`), if the client supplies one.
     #[serde(rename = "@id", default, skip_serializing_if = "Option::is_none")]
-    pub id: Option<Uuid>,
+    pub id: Option<Id>,
     /// The metaclass named by `@type`.
     #[serde(rename = "@type", with = "metaclass_name")]
     pub metaclass: Metaclass,
-    /// Every other serialized property.
-    #[serde(flatten)]
+    /// Every other serialized property. Must not contain `@id` or `@type`; serialization fails if
+    /// it does.
+    #[serde(flatten, serialize_with = "element_properties")]
     pub properties: Map<String, Value>,
+}
+
+fn element_properties<S: Serializer>(m: &Map<String, Value>, s: S) -> Result<S::Ok, S::Error> {
+    without_reserved(m, &["@id", "@type"], s)
+}
+
+/// Serializes a flattened property map, failing if it repeats a named property of its record.
+fn without_reserved<S: Serializer>(
+    m: &Map<String, Value>,
+    reserved: &[&str],
+    s: S,
+) -> Result<S::Ok, S::Error> {
+    if let Some(k) = reserved.iter().find(|k| m.contains_key(**k)) {
+        return Err(serde::ser::Error::custom(format!(
+            "property map repeats the named property `{k}`"
+        )));
+    }
+    m.serialize(s)
 }
 
 /// Serializes a [`Metaclass`] as its `@type` name.
@@ -149,6 +237,18 @@ mod metaclass_name {
     }
 }
 
+// ---- deserialization helpers used by the generated code ----
+
+/// A required, nullable request property: must be present; `null` reads as `None`. Using
+/// `deserialize_with` without `default` makes serde report a missing property as an error.
+fn present<'de, D, T>(d: D) -> Result<Option<T>, D::Error>
+where
+    D: Deserializer<'de>,
+    T: Deserialize<'de>,
+{
+    Option::<T>::deserialize(d)
+}
+
 /// Deserializes a present property (including `null`) as `Some(…)`. Used together with
 /// `#[serde(default)]`, which yields `None` when the property is absent.
 fn double_option<'de, D, T>(d: D) -> Result<Option<Option<T>>, D::Error>
@@ -157,4 +257,54 @@ where
     T: Deserialize<'de>,
 {
     Option::<T>::deserialize(d).map(Some)
+}
+
+fn check_len<E: serde::de::Error>(len: usize, min: usize) -> Result<(), E> {
+    if len < min {
+        Err(E::custom(format!(
+            "expected at least {min} items, found {len}"
+        )))
+    } else {
+        Ok(())
+    }
+}
+
+/// A list with `minItems: N`.
+fn min_items<'de, D, T, const N: usize>(d: D) -> Result<Vec<T>, D::Error>
+where
+    D: Deserializer<'de>,
+    T: Deserialize<'de>,
+{
+    let v = Vec::<T>::deserialize(d)?;
+    check_len(v.len(), N)?;
+    Ok(v)
+}
+
+/// A nullable list with `minItems: N`. Without `default`, the property must also be present.
+fn min_items_opt<'de, D, T, const N: usize>(d: D) -> Result<Option<Vec<T>>, D::Error>
+where
+    D: Deserializer<'de>,
+    T: Deserialize<'de>,
+{
+    let v = Option::<Vec<T>>::deserialize(d)?;
+    if let Some(items) = &v {
+        check_len(items.len(), N)?;
+    }
+    Ok(v)
+}
+
+/// The `@type` of a union member, or an error naming the union.
+fn type_of<E: serde::de::Error>(v: &Value, union: &str) -> Result<String, E> {
+    match v.get("@type") {
+        Some(Value::String(t)) => Ok(t.clone()),
+        Some(other) => Err(E::custom(format!(
+            "{union}: `@type` must be a string, found {other}"
+        ))),
+        None => Err(E::custom(format!("{union}: missing `@type`"))),
+    }
+}
+
+/// Deserializes one union member, prefixing errors with the member's name.
+fn member<T: DeserializeOwned, E: serde::de::Error>(v: Value, name: &str) -> Result<T, E> {
+    serde_json::from_value(v).map_err(|e| E::custom(format!("{name}: {e}")))
 }
