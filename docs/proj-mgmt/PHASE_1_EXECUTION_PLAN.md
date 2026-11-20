@@ -1,6 +1,6 @@
 # Eureka SysML: Phase 1 execution plan
 
-Status: Draft v1.4 · 2026-11-20 · Covers PROJECT_PLAN v0.7 §6, Phases 1a and 1b (Release 0.1 "Language")
+Status: Draft v1.5 · 2026-11-20 · Covers PROJECT_PLAN v0.7 §6, Phases 1a and 1b (Release 0.1 "Language")
 
 This plan breaks Phase 1 into ordered steps, each small enough for one or a few pull requests. PROJECT_PLAN.md remains the source of truth for scope, architecture and budgets. Where this plan finds something the project plan does not settle, it is listed under [decisions](#24-decisions-and-their-recommended-defaults), and settled by the [decision methodology](#25-decision-methodology): each recommended default is evaluated during the step that first depends on it.
 
@@ -10,6 +10,7 @@ Change history:
 - v1.2: step 1a.0 done. D7 adopted (ADR 0009); the dependency spike recorded as evidence for D1 and D2 (`docs/proj-mgmt/evidence/1a.0-dependency-spike.md`).
 - v1.3: step 1a.1 done (ADR 0010). All 77 tests run as WebAssembly with a parity check; `wasm-pack build` packages `sysml-wasm`.
 - v1.4: D1 and D4 adopted (ADRs 0011, 0012), from the step 1a.2 parser spike.
+- v1.5: step 1a.2 done: the `sysml-syntax` lexer, parser framework and diagnostics.
 
 ## 1. Executive summary
 
@@ -174,7 +175,7 @@ Each step below gives its goal, the spec clauses, what it delivers, the tests to
 #### 1a.2 Lexer and lossless syntax tree
 - **Goal:** turn any text into tokens and a lossless tree, never failing.
 - **Evaluates:** D1 (parser architecture) and D4 (diagnostics model), in the step's first PR.
-- **Status:** D1 and D4 adopted 2026-11-20 (ADRs 0011, 0012; evidence in `docs/proj-mgmt/evidence/1a.2-parser-spike.md`). The lexer and the framework follow.
+- **Status:** done 2026-11-20. D1 and D4 adopted (ADRs 0011, 0012; evidence in `docs/proj-mgmt/evidence/1a.2-parser-spike.md`). `sysml-syntax` has the hand-written lexer (with the 101 KerML and 128 SysML reserved words, 172 keyword kinds), the event-based framework with recovery and `precede`, and the `Diagnostic` type. The 95 corpus sources lex with no error tokens or lexical diagnostics and losslessly, natively and on WASM. The lexer handles the corpus in about 5 ms and the 1M-element model in about 53 ms (`sysml-bench`, `syntax` benchmark).
 - **Clauses:** KerML 8.2.2 (8.2.2.1 line terminators and white space, 8.2.2.2 notes and comments, 8.2.2.3 names including unrestricted names, 8.2.2.4 numeric values, 8.2.2.5 strings, 8.2.2.6 reserved words, 8.2.2.7 symbols).
 - **Delivers:**
   - the `sysml-syntax` crate: the token kinds, a hand-written lexer, and the `rowan` tree types

@@ -1,0 +1,22 @@
+[package]
+name = "sysml-syntax"
+description = "Lossless, error-tolerant lexer and parser for KerML and SysML (PROJECT_PLAN §4.2, ADR 0011)"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+authors.workspace = true
+
+[lints]
+workspace = true
+
+[dependencies]
+rowan.workspace = true
+
+[dev-dependencies]
+sysml-corpus.workspace = true
+
+[target.'cfg(target_arch = "wasm32")'.dev-dependencies]
+# Runs the tests as WebAssembly under Node (step 1a.1).
+wasm-bindgen-test.workspace = true
