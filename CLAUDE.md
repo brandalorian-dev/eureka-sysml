@@ -65,6 +65,7 @@ cargo deny check                                     # licenses, advisories, sou
 A Rust core in `crates/` compiles natively (for the server) and to WASM (for the browser):
 - `sysml-syntax`: lossless, error-tolerant parser
 - `sysml-model`: generated metaclasses plus an arena element graph
+- `sysml-api-types`: API records (Project, Commit, DataVersion, Query, …) generated from the API `Schema.json`; spec corrections in ADR 0005
 - `sysml-semantics`: salsa-based incremental resolution and implied relationships
 - `sysml-versioning`: API PIM commit, diff and merge rules
 - `sysml-store`: PostgreSQL
