@@ -18,3 +18,4 @@ serde_json.workspace = true
 zip.workspace = true
 # zip's deflate support needs a backend; miniz_oxide (pure Rust) also builds for wasm32.
 flate2.workspace = true
+sha2.workspace = true

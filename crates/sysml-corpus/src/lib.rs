@@ -27,7 +27,13 @@ pub fn specs_dir() -> PathBuf {
         .unwrap_or_else(|| PathBuf::from(concat!(env!("CARGO_MANIFEST_DIR"), "/../../docs/specs")))
 }
 
-const LOCK: &str = concat!(env!("CARGO_MANIFEST_DIR"), "/../../specs.lock.json");
+/// The repository's `specs.lock.json`. [`Corpus::load`] checks every corpus file against it, so
+/// `EUREKA_SPECS_DIR` must point at a folder holding the files this lock pins.
+pub const LOCK_PATH: &str = concat!(env!("CARGO_MANIFEST_DIR"), "/../../specs.lock.json");
+
+/// The largest archive entry the loader reads, in bytes. The largest standard library file is
+/// about 150 KB; the limit stops a malformed or hostile archive from exhausting memory.
+pub const MAX_ENTRY_BYTES: u64 = 16 * 1024 * 1024;
 
 /// The language of a textual model file, from its extension (KerML 10.2, SysML 10.2).
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, PartialOrd, Ord)]
@@ -130,9 +136,31 @@ pub struct Meta {
     /// Whether implied relationships are included.
     #[serde(default)]
     pub includes_implied: Option<bool>,
-    /// Checksums, keyed by file path.
+    /// Checksums, keyed by file path relative to the project root. Verified on loading.
     #[serde(default)]
-    pub checksum: BTreeMap<String, Checksum>,
+    pub checksum: BTreeMap<String, Checksums>,
+}
+
+/// The checksums for one file. KerML 10.3 Table 13 describes "a list of one or more objects",
+/// while the normative KerML-Model-Interchange.json defines a single object; both are read
+/// (ADR 0006).
+#[derive(Clone, Debug, PartialEq, Eq, Deserialize)]
+#[serde(untagged)]
+pub enum Checksums {
+    /// A single checksum, as in the normative schema.
+    One(Checksum),
+    /// A list of checksums, as in Table 13.
+    Many(Vec<Checksum>),
+}
+
+impl Checksums {
+    /// Every checksum given for the file.
+    pub fn all(&self) -> &[Checksum] {
+        match self {
+            Checksums::One(c) => std::slice::from_ref(c),
+            Checksums::Many(cs) => cs,
+        }
+    }
 }
 
 /// One `.meta.json` checksum.
@@ -161,8 +189,11 @@ pub struct Library {
     pub meta_json: Value,
     /// The language of every model file in the archive.
     pub language: Language,
-    /// The model files, sorted by path.
+    /// The textual model files, sorted by path.
     pub sources: Vec<Source>,
+    /// JSON (`.json`) and XMI (`.xmi`) model interchange files (KerML 10.2), sorted by path. They
+    /// are recorded but not loaded as sources.
+    pub interchange_files: Vec<String>,
     /// Archive entries skipped as operating-system metadata (ADR 0006), as full archive paths.
     pub ignored: Vec<String>,
 }
@@ -266,15 +297,16 @@ pub struct Corpus {
 }
 
 impl Corpus {
-    /// Load the corpus from [`specs_dir`].
+    /// Load the corpus from [`specs_dir`], as pinned by the repository's `specs.lock.json`.
     pub fn load() -> Result<Corpus, CorpusError> {
-        Corpus::load_from(&specs_dir())
+        Corpus::load_with(&specs_dir(), &read_text(Path::new(LOCK_PATH))?)
     }
 
-    /// Load the corpus files that `specs.lock.json` lists from `specs`.
-    pub fn load_from(specs: &Path) -> Result<Corpus, CorpusError> {
-        let lock: Value = serde_json::from_str(&read_text(Path::new(LOCK))?)
-            .map_err(|e| CorpusError(format!("specs.lock.json: {e}")))?;
+    /// Load the files that the lock file `lock` lists from `specs`. Every file must match its
+    /// SHA-256 in the lock.
+    pub fn load_with(specs: &Path, lock: &str) -> Result<Corpus, CorpusError> {
+        let lock: Value =
+            serde_json::from_str(lock).map_err(|e| CorpusError(format!("specs.lock.json: {e}")))?;
         let entries = lock["files"]
             .as_array()
             .ok_or_else(|| CorpusError("specs.lock.json has no files".into()))?;
@@ -282,17 +314,26 @@ impl Corpus {
             libraries: Vec::new(),
             models: Vec::new(),
         };
-        for e in entries {
-            let path = e["path"].as_str().unwrap_or_default();
+        for (i, e) in entries.iter().enumerate() {
+            let field = |name: &str| e.get(name).and_then(Value::as_str);
+            let path = field("path")
+                .ok_or_else(|| CorpusError(format!("specs.lock.json: entry {i} has no path")))?;
+            let lock_err = |msg: &str| CorpusError(format!("specs.lock.json: {path}: {msg}"));
             if path.ends_with(".kpar") {
-                let url = e["url"].as_str().unwrap_or_default().to_owned();
-                corpus.libraries.push(read_library(specs, path, url)?);
+                let url = field("url")
+                    .ok_or_else(|| lock_err("a library needs a url (its usage IRI)"))?;
+                let bytes = read_locked(specs, path, field("sha256"))?;
+                corpus
+                    .libraries
+                    .push(Library::from_archive(&bytes, path, url)?);
             } else if let Some(language) = Language::of_path(path) {
+                let bytes = read_locked(specs, path, field("sha256"))?;
+                let text = String::from_utf8(bytes).map_err(|_| lock_err("not valid UTF-8"))?;
                 corpus.models.push(Source {
                     id: path.to_owned(),
                     path: path.to_owned(),
                     language,
-                    text: read_text(&specs.join(path))?,
+                    text,
                     expect: Expectation::Valid,
                 });
             }
@@ -313,12 +354,17 @@ impl Corpus {
         self.libraries.iter().find(|l| l.project.name == name)
     }
 
-    /// The library that a usage `resource` IRI refers to, after [`ERRATA`] corrections.
-    pub fn resolve_usage(&self, resource: &str) -> Option<&Library> {
+    /// The library that the project named `using` refers to by the usage IRI `resource`. An
+    /// [`ERRATA`] correction applies only to the library it was recorded for.
+    pub fn resolve_usage(&self, using: &str, resource: &str) -> Option<&Library> {
         let iri = ERRATA
             .iter()
             .find_map(|e| match *e {
-                Erratum::UsageResource { listed, actual, .. } if listed == resource => Some(actual),
+                Erratum::UsageResource {
+                    library,
+                    listed,
+                    actual,
+                } if library == using && listed == resource => Some(actual),
                 _ => None,
             })
             .unwrap_or(resource);
@@ -342,106 +388,194 @@ fn read_text(path: &Path) -> Result<String, CorpusError> {
     std::fs::read_to_string(path).map_err(|e| CorpusError(format!("{}: {e}", path.display())))
 }
 
+fn hex_sha256(data: &[u8]) -> String {
+    use sha2::{Digest, Sha256};
+    Sha256::digest(data)
+        .iter()
+        .map(|b| format!("{b:02x}"))
+        .collect()
+}
+
+/// Read a corpus file and check it against its SHA-256 in `specs.lock.json`.
+fn read_locked(specs: &Path, path: &str, sha256: Option<&str>) -> Result<Vec<u8>, CorpusError> {
+    let expected =
+        sha256.ok_or_else(|| CorpusError(format!("specs.lock.json: {path}: no sha256")))?;
+    let full = specs.join(path);
+    let bytes =
+        std::fs::read(&full).map_err(|e| CorpusError(format!("{}: {e}", full.display())))?;
+    if !hex_sha256(&bytes).eq_ignore_ascii_case(expected) {
+        return Err(CorpusError(format!(
+            "{} does not match its sha256 in specs.lock.json (modified, or EUREKA_SPECS_DIR holds another release)",
+            full.display()
+        )));
+    }
+    Ok(bytes)
+}
+
 /// Operating-system metadata that archiving tools add (ADR 0006).
 fn is_os_metadata(path: &str) -> bool {
     let file = path.rsplit('/').next().unwrap_or(path);
     path.starts_with("__MACOSX/") || matches!(file, ".DS_Store" | "Thumbs.db" | "desktop.ini")
 }
 
-fn read_library(specs: &Path, file: &str, url: String) -> Result<Library, CorpusError> {
-    let err = |msg: String| CorpusError(format!("{file}: {msg}"));
-    let archive = std::fs::File::open(specs.join(file)).map_err(|e| err(e.to_string()))?;
-    let mut zip = zip::ZipArchive::new(archive).map_err(|e| err(e.to_string()))?;
+/// What an archive entry is (KerML 10.2, 10.3).
+enum Entry {
+    ProjectJson,
+    MetaJson,
+    /// A textual model file.
+    Text(Language),
+    /// A JSON or XMI model interchange file.
+    Interchange,
+}
 
-    let mut files: Vec<(String, String)> = Vec::new();
-    let mut ignored = Vec::new();
-    for i in 0..zip.len() {
-        let mut entry = zip.by_index(i).map_err(|e| err(e.to_string()))?;
-        // A name that is not valid UTF-8 is an error rather than being replaced lossily.
-        let name = entry.name().map_err(|e| err(e.to_string()))?.into_owned();
-        if entry.is_dir() {
-            continue;
-        }
-        if is_os_metadata(&name) {
-            ignored.push(name);
-            continue;
-        }
-        let mut text = String::new();
-        entry
-            .read_to_string(&mut text)
-            .map_err(|e| err(format!("{name}: {e}")))?;
-        files.push((name, text));
+fn classify(path: &str) -> Option<Entry> {
+    match path {
+        ".project.json" => Some(Entry::ProjectJson),
+        ".meta.json" => Some(Entry::MetaJson),
+        _ if path.ends_with(".json") || path.ends_with(".xmi") => Some(Entry::Interchange),
+        _ => Language::of_path(path).map(Entry::Text),
     }
+}
 
-    // ADR 0006: KerML 10.3 puts .project.json and .meta.json at the archive's top level. The OMG
-    // archives wrap the whole project in one folder; that folder is then the project root.
-    let first = |n: &str| n.split('/').next().unwrap_or_default().to_owned();
-    let root = match files.first().map(|(n, _)| first(n)) {
-        Some(top)
-            if files
-                .iter()
-                .all(|(n, _)| n.contains('/') && first(n) == top) =>
-        {
-            format!("{top}/")
+impl Library {
+    /// Read a project interchange file (KerML 10.3) from its bytes. `file` names it in errors and
+    /// `url` is the IRI other projects use it by.
+    pub fn from_archive(bytes: &[u8], file: &str, url: &str) -> Result<Library, CorpusError> {
+        let err = |msg: String| CorpusError(format!("{file}: {msg}"));
+        let mut zip =
+            zip::ZipArchive::new(std::io::Cursor::new(bytes)).map_err(|e| err(e.to_string()))?;
+
+        let mut files: Vec<(String, Vec<u8>)> = Vec::new();
+        let mut ignored = Vec::new();
+        for i in 0..zip.len() {
+            let entry = zip.by_index(i).map_err(|e| err(e.to_string()))?;
+            // A name that is not valid UTF-8 is an error rather than being replaced lossily.
+            let name = entry.name().map_err(|e| err(e.to_string()))?.into_owned();
+            if entry.is_dir() {
+                continue;
+            }
+            if is_os_metadata(&name) {
+                ignored.push(name);
+                continue;
+            }
+            let too_big = || err(format!("{name} is larger than {MAX_ENTRY_BYTES} bytes"));
+            if entry.size() > MAX_ENTRY_BYTES {
+                return Err(too_big());
+            }
+            // The declared size may be wrong, so the read itself is limited too.
+            let mut data = Vec::new();
+            entry
+                .take(MAX_ENTRY_BYTES + 1)
+                .read_to_end(&mut data)
+                .map_err(|e| err(format!("{name}: {e}")))?;
+            if data.len() as u64 > MAX_ENTRY_BYTES {
+                return Err(too_big());
+            }
+            files.push((name, data));
         }
-        _ => String::new(),
-    };
 
-    let mut project_json = None;
-    let mut meta_json = None;
-    let mut models = Vec::new();
-    for (name, text) in files {
-        let path = name[root.len()..].to_owned();
-        match path.as_str() {
-            ".project.json" => project_json = Some(text),
-            ".meta.json" => meta_json = Some(text),
-            _ => match Language::of_path(&path) {
-                Some(language) => models.push((path, language, text)),
-                None => return Err(err(format!("unexpected archive entry {name}"))),
-            },
+        // ADR 0006: KerML 10.3 puts .project.json and .meta.json at the archive's top level. The
+        // OMG archives wrap the whole project in one folder; that folder is then the project root.
+        let first = |n: &str| n.split('/').next().unwrap_or_default().to_owned();
+        let root = match files.first().map(|(n, _)| first(n)) {
+            Some(top)
+                if files
+                    .iter()
+                    .all(|(n, _)| n.contains('/') && first(n) == top) =>
+            {
+                format!("{top}/")
+            }
+            _ => String::new(),
+        };
+
+        let mut project_json = None;
+        let mut meta_json = None;
+        let mut models = Vec::new();
+        let mut interchange_files = Vec::new();
+        let mut contents: BTreeMap<String, Vec<u8>> = BTreeMap::new();
+        for (name, data) in files {
+            let path = name[root.len()..].to_owned();
+            let text = |data: &[u8]| {
+                String::from_utf8(data.to_vec())
+                    .map_err(|_| err(format!("{name} is not valid UTF-8")))
+            };
+            match classify(&path) {
+                Some(Entry::ProjectJson) => project_json = Some(text(&data)?),
+                Some(Entry::MetaJson) => meta_json = Some(text(&data)?),
+                Some(Entry::Text(language)) => models.push((path.clone(), language, text(&data)?)),
+                Some(Entry::Interchange) => interchange_files.push(path.clone()),
+                None => return Err(err(format!("unexpected archive entry {name} (KerML 10.2 allows .kerml/.sysml, .json and .xmi)"))),
+            }
+            contents.insert(path, data);
         }
-    }
-    let parse = |what: &str, text: Option<String>| -> Result<Value, CorpusError> {
-        let text = text.ok_or_else(|| err(format!("no {what} at the project root")))?;
-        serde_json::from_str(&text).map_err(|e| err(format!("{what}: {e}")))
-    };
-    let project_json = parse(".project.json", project_json)?;
-    let meta_json = parse(".meta.json", meta_json)?;
-    let project: Project = serde_json::from_value(project_json.clone())
-        .map_err(|e| err(format!(".project.json: {e}")))?;
-    let meta: Meta =
-        serde_json::from_value(meta_json.clone()).map_err(|e| err(format!(".meta.json: {e}")))?;
+        let parse = |what: &str, text: Option<String>| -> Result<Value, CorpusError> {
+            let text = text.ok_or_else(|| err(format!("no {what} at the project root")))?;
+            serde_json::from_str(&text).map_err(|e| err(format!("{what}: {e}")))
+        };
+        let project_json = parse(".project.json", project_json)?;
+        let meta_json = parse(".meta.json", meta_json)?;
+        let project: Project = serde_json::from_value(project_json.clone())
+            .map_err(|e| err(format!(".project.json: {e}")))?;
+        let meta: Meta = serde_json::from_value(meta_json.clone())
+            .map_err(|e| err(format!(".meta.json: {e}")))?;
 
-    let language = models
-        .first()
-        .map(|m| m.1)
-        .ok_or_else(|| err("no model files".into()))?;
-    if models.iter().any(|m| m.1 != language) {
-        return Err(err(
-            "model files in more than one language (KerML 10.3)".into()
-        ));
-    }
-    let mut sources: Vec<Source> = models
-        .into_iter()
-        .map(|(path, language, text)| Source {
-            id: format!("{}/{path}", project.name),
-            path,
+        // KerML 10.3 Table 13: checksums of some or all model interchange files.
+        for (path, checksums) in &meta.checksum {
+            let data = contents.get(path).ok_or_else(|| {
+                err(format!(
+                    ".meta.json has a checksum for {path}, which is not in the archive"
+                ))
+            })?;
+            for c in checksums.all() {
+                let actual = match c.algorithm.as_str() {
+                    "SHA256" => hex_sha256(data),
+                    other => {
+                        return Err(err(format!(
+                            "{path}: checksum algorithm {other} is not supported (only SHA256)"
+                        )))
+                    }
+                };
+                if !actual.eq_ignore_ascii_case(&c.value) {
+                    return Err(err(format!(
+                        "{path} does not match its .meta.json checksum"
+                    )));
+                }
+            }
+        }
+
+        let language = models
+            .first()
+            .map(|m| m.1)
+            .ok_or_else(|| err("no textual model files".into()))?;
+        if models.iter().any(|m| m.1 != language) {
+            return Err(err(
+                "model files in more than one language (KerML 10.3)".into()
+            ));
+        }
+        let mut sources: Vec<Source> = models
+            .into_iter()
+            .map(|(path, language, text)| Source {
+                id: format!("{}/{path}", project.name),
+                path,
+                language,
+                text,
+                expect: Expectation::Valid,
+            })
+            .collect();
+        sources.sort_by(|a, b| a.path.cmp(&b.path));
+        interchange_files.sort();
+
+        Ok(Library {
+            file: file.to_owned(),
+            url: url.to_owned(),
+            project,
+            meta,
+            project_json,
+            meta_json,
             language,
-            text,
-            expect: Expectation::Valid,
+            sources,
+            interchange_files,
+            ignored,
         })
-        .collect();
-    sources.sort_by(|a, b| a.path.cmp(&b.path));
-
-    Ok(Library {
-        file: file.to_owned(),
-        url,
-        project,
-        meta,
-        project_json,
-        meta_json,
-        language,
-        sources,
-        ignored,
-    })
+    }
 }

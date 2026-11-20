@@ -176,9 +176,11 @@ fn usages_resolve_and_satisfy_version_constraints() {
     let c = corpus();
     for l in &c.libraries {
         for u in &l.project.usage {
-            let used = c.resolve_usage(&u.resource).unwrap_or_else(|| {
-                panic!("{}: usage {} does not resolve", l.project.name, u.resource)
-            });
+            let used = c
+                .resolve_usage(&l.project.name, &u.resource)
+                .unwrap_or_else(|| {
+                    panic!("{}: usage {} does not resolve", l.project.name, u.resource)
+                });
             if let Some(constraint) = &u.version_constraint {
                 assert_eq!(
                     constraint, &used.project.version,
@@ -214,6 +216,20 @@ fn usage_errata_still_present() {
         })
         .collect();
     assert_eq!(listed, errata);
+}
+
+#[test]
+fn usage_errata_apply_only_to_their_library() {
+    let c = corpus();
+    let geometry_iri = "https://www.omg.org/spec/SysML/20250201/Quantities-and-Units-Library.kpar";
+    let qu = c
+        .resolve_usage("SysML Geometry Library", geometry_iri)
+        .unwrap();
+    assert_eq!(qu.project.name, "SysML Quantities and Units Library");
+    // The same broken IRI listed by another library is reported, not silently corrected.
+    assert!(c
+        .resolve_usage("SysML Systems Library", geometry_iri)
+        .is_none());
 }
 
 #[test]
@@ -282,6 +298,16 @@ fn simple_vehicle_model() {
     assert!(svm.text.starts_with("package SimpleVehicleModel"));
 }
 
+/// Lock entries that are not models: the specification documents, the metamodel and schema
+/// files, and the API pilot material. This list is independent of the loader's own filter, so a
+/// model the loader skips (for example a new extension) fails the completeness test.
+fn is_not_a_model(path: &str) -> bool {
+    let ext = path.rsplit_once('.').map(|(_, e)| e).unwrap_or_default();
+    ext == "pdf"
+        || path.starts_with("api/")
+        || (path.contains("normative/") && matches!(ext, "json" | "xmi"))
+}
+
 #[test]
 fn every_model_file_in_the_lock_is_in_the_corpus() {
     let lock: serde_json::Value = serde_json::from_str(
@@ -293,20 +319,24 @@ fn every_model_file_in_the_lock_is_in_the_corpus() {
     )
     .unwrap();
     let c = corpus();
-    for e in lock["files"].as_array().unwrap() {
-        let path = e["path"].as_str().unwrap();
-        if path.ends_with(".kpar") {
-            assert!(
-                c.libraries.iter().any(|l| l.file == path),
-                "library {path} is not in the corpus"
-            );
-        } else if path.ends_with(".sysml") || path.ends_with(".kerml") {
-            assert!(
-                c.models.iter().any(|m| m.id == path),
-                "model {path} is not in the corpus"
-            );
-        }
-    }
+    let in_corpus: BTreeSet<&str> = c
+        .libraries
+        .iter()
+        .map(|l| l.file.as_str())
+        .chain(c.models.iter().map(|m| m.id.as_str()))
+        .collect();
+    let models: BTreeSet<&str> = lock["files"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .map(|e| e["path"].as_str().unwrap())
+        .filter(|p| !is_not_a_model(p))
+        .collect();
+    assert_eq!(
+        models, in_corpus,
+        "lock entries that are models must all be in the corpus"
+    );
+    assert_eq!((c.libraries.len(), c.models.len()), (10, 1));
 }
 
 #[test]
