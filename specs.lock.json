@@ -74,6 +74,852 @@
       "license": "OMG specification terms"
     },
     {
+      "path": "SysML-v2-Release/2025-02/sysml.library.xmi/Domain Libraries/Analysis/AnalysisTooling.sysmlx",
+      "url": "https://raw.githubusercontent.com/Systems-Modeling/SysML-v2-Release/b17ab0ed8c85e3713c8c27ab89f995d764f8974c/sysml.library.xmi/Domain%20Libraries/Analysis/AnalysisTooling.sysmlx",
+      "size": 6984,
+      "sha256": "784518a515212bfbd5d4646086737a7dbab010c531f6323facd16666ba3a9090",
+      "landing": "https://github.com/Systems-Modeling/SysML-v2-Release/tree/2025-02",
+      "license": "EPL-2.0",
+      "note": "Library element ids used as the KerML 9.1 UUID oracle (ADR 0009); library text identical to the normative .kpar files"
+    },
+    {
+      "path": "SysML-v2-Release/2025-02/sysml.library.xmi/Domain Libraries/Analysis/SampledFunctions.sysmlx",
+      "url": "https://raw.githubusercontent.com/Systems-Modeling/SysML-v2-Release/b17ab0ed8c85e3713c8c27ab89f995d764f8974c/sysml.library.xmi/Domain%20Libraries/Analysis/SampledFunctions.sysmlx",
+      "size": 263601,
+      "sha256": "853fe02c8574350402849dd4d12a138708071fe08a057fd28ccc6ddc46c25deb",
+      "landing": "https://github.com/Systems-Modeling/SysML-v2-Release/tree/2025-02",
+      "license": "EPL-2.0",
+      "note": "Library element ids used as the KerML 9.1 UUID oracle (ADR 0009); library text identical to the normative .kpar files"
+    },
+    {
+      "path": "SysML-v2-Release/2025-02/sysml.library.xmi/Domain Libraries/Analysis/StateSpaceRepresentation.sysmlx",
+      "url": "https://raw.githubusercontent.com/Systems-Modeling/SysML-v2-Release/b17ab0ed8c85e3713c8c27ab89f995d764f8974c/sysml.library.xmi/Domain%20Libraries/Analysis/StateSpaceRepresentation.sysmlx",
+      "size": 69917,
+      "sha256": "54fa37abf299c3a59c57af57dbd060457bce6751f8e8d256aac497ca6cd620dc",
+      "landing": "https://github.com/Systems-Modeling/SysML-v2-Release/tree/2025-02",
+      "license": "EPL-2.0",
+      "note": "Library element ids used as the KerML 9.1 UUID oracle (ADR 0009); library text identical to the normative .kpar files"
+    },
+    {
+      "path": "SysML-v2-Release/2025-02/sysml.library.xmi/Domain Libraries/Analysis/TradeStudies.sysmlx",
+      "url": "https://raw.githubusercontent.com/Systems-Modeling/SysML-v2-Release/b17ab0ed8c85e3713c8c27ab89f995d764f8974c/sysml.library.xmi/Domain%20Libraries/Analysis/TradeStudies.sysmlx",
+      "size": 65344,
+      "sha256": "2f6e23822066e1887bfd9874c02d8b1020042c81898e9fdb1488788c3c08363a",
+      "landing": "https://github.com/Systems-Modeling/SysML-v2-Release/tree/2025-02",
+      "license": "EPL-2.0",
+      "note": "Library element ids used as the KerML 9.1 UUID oracle (ADR 0009); library text identical to the normative .kpar files"
+    },
+    {
+      "path": "SysML-v2-Release/2025-02/sysml.library.xmi/Domain Libraries/Cause and Effect/CausationConnections.sysmlx",
+      "url": "https://raw.githubusercontent.com/Systems-Modeling/SysML-v2-Release/b17ab0ed8c85e3713c8c27ab89f995d764f8974c/sysml.library.xmi/Domain%20Libraries/Cause%20and%20Effect/CausationConnections.sysmlx",
+      "size": 45524,
+      "sha256": "fc453a6edada8f8a9e946f12285cf3de4398c4571700f2c176003fd704cc975b",
+      "landing": "https://github.com/Systems-Modeling/SysML-v2-Release/tree/2025-02",
+      "license": "EPL-2.0",
+      "note": "Library element ids used as the KerML 9.1 UUID oracle (ADR 0009); library text identical to the normative .kpar files"
+    },
+    {
+      "path": "SysML-v2-Release/2025-02/sysml.library.xmi/Domain Libraries/Cause and Effect/CauseAndEffect.sysmlx",
+      "url": "https://raw.githubusercontent.com/Systems-Modeling/SysML-v2-Release/b17ab0ed8c85e3713c8c27ab89f995d764f8974c/sysml.library.xmi/Domain%20Libraries/Cause%20and%20Effect/CauseAndEffect.sysmlx",
+      "size": 34158,
+      "sha256": "97a99bddf56206288673e81f9ee8eb880d7dd84cb2dd077e738629c94ec76cf5",
+      "landing": "https://github.com/Systems-Modeling/SysML-v2-Release/tree/2025-02",
+      "license": "EPL-2.0",
+      "note": "Library element ids used as the KerML 9.1 UUID oracle (ADR 0009); library text identical to the normative .kpar files"
+    },
+    {
+      "path": "SysML-v2-Release/2025-02/sysml.library.xmi/Domain Libraries/Geometry/ShapeItems.sysmlx",
+      "url": "https://raw.githubusercontent.com/Systems-Modeling/SysML-v2-Release/b17ab0ed8c85e3713c8c27ab89f995d764f8974c/sysml.library.xmi/Domain%20Libraries/Geometry/ShapeItems.sysmlx",
+      "size": 1487702,
+      "sha256": "06fd36e2e16640e57ea3c7b2af40f864f27203ae1dc13c216f731506761303af",
+      "landing": "https://github.com/Systems-Modeling/SysML-v2-Release/tree/2025-02",
+      "license": "EPL-2.0",
+      "note": "Library element ids used as the KerML 9.1 UUID oracle (ADR 0009); library text identical to the normative .kpar files"
+    },
+    {
+      "path": "SysML-v2-Release/2025-02/sysml.library.xmi/Domain Libraries/Geometry/SpatialItems.sysmlx",
+      "url": "https://raw.githubusercontent.com/Systems-Modeling/SysML-v2-Release/b17ab0ed8c85e3713c8c27ab89f995d764f8974c/sysml.library.xmi/Domain%20Libraries/Geometry/SpatialItems.sysmlx",
+      "size": 137410,
+      "sha256": "20a124bcb3e34bc16c7d837a9156286b6a47cbecfe501c3f695e87331a5cb73f",
+      "landing": "https://github.com/Systems-Modeling/SysML-v2-Release/tree/2025-02",
+      "license": "EPL-2.0",
+      "note": "Library element ids used as the KerML 9.1 UUID oracle (ADR 0009); library text identical to the normative .kpar files"
+    },
+    {
+      "path": "SysML-v2-Release/2025-02/sysml.library.xmi/Domain Libraries/Metadata/ImageMetadata.sysmlx",
+      "url": "https://raw.githubusercontent.com/Systems-Modeling/SysML-v2-Release/b17ab0ed8c85e3713c8c27ab89f995d764f8974c/sysml.library.xmi/Domain%20Libraries/Metadata/ImageMetadata.sysmlx",
+      "size": 18343,
+      "sha256": "51d46111303f1359202d222c3612beb1143faf6e65906ac75efc42375bf475fa",
+      "landing": "https://github.com/Systems-Modeling/SysML-v2-Release/tree/2025-02",
+      "license": "EPL-2.0",
+      "note": "Library element ids used as the KerML 9.1 UUID oracle (ADR 0009); library text identical to the normative .kpar files"
+    },
+    {
+      "path": "SysML-v2-Release/2025-02/sysml.library.xmi/Domain Libraries/Metadata/ModelingMetadata.sysmlx",
+      "url": "https://raw.githubusercontent.com/Systems-Modeling/SysML-v2-Release/b17ab0ed8c85e3713c8c27ab89f995d764f8974c/sysml.library.xmi/Domain%20Libraries/Metadata/ModelingMetadata.sysmlx",
+      "size": 27007,
+      "sha256": "186d857cd0da491dd7da20bd7e0b77069668fde9f1e31f89518bc3af9a1ab66d",
+      "landing": "https://github.com/Systems-Modeling/SysML-v2-Release/tree/2025-02",
+      "license": "EPL-2.0",
+      "note": "Library element ids used as the KerML 9.1 UUID oracle (ADR 0009); library text identical to the normative .kpar files"
+    },
+    {
+      "path": "SysML-v2-Release/2025-02/sysml.library.xmi/Domain Libraries/Metadata/ParametersOfInterestMetadata.sysmlx",
+      "url": "https://raw.githubusercontent.com/Systems-Modeling/SysML-v2-Release/b17ab0ed8c85e3713c8c27ab89f995d764f8974c/sysml.library.xmi/Domain%20Libraries/Metadata/ParametersOfInterestMetadata.sysmlx",
+      "size": 16066,
+      "sha256": "6db0742be205d40965f29de25d342ccd6f31e33d115506c2fa82ca8ed73ff5fd",
+      "landing": "https://github.com/Systems-Modeling/SysML-v2-Release/tree/2025-02",
+      "license": "EPL-2.0",
+      "note": "Library element ids used as the KerML 9.1 UUID oracle (ADR 0009); library text identical to the normative .kpar files"
+    },
+    {
+      "path": "SysML-v2-Release/2025-02/sysml.library.xmi/Domain Libraries/Metadata/RiskMetadata.sysmlx",
+      "url": "https://raw.githubusercontent.com/Systems-Modeling/SysML-v2-Release/b17ab0ed8c85e3713c8c27ab89f995d764f8974c/sysml.library.xmi/Domain%20Libraries/Metadata/RiskMetadata.sysmlx",
+      "size": 42410,
+      "sha256": "e29b0fd03df8fcbbe4f4a2fac857ab3e4e878f206c446f8799ad6642de810841",
+      "landing": "https://github.com/Systems-Modeling/SysML-v2-Release/tree/2025-02",
+      "license": "EPL-2.0",
+      "note": "Library element ids used as the KerML 9.1 UUID oracle (ADR 0009); library text identical to the normative .kpar files"
+    },
+    {
+      "path": "SysML-v2-Release/2025-02/sysml.library.xmi/Domain Libraries/Quantities and Units/ISQ.sysmlx",
+      "url": "https://raw.githubusercontent.com/Systems-Modeling/SysML-v2-Release/b17ab0ed8c85e3713c8c27ab89f995d764f8974c/sysml.library.xmi/Domain%20Libraries/Quantities%20and%20Units/ISQ.sysmlx",
+      "size": 22196,
+      "sha256": "0c8c02639d49ede212b26e873c3726cc08b6b47a629976d50cfab7ce931140bc",
+      "landing": "https://github.com/Systems-Modeling/SysML-v2-Release/tree/2025-02",
+      "license": "EPL-2.0",
+      "note": "Library element ids used as the KerML 9.1 UUID oracle (ADR 0009); library text identical to the normative .kpar files"
+    },
+    {
+      "path": "SysML-v2-Release/2025-02/sysml.library.xmi/Domain Libraries/Quantities and Units/ISQAcoustics.sysmlx",
+      "url": "https://raw.githubusercontent.com/Systems-Modeling/SysML-v2-Release/b17ab0ed8c85e3713c8c27ab89f995d764f8974c/sysml.library.xmi/Domain%20Libraries/Quantities%20and%20Units/ISQAcoustics.sysmlx",
+      "size": 269167,
+      "sha256": "29d981d31f1892b874771b7f3434dbf46f325a704709f6347793b0b510e265b4",
+      "landing": "https://github.com/Systems-Modeling/SysML-v2-Release/tree/2025-02",
+      "license": "EPL-2.0",
+      "note": "Library element ids used as the KerML 9.1 UUID oracle (ADR 0009); library text identical to the normative .kpar files"
+    },
+    {
+      "path": "SysML-v2-Release/2025-02/sysml.library.xmi/Domain Libraries/Quantities and Units/ISQAtomicNuclear.sysmlx",
+      "url": "https://raw.githubusercontent.com/Systems-Modeling/SysML-v2-Release/b17ab0ed8c85e3713c8c27ab89f995d764f8974c/sysml.library.xmi/Domain%20Libraries/Quantities%20and%20Units/ISQAtomicNuclear.sysmlx",
+      "size": 1629643,
+      "sha256": "8f5d1d08264a25cb22d0bc3b8d684094d1942a3244edff3eeab84a1f72fe6ba8",
+      "landing": "https://github.com/Systems-Modeling/SysML-v2-Release/tree/2025-02",
+      "license": "EPL-2.0",
+      "note": "Library element ids used as the KerML 9.1 UUID oracle (ADR 0009); library text identical to the normative .kpar files"
+    },
+    {
+      "path": "SysML-v2-Release/2025-02/sysml.library.xmi/Domain Libraries/Quantities and Units/ISQBase.sysmlx",
+      "url": "https://raw.githubusercontent.com/Systems-Modeling/SysML-v2-Release/b17ab0ed8c85e3713c8c27ab89f995d764f8974c/sysml.library.xmi/Domain%20Libraries/Quantities%20and%20Units/ISQBase.sysmlx",
+      "size": 155331,
+      "sha256": "bc02beeef64eb417db96d9864490f6643c737e4db5d12f2075814c5c0252ee72",
+      "landing": "https://github.com/Systems-Modeling/SysML-v2-Release/tree/2025-02",
+      "license": "EPL-2.0",
+      "note": "Library element ids used as the KerML 9.1 UUID oracle (ADR 0009); library text identical to the normative .kpar files"
+    },
+    {
+      "path": "SysML-v2-Release/2025-02/sysml.library.xmi/Domain Libraries/Quantities and Units/ISQCharacteristicNumbers.sysmlx",
+      "url": "https://raw.githubusercontent.com/Systems-Modeling/SysML-v2-Release/b17ab0ed8c85e3713c8c27ab89f995d764f8974c/sysml.library.xmi/Domain%20Libraries/Quantities%20and%20Units/ISQCharacteristicNumbers.sysmlx",
+      "size": 381342,
+      "sha256": "a95b108ad3da3b7310d995c6bad5bde90586bd605de58b81960f7308a414dd55",
+      "landing": "https://github.com/Systems-Modeling/SysML-v2-Release/tree/2025-02",
+      "license": "EPL-2.0",
+      "note": "Library element ids used as the KerML 9.1 UUID oracle (ADR 0009); library text identical to the normative .kpar files"
+    },
+    {
+      "path": "SysML-v2-Release/2025-02/sysml.library.xmi/Domain Libraries/Quantities and Units/ISQChemistryMolecular.sysmlx",
+      "url": "https://raw.githubusercontent.com/Systems-Modeling/SysML-v2-Release/b17ab0ed8c85e3713c8c27ab89f995d764f8974c/sysml.library.xmi/Domain%20Libraries/Quantities%20and%20Units/ISQChemistryMolecular.sysmlx",
+      "size": 1220864,
+      "sha256": "4bf9c91b0ccc678756f44b8ba695f040921f23515c411c2438dbf3839bd9769a",
+      "landing": "https://github.com/Systems-Modeling/SysML-v2-Release/tree/2025-02",
+      "license": "EPL-2.0",
+      "note": "Library element ids used as the KerML 9.1 UUID oracle (ADR 0009); library text identical to the normative .kpar files"
+    },
+    {
+      "path": "SysML-v2-Release/2025-02/sysml.library.xmi/Domain Libraries/Quantities and Units/ISQCondensedMatter.sysmlx",
+      "url": "https://raw.githubusercontent.com/Systems-Modeling/SysML-v2-Release/b17ab0ed8c85e3713c8c27ab89f995d764f8974c/sysml.library.xmi/Domain%20Libraries/Quantities%20and%20Units/ISQCondensedMatter.sysmlx",
+      "size": 621202,
+      "sha256": "7ceb3f790b3ac08bf1fd39a2b21b403b19c9a074df3b8de830e312c9f8dc4f59",
+      "landing": "https://github.com/Systems-Modeling/SysML-v2-Release/tree/2025-02",
+      "license": "EPL-2.0",
+      "note": "Library element ids used as the KerML 9.1 UUID oracle (ADR 0009); library text identical to the normative .kpar files"
+    },
+    {
+      "path": "SysML-v2-Release/2025-02/sysml.library.xmi/Domain Libraries/Quantities and Units/ISQElectromagnetism.sysmlx",
+      "url": "https://raw.githubusercontent.com/Systems-Modeling/SysML-v2-Release/b17ab0ed8c85e3713c8c27ab89f995d764f8974c/sysml.library.xmi/Domain%20Libraries/Quantities%20and%20Units/ISQElectromagnetism.sysmlx",
+      "size": 2318086,
+      "sha256": "3d854d642013219a20d2ea64d41825667e89c7a8f8f70cd9509d55ec2a7f31b8",
+      "landing": "https://github.com/Systems-Modeling/SysML-v2-Release/tree/2025-02",
+      "license": "EPL-2.0",
+      "note": "Library element ids used as the KerML 9.1 UUID oracle (ADR 0009); library text identical to the normative .kpar files"
+    },
+    {
+      "path": "SysML-v2-Release/2025-02/sysml.library.xmi/Domain Libraries/Quantities and Units/ISQInformation.sysmlx",
+      "url": "https://raw.githubusercontent.com/Systems-Modeling/SysML-v2-Release/b17ab0ed8c85e3713c8c27ab89f995d764f8974c/sysml.library.xmi/Domain%20Libraries/Quantities%20and%20Units/ISQInformation.sysmlx",
+      "size": 354633,
+      "sha256": "d747db8214f613826f671e499e03f247959b2b6edd4fede70cd810563cacee1e",
+      "landing": "https://github.com/Systems-Modeling/SysML-v2-Release/tree/2025-02",
+      "license": "EPL-2.0",
+      "note": "Library element ids used as the KerML 9.1 UUID oracle (ADR 0009); library text identical to the normative .kpar files"
+    },
+    {
+      "path": "SysML-v2-Release/2025-02/sysml.library.xmi/Domain Libraries/Quantities and Units/ISQLight.sysmlx",
+      "url": "https://raw.githubusercontent.com/Systems-Modeling/SysML-v2-Release/b17ab0ed8c85e3713c8c27ab89f995d764f8974c/sysml.library.xmi/Domain%20Libraries/Quantities%20and%20Units/ISQLight.sysmlx",
+      "size": 1387894,
+      "sha256": "ba23958deb72d244dab05f568c3bb539eaf4354f5816e9c0da4f61161db07d7e",
+      "landing": "https://github.com/Systems-Modeling/SysML-v2-Release/tree/2025-02",
+      "license": "EPL-2.0",
+      "note": "Library element ids used as the KerML 9.1 UUID oracle (ADR 0009); library text identical to the normative .kpar files"
+    },
+    {
+      "path": "SysML-v2-Release/2025-02/sysml.library.xmi/Domain Libraries/Quantities and Units/ISQMechanics.sysmlx",
+      "url": "https://raw.githubusercontent.com/Systems-Modeling/SysML-v2-Release/b17ab0ed8c85e3713c8c27ab89f995d764f8974c/sysml.library.xmi/Domain%20Libraries/Quantities%20and%20Units/ISQMechanics.sysmlx",
+      "size": 1272298,
+      "sha256": "85ac9655fd82aa4158e1e492a4d977972b3c6eab65a26cc56b326aa3e5e84beb",
+      "landing": "https://github.com/Systems-Modeling/SysML-v2-Release/tree/2025-02",
+      "license": "EPL-2.0",
+      "note": "Library element ids used as the KerML 9.1 UUID oracle (ADR 0009); library text identical to the normative .kpar files"
+    },
+    {
+      "path": "SysML-v2-Release/2025-02/sysml.library.xmi/Domain Libraries/Quantities and Units/ISQSpaceTime.sysmlx",
+      "url": "https://raw.githubusercontent.com/Systems-Modeling/SysML-v2-Release/b17ab0ed8c85e3713c8c27ab89f995d764f8974c/sysml.library.xmi/Domain%20Libraries/Quantities%20and%20Units/ISQSpaceTime.sysmlx",
+      "size": 805092,
+      "sha256": "5fa0fd99c55a57f50ec9dabb1731e42edd44ef04066057798a2e31f473e3fc8b",
+      "landing": "https://github.com/Systems-Modeling/SysML-v2-Release/tree/2025-02",
+      "license": "EPL-2.0",
+      "note": "Library element ids used as the KerML 9.1 UUID oracle (ADR 0009); library text identical to the normative .kpar files"
+    },
+    {
+      "path": "SysML-v2-Release/2025-02/sysml.library.xmi/Domain Libraries/Quantities and Units/ISQThermodynamics.sysmlx",
+      "url": "https://raw.githubusercontent.com/Systems-Modeling/SysML-v2-Release/b17ab0ed8c85e3713c8c27ab89f995d764f8974c/sysml.library.xmi/Domain%20Libraries/Quantities%20and%20Units/ISQThermodynamics.sysmlx",
+      "size": 1254780,
+      "sha256": "a1e7ba50989ede93ccfa742460cecf95fedf12d7d453e2ddaba5068eefe4b78d",
+      "landing": "https://github.com/Systems-Modeling/SysML-v2-Release/tree/2025-02",
+      "license": "EPL-2.0",
+      "note": "Library element ids used as the KerML 9.1 UUID oracle (ADR 0009); library text identical to the normative .kpar files"
+    },
+    {
+      "path": "SysML-v2-Release/2025-02/sysml.library.xmi/Domain Libraries/Quantities and Units/MeasurementRefCalculations.sysmlx",
+      "url": "https://raw.githubusercontent.com/Systems-Modeling/SysML-v2-Release/b17ab0ed8c85e3713c8c27ab89f995d764f8974c/sysml.library.xmi/Domain%20Libraries/Quantities%20and%20Units/MeasurementRefCalculations.sysmlx",
+      "size": 41010,
+      "sha256": "ca0ca4f0fe923f4b0e1d5af9df9979f5526580d44e011ff82666b8eb3561a4a9",
+      "landing": "https://github.com/Systems-Modeling/SysML-v2-Release/tree/2025-02",
+      "license": "EPL-2.0",
+      "note": "Library element ids used as the KerML 9.1 UUID oracle (ADR 0009); library text identical to the normative .kpar files"
+    },
+    {
+      "path": "SysML-v2-Release/2025-02/sysml.library.xmi/Domain Libraries/Quantities and Units/MeasurementReferences.sysmlx",
+      "url": "https://raw.githubusercontent.com/Systems-Modeling/SysML-v2-Release/b17ab0ed8c85e3713c8c27ab89f995d764f8974c/sysml.library.xmi/Domain%20Libraries/Quantities%20and%20Units/MeasurementReferences.sysmlx",
+      "size": 376303,
+      "sha256": "83efde6fe71eacda73ee46349fd41c546811546957d382dfa760399fd2701954",
+      "landing": "https://github.com/Systems-Modeling/SysML-v2-Release/tree/2025-02",
+      "license": "EPL-2.0",
+      "note": "Library element ids used as the KerML 9.1 UUID oracle (ADR 0009); library text identical to the normative .kpar files"
+    },
+    {
+      "path": "SysML-v2-Release/2025-02/sysml.library.xmi/Domain Libraries/Quantities and Units/Quantities.sysmlx",
+      "url": "https://raw.githubusercontent.com/Systems-Modeling/SysML-v2-Release/b17ab0ed8c85e3713c8c27ab89f995d764f8974c/sysml.library.xmi/Domain%20Libraries/Quantities%20and%20Units/Quantities.sysmlx",
+      "size": 67962,
+      "sha256": "ef4dc1d01a65a3a0e6ba54ebabeedba5f419d929857590e9fbc1fdd4c20d87a6",
+      "landing": "https://github.com/Systems-Modeling/SysML-v2-Release/tree/2025-02",
+      "license": "EPL-2.0",
+      "note": "Library element ids used as the KerML 9.1 UUID oracle (ADR 0009); library text identical to the normative .kpar files"
+    },
+    {
+      "path": "SysML-v2-Release/2025-02/sysml.library.xmi/Domain Libraries/Quantities and Units/QuantityCalculations.sysmlx",
+      "url": "https://raw.githubusercontent.com/Systems-Modeling/SysML-v2-Release/b17ab0ed8c85e3713c8c27ab89f995d764f8974c/sysml.library.xmi/Domain%20Libraries/Quantities%20and%20Units/QuantityCalculations.sysmlx",
+      "size": 157908,
+      "sha256": "c568de9c930d299ffe68ab275cc590a9b17b99f1a1b91a4bc848ea1e1831fc63",
+      "landing": "https://github.com/Systems-Modeling/SysML-v2-Release/tree/2025-02",
+      "license": "EPL-2.0",
+      "note": "Library element ids used as the KerML 9.1 UUID oracle (ADR 0009); library text identical to the normative .kpar files"
+    },
+    {
+      "path": "SysML-v2-Release/2025-02/sysml.library.xmi/Domain Libraries/Quantities and Units/SI.sysmlx",
+      "url": "https://raw.githubusercontent.com/Systems-Modeling/SysML-v2-Release/b17ab0ed8c85e3713c8c27ab89f995d764f8974c/sysml.library.xmi/Domain%20Libraries/Quantities%20and%20Units/SI.sysmlx",
+      "size": 2217457,
+      "sha256": "3aeacc64c45e2ae0c7c120de018cab83fb25548d36ecad1e221cdb1603512abf",
+      "landing": "https://github.com/Systems-Modeling/SysML-v2-Release/tree/2025-02",
+      "license": "EPL-2.0",
+      "note": "Library element ids used as the KerML 9.1 UUID oracle (ADR 0009); library text identical to the normative .kpar files"
+    },
+    {
+      "path": "SysML-v2-Release/2025-02/sysml.library.xmi/Domain Libraries/Quantities and Units/SIPrefixes.sysmlx",
+      "url": "https://raw.githubusercontent.com/Systems-Modeling/SysML-v2-Release/b17ab0ed8c85e3713c8c27ab89f995d764f8974c/sysml.library.xmi/Domain%20Libraries/Quantities%20and%20Units/SIPrefixes.sysmlx",
+      "size": 133757,
+      "sha256": "d534686e8bb9db0bb5fea6188636ad7a9061e7a6e5d764d0a15cadec0b544a09",
+      "landing": "https://github.com/Systems-Modeling/SysML-v2-Release/tree/2025-02",
+      "license": "EPL-2.0",
+      "note": "Library element ids used as the KerML 9.1 UUID oracle (ADR 0009); library text identical to the normative .kpar files"
+    },
+    {
+      "path": "SysML-v2-Release/2025-02/sysml.library.xmi/Domain Libraries/Quantities and Units/TensorCalculations.sysmlx",
+      "url": "https://raw.githubusercontent.com/Systems-Modeling/SysML-v2-Release/b17ab0ed8c85e3713c8c27ab89f995d764f8974c/sysml.library.xmi/Domain%20Libraries/Quantities%20and%20Units/TensorCalculations.sysmlx",
+      "size": 71256,
+      "sha256": "b661df1a49585064a21b097681d643128dff8197efdc7be07fb663d756fb4666",
+      "landing": "https://github.com/Systems-Modeling/SysML-v2-Release/tree/2025-02",
+      "license": "EPL-2.0",
+      "note": "Library element ids used as the KerML 9.1 UUID oracle (ADR 0009); library text identical to the normative .kpar files"
+    },
+    {
+      "path": "SysML-v2-Release/2025-02/sysml.library.xmi/Domain Libraries/Quantities and Units/Time.sysmlx",
+      "url": "https://raw.githubusercontent.com/Systems-Modeling/SysML-v2-Release/b17ab0ed8c85e3713c8c27ab89f995d764f8974c/sysml.library.xmi/Domain%20Libraries/Quantities%20and%20Units/Time.sysmlx",
+      "size": 106077,
+      "sha256": "f1042d6d1154ef0b0f85f0028eb8304ed9a75c09c3d6375436cf76a88325a468",
+      "landing": "https://github.com/Systems-Modeling/SysML-v2-Release/tree/2025-02",
+      "license": "EPL-2.0",
+      "note": "Library element ids used as the KerML 9.1 UUID oracle (ADR 0009); library text identical to the normative .kpar files"
+    },
+    {
+      "path": "SysML-v2-Release/2025-02/sysml.library.xmi/Domain Libraries/Quantities and Units/USCustomaryUnits.sysmlx",
+      "url": "https://raw.githubusercontent.com/Systems-Modeling/SysML-v2-Release/b17ab0ed8c85e3713c8c27ab89f995d764f8974c/sysml.library.xmi/Domain%20Libraries/Quantities%20and%20Units/USCustomaryUnits.sysmlx",
+      "size": 1386825,
+      "sha256": "9c2e3ce02093e5aaf029410317d9db296852ceb492cb0c5050f5dc14d2de2f2b",
+      "landing": "https://github.com/Systems-Modeling/SysML-v2-Release/tree/2025-02",
+      "license": "EPL-2.0",
+      "note": "Library element ids used as the KerML 9.1 UUID oracle (ADR 0009); library text identical to the normative .kpar files"
+    },
+    {
+      "path": "SysML-v2-Release/2025-02/sysml.library.xmi/Domain Libraries/Quantities and Units/VectorCalculations.sysmlx",
+      "url": "https://raw.githubusercontent.com/Systems-Modeling/SysML-v2-Release/b17ab0ed8c85e3713c8c27ab89f995d764f8974c/sysml.library.xmi/Domain%20Libraries/Quantities%20and%20Units/VectorCalculations.sysmlx",
+      "size": 100876,
+      "sha256": "9d6bb3f301565cf58294d833872c7851cac1b584caa154ef7cc0f275a2977362",
+      "landing": "https://github.com/Systems-Modeling/SysML-v2-Release/tree/2025-02",
+      "license": "EPL-2.0",
+      "note": "Library element ids used as the KerML 9.1 UUID oracle (ADR 0009); library text identical to the normative .kpar files"
+    },
+    {
+      "path": "SysML-v2-Release/2025-02/sysml.library.xmi/Domain Libraries/Requirement Derivation/DerivationConnections.sysmlx",
+      "url": "https://raw.githubusercontent.com/Systems-Modeling/SysML-v2-Release/b17ab0ed8c85e3713c8c27ab89f995d764f8974c/sysml.library.xmi/Domain%20Libraries/Requirement%20Derivation/DerivationConnections.sysmlx",
+      "size": 33513,
+      "sha256": "f97e07b2dce932e33e05f7007306c80d8b390973dd7d0aeebe82b58bb470e5c9",
+      "landing": "https://github.com/Systems-Modeling/SysML-v2-Release/tree/2025-02",
+      "license": "EPL-2.0",
+      "note": "Library element ids used as the KerML 9.1 UUID oracle (ADR 0009); library text identical to the normative .kpar files"
+    },
+    {
+      "path": "SysML-v2-Release/2025-02/sysml.library.xmi/Domain Libraries/Requirement Derivation/RequirementDerivation.sysmlx",
+      "url": "https://raw.githubusercontent.com/Systems-Modeling/SysML-v2-Release/b17ab0ed8c85e3713c8c27ab89f995d764f8974c/sysml.library.xmi/Domain%20Libraries/Requirement%20Derivation/RequirementDerivation.sysmlx",
+      "size": 20310,
+      "sha256": "94105e19a5a6487e7e84fbe28d1fb7c6ef29262858cb2176957dc1367a9e1a63",
+      "landing": "https://github.com/Systems-Modeling/SysML-v2-Release/tree/2025-02",
+      "license": "EPL-2.0",
+      "note": "Library element ids used as the KerML 9.1 UUID oracle (ADR 0009); library text identical to the normative .kpar files"
+    },
+    {
+      "path": "SysML-v2-Release/2025-02/sysml.library.xmi/Kernel Libraries/Kernel Data Type Library/Collections.kermlx",
+      "url": "https://raw.githubusercontent.com/Systems-Modeling/SysML-v2-Release/b17ab0ed8c85e3713c8c27ab89f995d764f8974c/sysml.library.xmi/Kernel%20Libraries/Kernel%20Data%20Type%20Library/Collections.kermlx",
+      "size": 56210,
+      "sha256": "d438469da15ad77fadc27e4b514667820102bef1784e29f1ef4cba6c4bfbe111",
+      "landing": "https://github.com/Systems-Modeling/SysML-v2-Release/tree/2025-02",
+      "license": "EPL-2.0",
+      "note": "Library element ids used as the KerML 9.1 UUID oracle (ADR 0009); library text identical to the normative .kpar files"
+    },
+    {
+      "path": "SysML-v2-Release/2025-02/sysml.library.xmi/Kernel Libraries/Kernel Data Type Library/ScalarValues.kermlx",
+      "url": "https://raw.githubusercontent.com/Systems-Modeling/SysML-v2-Release/b17ab0ed8c85e3713c8c27ab89f995d764f8974c/sysml.library.xmi/Kernel%20Libraries/Kernel%20Data%20Type%20Library/ScalarValues.kermlx",
+      "size": 9028,
+      "sha256": "5fdda5ce6d258dddddb08fc0e481faaffdce446ac6d2b973c51367e6e61e3c13",
+      "landing": "https://github.com/Systems-Modeling/SysML-v2-Release/tree/2025-02",
+      "license": "EPL-2.0",
+      "note": "Library element ids used as the KerML 9.1 UUID oracle (ADR 0009); library text identical to the normative .kpar files"
+    },
+    {
+      "path": "SysML-v2-Release/2025-02/sysml.library.xmi/Kernel Libraries/Kernel Data Type Library/VectorValues.kermlx",
+      "url": "https://raw.githubusercontent.com/Systems-Modeling/SysML-v2-Release/b17ab0ed8c85e3713c8c27ab89f995d764f8974c/sysml.library.xmi/Kernel%20Libraries/Kernel%20Data%20Type%20Library/VectorValues.kermlx",
+      "size": 14389,
+      "sha256": "78d8a69ae3008b756571c5fd20cabeb655fe730341e7352e1f3eec140000aa13",
+      "landing": "https://github.com/Systems-Modeling/SysML-v2-Release/tree/2025-02",
+      "license": "EPL-2.0",
+      "note": "Library element ids used as the KerML 9.1 UUID oracle (ADR 0009); library text identical to the normative .kpar files"
+    },
+    {
+      "path": "SysML-v2-Release/2025-02/sysml.library.xmi/Kernel Libraries/Kernel Function Library/BaseFunctions.kermlx",
+      "url": "https://raw.githubusercontent.com/Systems-Modeling/SysML-v2-Release/b17ab0ed8c85e3713c8c27ab89f995d764f8974c/sysml.library.xmi/Kernel%20Libraries/Kernel%20Function%20Library/BaseFunctions.kermlx",
+      "size": 87627,
+      "sha256": "45c933d09edea847f4857d7e1268acd3cb56112b563f135991c1a7189b397eff",
+      "landing": "https://github.com/Systems-Modeling/SysML-v2-Release/tree/2025-02",
+      "license": "EPL-2.0",
+      "note": "Library element ids used as the KerML 9.1 UUID oracle (ADR 0009); library text identical to the normative .kpar files"
+    },
+    {
+      "path": "SysML-v2-Release/2025-02/sysml.library.xmi/Kernel Libraries/Kernel Function Library/BooleanFunctions.kermlx",
+      "url": "https://raw.githubusercontent.com/Systems-Modeling/SysML-v2-Release/b17ab0ed8c85e3713c8c27ab89f995d764f8974c/sysml.library.xmi/Kernel%20Libraries/Kernel%20Function%20Library/BooleanFunctions.kermlx",
+      "size": 35304,
+      "sha256": "c7e39045da9249a6601473ca56617af9938aec06119ad12705f320596e6ec548",
+      "landing": "https://github.com/Systems-Modeling/SysML-v2-Release/tree/2025-02",
+      "license": "EPL-2.0",
+      "note": "Library element ids used as the KerML 9.1 UUID oracle (ADR 0009); library text identical to the normative .kpar files"
+    },
+    {
+      "path": "SysML-v2-Release/2025-02/sysml.library.xmi/Kernel Libraries/Kernel Function Library/CollectionFunctions.kermlx",
+      "url": "https://raw.githubusercontent.com/Systems-Modeling/SysML-v2-Release/b17ab0ed8c85e3713c8c27ab89f995d764f8974c/sysml.library.xmi/Kernel%20Libraries/Kernel%20Function%20Library/CollectionFunctions.kermlx",
+      "size": 207686,
+      "sha256": "f22d1447d5593ddd01acaa36bc3616090b89aa127ac27eb87e551780ce215250",
+      "landing": "https://github.com/Systems-Modeling/SysML-v2-Release/tree/2025-02",
+      "license": "EPL-2.0",
+      "note": "Library element ids used as the KerML 9.1 UUID oracle (ADR 0009); library text identical to the normative .kpar files"
+    },
+    {
+      "path": "SysML-v2-Release/2025-02/sysml.library.xmi/Kernel Libraries/Kernel Function Library/ComplexFunctions.kermlx",
+      "url": "https://raw.githubusercontent.com/Systems-Modeling/SysML-v2-Release/b17ab0ed8c85e3713c8c27ab89f995d764f8974c/sysml.library.xmi/Kernel%20Libraries/Kernel%20Function%20Library/ComplexFunctions.kermlx",
+      "size": 131007,
+      "sha256": "909899a8048bed6555f5d44f91c54ad6ad7b3a33406d4b402ecf98bb1274374b",
+      "landing": "https://github.com/Systems-Modeling/SysML-v2-Release/tree/2025-02",
+      "license": "EPL-2.0",
+      "note": "Library element ids used as the KerML 9.1 UUID oracle (ADR 0009); library text identical to the normative .kpar files"
+    },
+    {
+      "path": "SysML-v2-Release/2025-02/sysml.library.xmi/Kernel Libraries/Kernel Function Library/ControlFunctions.kermlx",
+      "url": "https://raw.githubusercontent.com/Systems-Modeling/SysML-v2-Release/b17ab0ed8c85e3713c8c27ab89f995d764f8974c/sysml.library.xmi/Kernel%20Libraries/Kernel%20Function%20Library/ControlFunctions.kermlx",
+      "size": 183342,
+      "sha256": "fe5ea2736b7ae43d637aa5a5672c1704102c57beae791b4ba32094041e3c6e0c",
+      "landing": "https://github.com/Systems-Modeling/SysML-v2-Release/tree/2025-02",
+      "license": "EPL-2.0",
+      "note": "Library element ids used as the KerML 9.1 UUID oracle (ADR 0009); library text identical to the normative .kpar files"
+    },
+    {
+      "path": "SysML-v2-Release/2025-02/sysml.library.xmi/Kernel Libraries/Kernel Function Library/DataFunctions.kermlx",
+      "url": "https://raw.githubusercontent.com/Systems-Modeling/SysML-v2-Release/b17ab0ed8c85e3713c8c27ab89f995d764f8974c/sysml.library.xmi/Kernel%20Libraries/Kernel%20Function%20Library/DataFunctions.kermlx",
+      "size": 112875,
+      "sha256": "47cfe23ea7fac9179c23a231c7440e32437783c5bbf6d8c410e81b745dd2b3bf",
+      "landing": "https://github.com/Systems-Modeling/SysML-v2-Release/tree/2025-02",
+      "license": "EPL-2.0",
+      "note": "Library element ids used as the KerML 9.1 UUID oracle (ADR 0009); library text identical to the normative .kpar files"
+    },
+    {
+      "path": "SysML-v2-Release/2025-02/sysml.library.xmi/Kernel Libraries/Kernel Function Library/IntegerFunctions.kermlx",
+      "url": "https://raw.githubusercontent.com/Systems-Modeling/SysML-v2-Release/b17ab0ed8c85e3713c8c27ab89f995d764f8974c/sysml.library.xmi/Kernel%20Libraries/Kernel%20Function%20Library/IntegerFunctions.kermlx",
+      "size": 115161,
+      "sha256": "f839bf4d200986c2165ced0699083d235c056410b5f9d391c067fa6e6e149fc6",
+      "landing": "https://github.com/Systems-Modeling/SysML-v2-Release/tree/2025-02",
+      "license": "EPL-2.0",
+      "note": "Library element ids used as the KerML 9.1 UUID oracle (ADR 0009); library text identical to the normative .kpar files"
+    },
+    {
+      "path": "SysML-v2-Release/2025-02/sysml.library.xmi/Kernel Libraries/Kernel Function Library/NaturalFunctions.kermlx",
+      "url": "https://raw.githubusercontent.com/Systems-Modeling/SysML-v2-Release/b17ab0ed8c85e3713c8c27ab89f995d764f8974c/sysml.library.xmi/Kernel%20Libraries/Kernel%20Function%20Library/NaturalFunctions.kermlx",
+      "size": 69842,
+      "sha256": "9fa93cf5e13ed10a8249d8feb37ecec19a277dfa395867f83a338692270cf005",
+      "landing": "https://github.com/Systems-Modeling/SysML-v2-Release/tree/2025-02",
+      "license": "EPL-2.0",
+      "note": "Library element ids used as the KerML 9.1 UUID oracle (ADR 0009); library text identical to the normative .kpar files"
+    },
+    {
+      "path": "SysML-v2-Release/2025-02/sysml.library.xmi/Kernel Libraries/Kernel Function Library/NumericalFunctions.kermlx",
+      "url": "https://raw.githubusercontent.com/Systems-Modeling/SysML-v2-Release/b17ab0ed8c85e3713c8c27ab89f995d764f8974c/sysml.library.xmi/Kernel%20Libraries/Kernel%20Function%20Library/NumericalFunctions.kermlx",
+      "size": 122851,
+      "sha256": "77615fef792a47f160cf9caf7d4dce1011683080b131703e1eea26e825d6b6d2",
+      "landing": "https://github.com/Systems-Modeling/SysML-v2-Release/tree/2025-02",
+      "license": "EPL-2.0",
+      "note": "Library element ids used as the KerML 9.1 UUID oracle (ADR 0009); library text identical to the normative .kpar files"
+    },
+    {
+      "path": "SysML-v2-Release/2025-02/sysml.library.xmi/Kernel Libraries/Kernel Function Library/OccurrenceFunctions.kermlx",
+      "url": "https://raw.githubusercontent.com/Systems-Modeling/SysML-v2-Release/b17ab0ed8c85e3713c8c27ab89f995d764f8974c/sysml.library.xmi/Kernel%20Libraries/Kernel%20Function%20Library/OccurrenceFunctions.kermlx",
+      "size": 104144,
+      "sha256": "a5d02ac1904ea1c0ba0109e9d8aad2f7f9b4d964afe99895b7a04a4682eff126",
+      "landing": "https://github.com/Systems-Modeling/SysML-v2-Release/tree/2025-02",
+      "license": "EPL-2.0",
+      "note": "Library element ids used as the KerML 9.1 UUID oracle (ADR 0009); library text identical to the normative .kpar files"
+    },
+    {
+      "path": "SysML-v2-Release/2025-02/sysml.library.xmi/Kernel Libraries/Kernel Function Library/RationalFunctions.kermlx",
+      "url": "https://raw.githubusercontent.com/Systems-Modeling/SysML-v2-Release/b17ab0ed8c85e3713c8c27ab89f995d764f8974c/sysml.library.xmi/Kernel%20Libraries/Kernel%20Function%20Library/RationalFunctions.kermlx",
+      "size": 133699,
+      "sha256": "b1e507d40cc4135072a77fc97258ff642182460088356243e6992671b8b466b3",
+      "landing": "https://github.com/Systems-Modeling/SysML-v2-Release/tree/2025-02",
+      "license": "EPL-2.0",
+      "note": "Library element ids used as the KerML 9.1 UUID oracle (ADR 0009); library text identical to the normative .kpar files"
+    },
+    {
+      "path": "SysML-v2-Release/2025-02/sysml.library.xmi/Kernel Libraries/Kernel Function Library/RealFunctions.kermlx",
+      "url": "https://raw.githubusercontent.com/Systems-Modeling/SysML-v2-Release/b17ab0ed8c85e3713c8c27ab89f995d764f8974c/sysml.library.xmi/Kernel%20Libraries/Kernel%20Function%20Library/RealFunctions.kermlx",
+      "size": 129745,
+      "sha256": "4ae6f6f35618bc081a2d60d5eacf2f4f8ab593c52c094da8af79338a67f1956b",
+      "landing": "https://github.com/Systems-Modeling/SysML-v2-Release/tree/2025-02",
+      "license": "EPL-2.0",
+      "note": "Library element ids used as the KerML 9.1 UUID oracle (ADR 0009); library text identical to the normative .kpar files"
+    },
+    {
+      "path": "SysML-v2-Release/2025-02/sysml.library.xmi/Kernel Libraries/Kernel Function Library/ScalarFunctions.kermlx",
+      "url": "https://raw.githubusercontent.com/Systems-Modeling/SysML-v2-Release/b17ab0ed8c85e3713c8c27ab89f995d764f8974c/sysml.library.xmi/Kernel%20Libraries/Kernel%20Function%20Library/ScalarFunctions.kermlx",
+      "size": 103014,
+      "sha256": "8d7aa9d2d92710e7f12133c355caf317bdce9680f9b0c24d2799cd62b2577e83",
+      "landing": "https://github.com/Systems-Modeling/SysML-v2-Release/tree/2025-02",
+      "license": "EPL-2.0",
+      "note": "Library element ids used as the KerML 9.1 UUID oracle (ADR 0009); library text identical to the normative .kpar files"
+    },
+    {
+      "path": "SysML-v2-Release/2025-02/sysml.library.xmi/Kernel Libraries/Kernel Function Library/SequenceFunctions.kermlx",
+      "url": "https://raw.githubusercontent.com/Systems-Modeling/SysML-v2-Release/b17ab0ed8c85e3713c8c27ab89f995d764f8974c/sysml.library.xmi/Kernel%20Libraries/Kernel%20Function%20Library/SequenceFunctions.kermlx",
+      "size": 374495,
+      "sha256": "0d2954266ca06be34686ca4fffb8abc57412cdab15f3a51aa842002c7dd3a92f",
+      "landing": "https://github.com/Systems-Modeling/SysML-v2-Release/tree/2025-02",
+      "license": "EPL-2.0",
+      "note": "Library element ids used as the KerML 9.1 UUID oracle (ADR 0009); library text identical to the normative .kpar files"
+    },
+    {
+      "path": "SysML-v2-Release/2025-02/sysml.library.xmi/Kernel Libraries/Kernel Function Library/StringFunctions.kermlx",
+      "url": "https://raw.githubusercontent.com/Systems-Modeling/SysML-v2-Release/b17ab0ed8c85e3713c8c27ab89f995d764f8974c/sysml.library.xmi/Kernel%20Libraries/Kernel%20Function%20Library/StringFunctions.kermlx",
+      "size": 50008,
+      "sha256": "188e25ab9fe996ca20577ce8bf090d5a599287de85c1f462349a3e4aed16c24d",
+      "landing": "https://github.com/Systems-Modeling/SysML-v2-Release/tree/2025-02",
+      "license": "EPL-2.0",
+      "note": "Library element ids used as the KerML 9.1 UUID oracle (ADR 0009); library text identical to the normative .kpar files"
+    },
+    {
+      "path": "SysML-v2-Release/2025-02/sysml.library.xmi/Kernel Libraries/Kernel Function Library/TrigFunctions.kermlx",
+      "url": "https://raw.githubusercontent.com/Systems-Modeling/SysML-v2-Release/b17ab0ed8c85e3713c8c27ab89f995d764f8974c/sysml.library.xmi/Kernel%20Libraries/Kernel%20Function%20Library/TrigFunctions.kermlx",
+      "size": 75963,
+      "sha256": "5fad751c1cb20ea92049b2d23572cbcefdfa4fc51f0cd1d7db6084987a47874c",
+      "landing": "https://github.com/Systems-Modeling/SysML-v2-Release/tree/2025-02",
+      "license": "EPL-2.0",
+      "note": "Library element ids used as the KerML 9.1 UUID oracle (ADR 0009); library text identical to the normative .kpar files"
+    },
+    {
+      "path": "SysML-v2-Release/2025-02/sysml.library.xmi/Kernel Libraries/Kernel Function Library/VectorFunctions.kermlx",
+      "url": "https://raw.githubusercontent.com/Systems-Modeling/SysML-v2-Release/b17ab0ed8c85e3713c8c27ab89f995d764f8974c/sysml.library.xmi/Kernel%20Libraries/Kernel%20Function%20Library/VectorFunctions.kermlx",
+      "size": 531587,
+      "sha256": "aebf5fbb90e0dcb74ea8e37046afeddda7c5536859b97c723e052016fc9d1336",
+      "landing": "https://github.com/Systems-Modeling/SysML-v2-Release/tree/2025-02",
+      "license": "EPL-2.0",
+      "note": "Library element ids used as the KerML 9.1 UUID oracle (ADR 0009); library text identical to the normative .kpar files"
+    },
+    {
+      "path": "SysML-v2-Release/2025-02/sysml.library.xmi/Kernel Libraries/Kernel Semantic Library/Base.kermlx",
+      "url": "https://raw.githubusercontent.com/Systems-Modeling/SysML-v2-Release/b17ab0ed8c85e3713c8c27ab89f995d764f8974c/sysml.library.xmi/Kernel%20Libraries/Kernel%20Semantic%20Library/Base.kermlx",
+      "size": 22568,
+      "sha256": "1e3b32269b6eb9d9b2ceb4bf8e887b9c0fbb2435b36584721dceaa4d6d6cfed7",
+      "landing": "https://github.com/Systems-Modeling/SysML-v2-Release/tree/2025-02",
+      "license": "EPL-2.0",
+      "note": "Library element ids used as the KerML 9.1 UUID oracle (ADR 0009); library text identical to the normative .kpar files"
+    },
+    {
+      "path": "SysML-v2-Release/2025-02/sysml.library.xmi/Kernel Libraries/Kernel Semantic Library/Clocks.kermlx",
+      "url": "https://raw.githubusercontent.com/Systems-Modeling/SysML-v2-Release/b17ab0ed8c85e3713c8c27ab89f995d764f8974c/sysml.library.xmi/Kernel%20Libraries/Kernel%20Semantic%20Library/Clocks.kermlx",
+      "size": 116841,
+      "sha256": "532fff3d3b88e8589d44536eb0819f326eb9fded81035d5c55ed197c8bfcb1fc",
+      "landing": "https://github.com/Systems-Modeling/SysML-v2-Release/tree/2025-02",
+      "license": "EPL-2.0",
+      "note": "Library element ids used as the KerML 9.1 UUID oracle (ADR 0009); library text identical to the normative .kpar files"
+    },
+    {
+      "path": "SysML-v2-Release/2025-02/sysml.library.xmi/Kernel Libraries/Kernel Semantic Library/ControlPerformances.kermlx",
+      "url": "https://raw.githubusercontent.com/Systems-Modeling/SysML-v2-Release/b17ab0ed8c85e3713c8c27ab89f995d764f8974c/sysml.library.xmi/Kernel%20Libraries/Kernel%20Semantic%20Library/ControlPerformances.kermlx",
+      "size": 105033,
+      "sha256": "a95901ef827123ec315e7ecac6e4a173ea88a5d9d41c330a8f846d573c67366c",
+      "landing": "https://github.com/Systems-Modeling/SysML-v2-Release/tree/2025-02",
+      "license": "EPL-2.0",
+      "note": "Library element ids used as the KerML 9.1 UUID oracle (ADR 0009); library text identical to the normative .kpar files"
+    },
+    {
+      "path": "SysML-v2-Release/2025-02/sysml.library.xmi/Kernel Libraries/Kernel Semantic Library/FeatureReferencingPerformances.kermlx",
+      "url": "https://raw.githubusercontent.com/Systems-Modeling/SysML-v2-Release/b17ab0ed8c85e3713c8c27ab89f995d764f8974c/sysml.library.xmi/Kernel%20Libraries/Kernel%20Semantic%20Library/FeatureReferencingPerformances.kermlx",
+      "size": 128582,
+      "sha256": "3e55513d20d2312c662856494b272ce6c123fa3f09b0c219c163207ef5e93cba",
+      "landing": "https://github.com/Systems-Modeling/SysML-v2-Release/tree/2025-02",
+      "license": "EPL-2.0",
+      "note": "Library element ids used as the KerML 9.1 UUID oracle (ADR 0009); library text identical to the normative .kpar files"
+    },
+    {
+      "path": "SysML-v2-Release/2025-02/sysml.library.xmi/Kernel Libraries/Kernel Semantic Library/KerML.kermlx",
+      "url": "https://raw.githubusercontent.com/Systems-Modeling/SysML-v2-Release/b17ab0ed8c85e3713c8c27ab89f995d764f8974c/sysml.library.xmi/Kernel%20Libraries/Kernel%20Semantic%20Library/KerML.kermlx",
+      "size": 531406,
+      "sha256": "6ee58fc934c00abbaa03207afc03558f0a3c27eed1f6f90e000f9ddbd5903aa1",
+      "landing": "https://github.com/Systems-Modeling/SysML-v2-Release/tree/2025-02",
+      "license": "EPL-2.0",
+      "note": "Library element ids used as the KerML 9.1 UUID oracle (ADR 0009); library text identical to the normative .kpar files"
+    },
+    {
+      "path": "SysML-v2-Release/2025-02/sysml.library.xmi/Kernel Libraries/Kernel Semantic Library/Links.kermlx",
+      "url": "https://raw.githubusercontent.com/Systems-Modeling/SysML-v2-Release/b17ab0ed8c85e3713c8c27ab89f995d764f8974c/sysml.library.xmi/Kernel%20Libraries/Kernel%20Semantic%20Library/Links.kermlx",
+      "size": 27462,
+      "sha256": "4327ea3bb01562c0c5ff36119ebb82b3d5b44401a69eba0500979c382d9a4638",
+      "landing": "https://github.com/Systems-Modeling/SysML-v2-Release/tree/2025-02",
+      "license": "EPL-2.0",
+      "note": "Library element ids used as the KerML 9.1 UUID oracle (ADR 0009); library text identical to the normative .kpar files"
+    },
+    {
+      "path": "SysML-v2-Release/2025-02/sysml.library.xmi/Kernel Libraries/Kernel Semantic Library/Metaobjects.kermlx",
+      "url": "https://raw.githubusercontent.com/Systems-Modeling/SysML-v2-Release/b17ab0ed8c85e3713c8c27ab89f995d764f8974c/sysml.library.xmi/Kernel%20Libraries/Kernel%20Semantic%20Library/Metaobjects.kermlx",
+      "size": 15044,
+      "sha256": "09ad5aaae6098874f58cb59f68d0fb81e298526b746f2a43416541b92899dcff",
+      "landing": "https://github.com/Systems-Modeling/SysML-v2-Release/tree/2025-02",
+      "license": "EPL-2.0",
+      "note": "Library element ids used as the KerML 9.1 UUID oracle (ADR 0009); library text identical to the normative .kpar files"
+    },
+    {
+      "path": "SysML-v2-Release/2025-02/sysml.library.xmi/Kernel Libraries/Kernel Semantic Library/Objects.kermlx",
+      "url": "https://raw.githubusercontent.com/Systems-Modeling/SysML-v2-Release/b17ab0ed8c85e3713c8c27ab89f995d764f8974c/sysml.library.xmi/Kernel%20Libraries/Kernel%20Semantic%20Library/Objects.kermlx",
+      "size": 159407,
+      "sha256": "6429b53c1c06aca4123536641059bb4df0b40e78cf83c59b818885b034c1a5ef",
+      "landing": "https://github.com/Systems-Modeling/SysML-v2-Release/tree/2025-02",
+      "license": "EPL-2.0",
+      "note": "Library element ids used as the KerML 9.1 UUID oracle (ADR 0009); library text identical to the normative .kpar files"
+    },
+    {
+      "path": "SysML-v2-Release/2025-02/sysml.library.xmi/Kernel Libraries/Kernel Semantic Library/Observation.kermlx",
+      "url": "https://raw.githubusercontent.com/Systems-Modeling/SysML-v2-Release/b17ab0ed8c85e3713c8c27ab89f995d764f8974c/sysml.library.xmi/Kernel%20Libraries/Kernel%20Semantic%20Library/Observation.kermlx",
+      "size": 95650,
+      "sha256": "e4a2cd3bf3b4d2adf1df51efbe54a8aad9fc7d6ac5a2038293665c8afcc25475",
+      "landing": "https://github.com/Systems-Modeling/SysML-v2-Release/tree/2025-02",
+      "license": "EPL-2.0",
+      "note": "Library element ids used as the KerML 9.1 UUID oracle (ADR 0009); library text identical to the normative .kpar files"
+    },
+    {
+      "path": "SysML-v2-Release/2025-02/sysml.library.xmi/Kernel Libraries/Kernel Semantic Library/Occurrences.kermlx",
+      "url": "https://raw.githubusercontent.com/Systems-Modeling/SysML-v2-Release/b17ab0ed8c85e3713c8c27ab89f995d764f8974c/sysml.library.xmi/Kernel%20Libraries/Kernel%20Semantic%20Library/Occurrences.kermlx",
+      "size": 815593,
+      "sha256": "5774fbde99c579e43feaa704a322651194b7ec6aa464c9e07415c90783d4df3d",
+      "landing": "https://github.com/Systems-Modeling/SysML-v2-Release/tree/2025-02",
+      "license": "EPL-2.0",
+      "note": "Library element ids used as the KerML 9.1 UUID oracle (ADR 0009); library text identical to the normative .kpar files"
+    },
+    {
+      "path": "SysML-v2-Release/2025-02/sysml.library.xmi/Kernel Libraries/Kernel Semantic Library/Performances.kermlx",
+      "url": "https://raw.githubusercontent.com/Systems-Modeling/SysML-v2-Release/b17ab0ed8c85e3713c8c27ab89f995d764f8974c/sysml.library.xmi/Kernel%20Libraries/Kernel%20Semantic%20Library/Performances.kermlx",
+      "size": 115847,
+      "sha256": "2418adad62029615b331fa2977f11cc6cf0f2cb001d17600f03686ef6d7bc514",
+      "landing": "https://github.com/Systems-Modeling/SysML-v2-Release/tree/2025-02",
+      "license": "EPL-2.0",
+      "note": "Library element ids used as the KerML 9.1 UUID oracle (ADR 0009); library text identical to the normative .kpar files"
+    },
+    {
+      "path": "SysML-v2-Release/2025-02/sysml.library.xmi/Kernel Libraries/Kernel Semantic Library/SpatialFrames.kermlx",
+      "url": "https://raw.githubusercontent.com/Systems-Modeling/SysML-v2-Release/b17ab0ed8c85e3713c8c27ab89f995d764f8974c/sysml.library.xmi/Kernel%20Libraries/Kernel%20Semantic%20Library/SpatialFrames.kermlx",
+      "size": 221121,
+      "sha256": "588dac4967aafcf82893123908958de72cee99df7c65ef275c96c7b19defd087",
+      "landing": "https://github.com/Systems-Modeling/SysML-v2-Release/tree/2025-02",
+      "license": "EPL-2.0",
+      "note": "Library element ids used as the KerML 9.1 UUID oracle (ADR 0009); library text identical to the normative .kpar files"
+    },
+    {
+      "path": "SysML-v2-Release/2025-02/sysml.library.xmi/Kernel Libraries/Kernel Semantic Library/StatePerformances.kermlx",
+      "url": "https://raw.githubusercontent.com/Systems-Modeling/SysML-v2-Release/b17ab0ed8c85e3713c8c27ab89f995d764f8974c/sysml.library.xmi/Kernel%20Libraries/Kernel%20Semantic%20Library/StatePerformances.kermlx",
+      "size": 325206,
+      "sha256": "8c94394a6c69c19283d2d503f49fc2a46b07e2f22eb0af4aa6f971b1a2eb2152",
+      "landing": "https://github.com/Systems-Modeling/SysML-v2-Release/tree/2025-02",
+      "license": "EPL-2.0",
+      "note": "Library element ids used as the KerML 9.1 UUID oracle (ADR 0009); library text identical to the normative .kpar files"
+    },
+    {
+      "path": "SysML-v2-Release/2025-02/sysml.library.xmi/Kernel Libraries/Kernel Semantic Library/Transfers.kermlx",
+      "url": "https://raw.githubusercontent.com/Systems-Modeling/SysML-v2-Release/b17ab0ed8c85e3713c8c27ab89f995d764f8974c/sysml.library.xmi/Kernel%20Libraries/Kernel%20Semantic%20Library/Transfers.kermlx",
+      "size": 194008,
+      "sha256": "57ff91071739decc38ded04084d143d81200c2910bb542c4fb5da89eca0bbb05",
+      "landing": "https://github.com/Systems-Modeling/SysML-v2-Release/tree/2025-02",
+      "license": "EPL-2.0",
+      "note": "Library element ids used as the KerML 9.1 UUID oracle (ADR 0009); library text identical to the normative .kpar files"
+    },
+    {
+      "path": "SysML-v2-Release/2025-02/sysml.library.xmi/Kernel Libraries/Kernel Semantic Library/TransitionPerformances.kermlx",
+      "url": "https://raw.githubusercontent.com/Systems-Modeling/SysML-v2-Release/b17ab0ed8c85e3713c8c27ab89f995d764f8974c/sysml.library.xmi/Kernel%20Libraries/Kernel%20Semantic%20Library/TransitionPerformances.kermlx",
+      "size": 104645,
+      "sha256": "d28337f280bc1f602a85684f27e6519a7b35076f6b6a5b61226613551a2fe1f0",
+      "landing": "https://github.com/Systems-Modeling/SysML-v2-Release/tree/2025-02",
+      "license": "EPL-2.0",
+      "note": "Library element ids used as the KerML 9.1 UUID oracle (ADR 0009); library text identical to the normative .kpar files"
+    },
+    {
+      "path": "SysML-v2-Release/2025-02/sysml.library.xmi/Kernel Libraries/Kernel Semantic Library/Triggers.kermlx",
+      "url": "https://raw.githubusercontent.com/Systems-Modeling/SysML-v2-Release/b17ab0ed8c85e3713c8c27ab89f995d764f8974c/sysml.library.xmi/Kernel%20Libraries/Kernel%20Semantic%20Library/Triggers.kermlx",
+      "size": 82543,
+      "sha256": "cf0f48d75c0a907bfea4dc60d60564708004aa088addd1d3842994b23475bacd",
+      "landing": "https://github.com/Systems-Modeling/SysML-v2-Release/tree/2025-02",
+      "license": "EPL-2.0",
+      "note": "Library element ids used as the KerML 9.1 UUID oracle (ADR 0009); library text identical to the normative .kpar files"
+    },
+    {
+      "path": "SysML-v2-Release/2025-02/sysml.library.xmi/Systems Library/Actions.sysmlx",
+      "url": "https://raw.githubusercontent.com/Systems-Modeling/SysML-v2-Release/b17ab0ed8c85e3713c8c27ab89f995d764f8974c/sysml.library.xmi/Systems%20Library/Actions.sysmlx",
+      "size": 223950,
+      "sha256": "84a645a9cb77fa1c21393a65f743eced7f47ed9baab1330752f85b42336af561",
+      "landing": "https://github.com/Systems-Modeling/SysML-v2-Release/tree/2025-02",
+      "license": "EPL-2.0",
+      "note": "Library element ids used as the KerML 9.1 UUID oracle (ADR 0009); library text identical to the normative .kpar files"
+    },
+    {
+      "path": "SysML-v2-Release/2025-02/sysml.library.xmi/Systems Library/Allocations.sysmlx",
+      "url": "https://raw.githubusercontent.com/Systems-Modeling/SysML-v2-Release/b17ab0ed8c85e3713c8c27ab89f995d764f8974c/sysml.library.xmi/Systems%20Library/Allocations.sysmlx",
+      "size": 8730,
+      "sha256": "cc12d42509077384bc11336a394e51bbae4e2fbd643056bd0b75cfd4799057b6",
+      "landing": "https://github.com/Systems-Modeling/SysML-v2-Release/tree/2025-02",
+      "license": "EPL-2.0",
+      "note": "Library element ids used as the KerML 9.1 UUID oracle (ADR 0009); library text identical to the normative .kpar files"
+    },
+    {
+      "path": "SysML-v2-Release/2025-02/sysml.library.xmi/Systems Library/AnalysisCases.sysmlx",
+      "url": "https://raw.githubusercontent.com/Systems-Modeling/SysML-v2-Release/b17ab0ed8c85e3713c8c27ab89f995d764f8974c/sysml.library.xmi/Systems%20Library/AnalysisCases.sysmlx",
+      "size": 15741,
+      "sha256": "f0a0db8604c5362d4a184668b3472543d9f2a139cf3aebfcb3a893055a0a45ca",
+      "landing": "https://github.com/Systems-Modeling/SysML-v2-Release/tree/2025-02",
+      "license": "EPL-2.0",
+      "note": "Library element ids used as the KerML 9.1 UUID oracle (ADR 0009); library text identical to the normative .kpar files"
+    },
+    {
+      "path": "SysML-v2-Release/2025-02/sysml.library.xmi/Systems Library/Attributes.sysmlx",
+      "url": "https://raw.githubusercontent.com/Systems-Modeling/SysML-v2-Release/b17ab0ed8c85e3713c8c27ab89f995d764f8974c/sysml.library.xmi/Systems%20Library/Attributes.sysmlx",
+      "size": 3623,
+      "sha256": "958e500cac593e32aac95b51048b5fd56d6a26fb2905a978d70877de8671bc93",
+      "landing": "https://github.com/Systems-Modeling/SysML-v2-Release/tree/2025-02",
+      "license": "EPL-2.0",
+      "note": "Library element ids used as the KerML 9.1 UUID oracle (ADR 0009); library text identical to the normative .kpar files"
+    },
+    {
+      "path": "SysML-v2-Release/2025-02/sysml.library.xmi/Systems Library/Calculations.sysmlx",
+      "url": "https://raw.githubusercontent.com/Systems-Modeling/SysML-v2-Release/b17ab0ed8c85e3713c8c27ab89f995d764f8974c/sysml.library.xmi/Systems%20Library/Calculations.sysmlx",
+      "size": 10217,
+      "sha256": "64edf6cc5235a2fb78a1a31c258f03a8ac78f84bbb238926db5e26f329be6c6b",
+      "landing": "https://github.com/Systems-Modeling/SysML-v2-Release/tree/2025-02",
+      "license": "EPL-2.0",
+      "note": "Library element ids used as the KerML 9.1 UUID oracle (ADR 0009); library text identical to the normative .kpar files"
+    },
+    {
+      "path": "SysML-v2-Release/2025-02/sysml.library.xmi/Systems Library/Cases.sysmlx",
+      "url": "https://raw.githubusercontent.com/Systems-Modeling/SysML-v2-Release/b17ab0ed8c85e3713c8c27ab89f995d764f8974c/sysml.library.xmi/Systems%20Library/Cases.sysmlx",
+      "size": 24668,
+      "sha256": "d0f73b5ab486487da52df7c31e954179b9ba306e26d66981de22cd00644759b7",
+      "landing": "https://github.com/Systems-Modeling/SysML-v2-Release/tree/2025-02",
+      "license": "EPL-2.0",
+      "note": "Library element ids used as the KerML 9.1 UUID oracle (ADR 0009); library text identical to the normative .kpar files"
+    },
+    {
+      "path": "SysML-v2-Release/2025-02/sysml.library.xmi/Systems Library/Connections.sysmlx",
+      "url": "https://raw.githubusercontent.com/Systems-Modeling/SysML-v2-Release/b17ab0ed8c85e3713c8c27ab89f995d764f8974c/sysml.library.xmi/Systems%20Library/Connections.sysmlx",
+      "size": 19118,
+      "sha256": "3b83cee4ac9eb0fd8bc617a3ff65d366b3d8581b5f90297abc8206b667ca8d18",
+      "landing": "https://github.com/Systems-Modeling/SysML-v2-Release/tree/2025-02",
+      "license": "EPL-2.0",
+      "note": "Library element ids used as the KerML 9.1 UUID oracle (ADR 0009); library text identical to the normative .kpar files"
+    },
+    {
+      "path": "SysML-v2-Release/2025-02/sysml.library.xmi/Systems Library/Constraints.sysmlx",
+      "url": "https://raw.githubusercontent.com/Systems-Modeling/SysML-v2-Release/b17ab0ed8c85e3713c8c27ab89f995d764f8974c/sysml.library.xmi/Systems%20Library/Constraints.sysmlx",
+      "size": 10637,
+      "sha256": "6de6112925ab242dd84177456f7dd1d1fe5e37c045f0abe9b8e8000045654487",
+      "landing": "https://github.com/Systems-Modeling/SysML-v2-Release/tree/2025-02",
+      "license": "EPL-2.0",
+      "note": "Library element ids used as the KerML 9.1 UUID oracle (ADR 0009); library text identical to the normative .kpar files"
+    },
+    {
+      "path": "SysML-v2-Release/2025-02/sysml.library.xmi/Systems Library/Flows.sysmlx",
+      "url": "https://raw.githubusercontent.com/Systems-Modeling/SysML-v2-Release/b17ab0ed8c85e3713c8c27ab89f995d764f8974c/sysml.library.xmi/Systems%20Library/Flows.sysmlx",
+      "size": 106122,
+      "sha256": "8bbce45d587e97d4eb57eda4a7b24f950d3696f39435b2f9481e48be7843d27b",
+      "landing": "https://github.com/Systems-Modeling/SysML-v2-Release/tree/2025-02",
+      "license": "EPL-2.0",
+      "note": "Library element ids used as the KerML 9.1 UUID oracle (ADR 0009); library text identical to the normative .kpar files"
+    },
+    {
+      "path": "SysML-v2-Release/2025-02/sysml.library.xmi/Systems Library/Interfaces.sysmlx",
+      "url": "https://raw.githubusercontent.com/Systems-Modeling/SysML-v2-Release/b17ab0ed8c85e3713c8c27ab89f995d764f8974c/sysml.library.xmi/Systems%20Library/Interfaces.sysmlx",
+      "size": 54871,
+      "sha256": "f23ec341ee3ee73386284c598adc7f3355c3498b8e6f30bb25c9d727e78e6060",
+      "landing": "https://github.com/Systems-Modeling/SysML-v2-Release/tree/2025-02",
+      "license": "EPL-2.0",
+      "note": "Library element ids used as the KerML 9.1 UUID oracle (ADR 0009); library text identical to the normative .kpar files"
+    },
+    {
+      "path": "SysML-v2-Release/2025-02/sysml.library.xmi/Systems Library/Items.sysmlx",
+      "url": "https://raw.githubusercontent.com/Systems-Modeling/SysML-v2-Release/b17ab0ed8c85e3713c8c27ab89f995d764f8974c/sysml.library.xmi/Systems%20Library/Items.sysmlx",
+      "size": 149801,
+      "sha256": "618c275becb8c4a0fb7cef8335b6f9cfbcb5629e229d9ba4b85ae8c76a7fb885",
+      "landing": "https://github.com/Systems-Modeling/SysML-v2-Release/tree/2025-02",
+      "license": "EPL-2.0",
+      "note": "Library element ids used as the KerML 9.1 UUID oracle (ADR 0009); library text identical to the normative .kpar files"
+    },
+    {
+      "path": "SysML-v2-Release/2025-02/sysml.library.xmi/Systems Library/Metadata.sysmlx",
+      "url": "https://raw.githubusercontent.com/Systems-Modeling/SysML-v2-Release/b17ab0ed8c85e3713c8c27ab89f995d764f8974c/sysml.library.xmi/Systems%20Library/Metadata.sysmlx",
+      "size": 7082,
+      "sha256": "88e82b8f8305a15f38610abee76d6e89b84cc7e828ff494e0a817a6a2f2856a3",
+      "landing": "https://github.com/Systems-Modeling/SysML-v2-Release/tree/2025-02",
+      "license": "EPL-2.0",
+      "note": "Library element ids used as the KerML 9.1 UUID oracle (ADR 0009); library text identical to the normative .kpar files"
+    },
+    {
+      "path": "SysML-v2-Release/2025-02/sysml.library.xmi/Systems Library/Parts.sysmlx",
+      "url": "https://raw.githubusercontent.com/Systems-Modeling/SysML-v2-Release/b17ab0ed8c85e3713c8c27ab89f995d764f8974c/sysml.library.xmi/Systems%20Library/Parts.sysmlx",
+      "size": 30455,
+      "sha256": "784e87ac64f46a69fc75fa51c0127088e9341d1b2ed1834a44bf9b698aa59954",
+      "landing": "https://github.com/Systems-Modeling/SysML-v2-Release/tree/2025-02",
+      "license": "EPL-2.0",
+      "note": "Library element ids used as the KerML 9.1 UUID oracle (ADR 0009); library text identical to the normative .kpar files"
+    },
+    {
+      "path": "SysML-v2-Release/2025-02/sysml.library.xmi/Systems Library/Ports.sysmlx",
+      "url": "https://raw.githubusercontent.com/Systems-Modeling/SysML-v2-Release/b17ab0ed8c85e3713c8c27ab89f995d764f8974c/sysml.library.xmi/Systems%20Library/Ports.sysmlx",
+      "size": 15456,
+      "sha256": "b86ab784f7ce1e9c9b970d403010ca0aea859b1561e1430287bf3680b6c6924b",
+      "landing": "https://github.com/Systems-Modeling/SysML-v2-Release/tree/2025-02",
+      "license": "EPL-2.0",
+      "note": "Library element ids used as the KerML 9.1 UUID oracle (ADR 0009); library text identical to the normative .kpar files"
+    },
+    {
+      "path": "SysML-v2-Release/2025-02/sysml.library.xmi/Systems Library/Requirements.sysmlx",
+      "url": "https://raw.githubusercontent.com/Systems-Modeling/SysML-v2-Release/b17ab0ed8c85e3713c8c27ab89f995d764f8974c/sysml.library.xmi/Systems%20Library/Requirements.sysmlx",
+      "size": 61457,
+      "sha256": "2313ce077a7c1abc742363257909b6cbe7edc52f5f4141a15b8fdc6b8da9cf2d",
+      "landing": "https://github.com/Systems-Modeling/SysML-v2-Release/tree/2025-02",
+      "license": "EPL-2.0",
+      "note": "Library element ids used as the KerML 9.1 UUID oracle (ADR 0009); library text identical to the normative .kpar files"
+    },
+    {
+      "path": "SysML-v2-Release/2025-02/sysml.library.xmi/Systems Library/StandardViewDefinitions.sysmlx",
+      "url": "https://raw.githubusercontent.com/Systems-Modeling/SysML-v2-Release/b17ab0ed8c85e3713c8c27ab89f995d764f8974c/sysml.library.xmi/Systems%20Library/StandardViewDefinitions.sysmlx",
+      "size": 12680,
+      "sha256": "f82b63a7944d28e76961173accef679e2d50cb2308fb7d4d905e9b9878da44af",
+      "landing": "https://github.com/Systems-Modeling/SysML-v2-Release/tree/2025-02",
+      "license": "EPL-2.0",
+      "note": "Library element ids used as the KerML 9.1 UUID oracle (ADR 0009); library text identical to the normative .kpar files"
+    },
+    {
+      "path": "SysML-v2-Release/2025-02/sysml.library.xmi/Systems Library/States.sysmlx",
+      "url": "https://raw.githubusercontent.com/Systems-Modeling/SysML-v2-Release/b17ab0ed8c85e3713c8c27ab89f995d764f8974c/sysml.library.xmi/Systems%20Library/States.sysmlx",
+      "size": 62903,
+      "sha256": "19b9b033d4fdf1a7a6201a0b3bdbd20801e4276f43963e469a453b762879b282",
+      "landing": "https://github.com/Systems-Modeling/SysML-v2-Release/tree/2025-02",
+      "license": "EPL-2.0",
+      "note": "Library element ids used as the KerML 9.1 UUID oracle (ADR 0009); library text identical to the normative .kpar files"
+    },
+    {
+      "path": "SysML-v2-Release/2025-02/sysml.library.xmi/Systems Library/SysML.sysmlx",
+      "url": "https://raw.githubusercontent.com/Systems-Modeling/SysML-v2-Release/b17ab0ed8c85e3713c8c27ab89f995d764f8974c/sysml.library.xmi/Systems%20Library/SysML.sysmlx",
+      "size": 573688,
+      "sha256": "a8fc7f0fb6ba7843533cf880285a6fa0f6a892b6b0198ca0f64f5f820d70ac6e",
+      "landing": "https://github.com/Systems-Modeling/SysML-v2-Release/tree/2025-02",
+      "license": "EPL-2.0",
+      "note": "Library element ids used as the KerML 9.1 UUID oracle (ADR 0009); library text identical to the normative .kpar files"
+    },
+    {
+      "path": "SysML-v2-Release/2025-02/sysml.library.xmi/Systems Library/UseCases.sysmlx",
+      "url": "https://raw.githubusercontent.com/Systems-Modeling/SysML-v2-Release/b17ab0ed8c85e3713c8c27ab89f995d764f8974c/sysml.library.xmi/Systems%20Library/UseCases.sysmlx",
+      "size": 24590,
+      "sha256": "d57e01a2629b5bc58c18aa59fcf0d474c5be46be13fbc9acbe76a2505b2d5227",
+      "landing": "https://github.com/Systems-Modeling/SysML-v2-Release/tree/2025-02",
+      "license": "EPL-2.0",
+      "note": "Library element ids used as the KerML 9.1 UUID oracle (ADR 0009); library text identical to the normative .kpar files"
+    },
+    {
+      "path": "SysML-v2-Release/2025-02/sysml.library.xmi/Systems Library/VerificationCases.sysmlx",
+      "url": "https://raw.githubusercontent.com/Systems-Modeling/SysML-v2-Release/b17ab0ed8c85e3713c8c27ab89f995d764f8974c/sysml.library.xmi/Systems%20Library/VerificationCases.sysmlx",
+      "size": 44927,
+      "sha256": "3b25ce0892f279663800388a15103756725b8d5b458310bcf5783b73ee204a60",
+      "landing": "https://github.com/Systems-Modeling/SysML-v2-Release/tree/2025-02",
+      "license": "EPL-2.0",
+      "note": "Library element ids used as the KerML 9.1 UUID oracle (ADR 0009); library text identical to the normative .kpar files"
+    },
+    {
+      "path": "SysML-v2-Release/2025-02/sysml.library.xmi/Systems Library/Views.sysmlx",
+      "url": "https://raw.githubusercontent.com/Systems-Modeling/SysML-v2-Release/b17ab0ed8c85e3713c8c27ab89f995d764f8974c/sysml.library.xmi/Systems%20Library/Views.sysmlx",
+      "size": 53963,
+      "sha256": "7a5201e87812b943374684765355a48ee4caa33979274fa7ff6f72056c27aca8",
+      "landing": "https://github.com/Systems-Modeling/SysML-v2-Release/tree/2025-02",
+      "license": "EPL-2.0",
+      "note": "Library element ids used as the KerML 9.1 UUID oracle (ADR 0009); library text identical to the normative .kpar files"
+    },
+    {
       "path": "api/LICENSE",
       "url": "https://raw.githubusercontent.com/Systems-Modeling/SysML-v2-API-Services/0af711b14bbcea7b240bb0a3a65817ae68302092/LICENSE",
       "size": 14198,

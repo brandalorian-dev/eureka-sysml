@@ -1,12 +1,13 @@
 # Eureka SysML: Phase 1 execution plan
 
-Status: Draft v1.1 · 2026-11-20 · Covers PROJECT_PLAN v0.7 §6, Phases 1a and 1b (Release 0.1 "Language")
+Status: Draft v1.2 · 2026-11-20 · Covers PROJECT_PLAN v0.7 §6, Phases 1a and 1b (Release 0.1 "Language")
 
 This plan breaks Phase 1 into ordered steps, each small enough for one or a few pull requests. PROJECT_PLAN.md remains the source of truth for scope, architecture and budgets. Where this plan finds something the project plan does not settle, it is listed under [decisions](#24-decisions-and-their-recommended-defaults), and settled by the [decision methodology](#25-decision-methodology): each recommended default is evaluated during the step that first depends on it.
 
 Change history:
 - v1.0: first version
 - v1.1: the decision methodology (§2.5). Each decision is evaluated in its execution step, so the decisions are no longer entry criteria.
+- v1.2: step 1a.0 done. D7 adopted (ADR 0009); the dependency spike recorded as evidence for D1 and D2 (`docs/proj-mgmt/evidence/1a.0-dependency-spike.md`).
 
 ## 1. Executive summary
 
@@ -74,10 +75,10 @@ All entry criteria are met. The open questions of §2.3 and §2.4 (the UUID refe
 
 ### 2.2 Tooling
 
-Already in place: Rust 1.100 stable and the 1.89 minimum toolchain, the wasm32 target, Python 3.11+, `pdftotext`, `cargo-deny`, `cargo-cyclonedx`, `gh`, Node 26 and Docker.
+Already in place: Rust 1.100 stable and the 1.89 minimum toolchain, the wasm32 target, Python 3.11+, `pdftotext`, `cargo-deny`, `cargo-cyclonedx`, `gh`, Node 26, Docker, and (since step 1a.0) `wasm-bindgen-cli` 0.2.130 for running WASM tests under Node.
 
 To add:
-- `wasm-pack` and a WASM test runner: `wasm-bindgen-test`, run under Node. Needed in step 1a.1.
+- `wasm-pack`, in step 1a.1. The WASM test runner itself works: `wasm-bindgen-test-runner`, at the exact version of the `wasm-bindgen` crate (1a.0 spike).
 - `poppler-utils` `pdftohtml` (font information), if step 1a.5 uses font-aware snippet extraction.
 - The VS Code extension packaging tool (`@vscode/vsce`), in step 1b.8.
 
@@ -90,7 +91,7 @@ Phase 1 is test-first, so each spec rule needs an oracle that is not our own cod
 | Lexical structure and grammar (KerML 8.2, SysML 8.2.2) | The 94 library files and SimpleVehicleModel must parse with zero errors and round-trip byte for byte. Plus the spec snippets (step 1a.5) and the EBNF in the clause text. | Available |
 | Name resolution (KerML 8.2.3.5) | The libraries must resolve with zero unresolved names. Plus hand-written cases from the clause's examples. | Available |
 | Implied relationships (KerML 8.4.3.1, 8.4.4.1 tables; SysML 8.4) | One golden test per table row, written from the tables. The OMG pilot implementation is allowed as a behavioral cross-check only (CLAUDE.md: no reuse of its code). | Available; the pilot cross-check is optional |
-| Library element UUIDs (KerML 9.1, SysML 9.1) | **Needs a source of published UUIDs.** The `.kpar` archives hold only text. A candidate is the library serializations in the EPL-2.0 SysML-v2-Release repository, which PROJECT_PLAN §13 already names as the source for shipped libraries. If they carry element ids, pin that commit in `specs.lock.json`. | **Open**: evaluated in step 1a.0 (D7) |
+| Library element UUIDs (KerML 9.1, SysML 9.1) | The XMI library serializations of SysML-v2-Release **2025-02**, whose library text is identical to the normative `.kpar` files. All 94 top-level packages and all 9,662 named elements match KerML 9.1 when recomputed independently (`scripts/check_uuid_oracle.py`, run in CI). Pinned in `specs.lock.json` under `docs/specs/SysML-v2-Release/2025-02/`. Root namespaces are outside 9.1 and not compared. | **Available** (ADR 0009) |
 | JSON serialization (KerML 10.4) | `SysML.json` and `KerML.json`, through the property descriptors `sysml-model` generates. Plus the element examples in the API `OpenAPI.json`. | Available |
 | Project interchange (KerML 10.3) | The 10 library archives, with the errata of ADR 0006 | Available |
 | Element-count rules of `sysml-synth` | The parser's element counts (step 1b.4) | Arrives in Phase 1b |
@@ -101,13 +102,13 @@ Each recommended default is a starting hypothesis, not a decision. It is evaluat
 
 | # | Decision | Evaluated in | Recommended default |
 |---|---|---|---|
-| D1 | Parser architecture: hand-written recursive descent producing a `rowan` lossless tree, or a parser generator | 1a.2 | Hand-written recursive descent with `rowan`, the rust-analyzer approach PROJECT_PLAN §4.2 names. It gives the best error recovery and full control over trivia. |
-| D2 | `salsa` version and the boundaries of the incremental query graph (file → tree → elements → resolution → semantics) | 1a.7 | The current `salsa` release, provided the 1a.0 spike shows it builds for wasm32 and on Rust 1.89 |
+| D1 | Parser architecture: hand-written recursive descent producing a `rowan` lossless tree, or a parser generator | 1a.2 | Hand-written recursive descent with `rowan`, the rust-analyzer approach PROJECT_PLAN §4.2 names. It gives the best error recovery and full control over trivia. *1a.0 spike: `rowan` 0.17.0, the newest stable release, meets the constraints; 0.18 is still alpha.* |
+| D2 | `salsa` version and the boundaries of the incremental query graph (file → tree → elements → resolution → semantics) | 1a.7 | The current `salsa` release, provided the 1a.0 spike shows it builds for wasm32 and on Rust 1.89. *1a.0 spike: `salsa` 0.28.5 builds and works on wasm32 and on Rust 1.89, with the minimal features `macros` and `inventory`. It needs `Zlib` in `deny.toml` (for `foldhash`, which cannot be turned off). The owner approved adding `Zlib` on 2026-11-20, so the license policy no longer blocks D2.* |
 | D3 | Arena and ID design for the element graph: element ids as API `DataIdentity` ids (PROJECT_PLAN §4.3), and storage of implied versus owned relationships | 1a.6 | Interned dense indices in an arena, mapped to UUIDs. Implied relationships are kept apart from owned ones, so serialization can include or omit them (KerML 10.3 `includesImplied`). |
 | D4 | Diagnostics model: codes, severity, spans, the constraint name and the spec clause | 1a.2 | One diagnostic type across the parser, resolver and validator. Every semantic diagnostic names its constraint, for example `validateFeatureMultiplicityDomain`. |
 | D5 | Snapshot format for the pre-resolved libraries | 1a.11 | A versioned binary format through a serde-compatible crate such as `postcard`, keyed by metamodel IRI, library version and crate version |
 | D6 | How CI gates timings (ADR 0007): a dedicated runner or instruction counts | 1a.11 | Instruction counts on GitHub-hosted runners (for example a Cachegrind-based harness), with wall-clock budgets measured but not gated until a dedicated runner exists |
-| D7 | Library UUID oracle (§2.3) | 1a.0 | The library serializations in the SysML-v2-Release repository, if they carry element ids |
+| D7 | Library UUID oracle (§2.3) | 1a.0, **adopted** (ADR 0009) | The library serializations in the SysML-v2-Release repository, if they carry element ids. *Adopted at release 2025-02.* |
 | D8 | VS Code extension tooling. The extension is TypeScript, but PROJECT_PLAN v0.7 moved the pnpm/TypeScript workspace to Phase 3. | 1b.8 | A self-contained `editors/vscode` npm package: a thin `vscode-languageclient` wrapper, with its own lockfile and `npm audit` and an npm SBOM in its CI job. The pnpm workspace still waits for Phase 3. |
 | D9 | Release 0.1: which crates go to crates.io, their license (Apache-2.0, or MIT OR Apache-2.0 per PROJECT_PLAN §13.1), and whether to sign the 0.1 artifacts | 1b.10 (owner decision) | Publish nothing to crates.io at 0.1; ship binaries through GitHub Releases. Attach the SBOMs (§4.8 requires an SBOM for every release) and sign with Sigstore now, since that is cheap to do from the first release. |
 
@@ -146,6 +147,7 @@ Each step below gives its goal, the spec clauses, what it delivers, the tests to
 ### 3.2 Phase 1a: KerML core
 
 #### 1a.0 Start-up: dependency spikes and the UUID oracle
+- **Status:** done 2026-11-20. D7 adopted (ADR 0009); spike results in `docs/proj-mgmt/evidence/1a.0-dependency-spike.md`.
 - **Goal:** remove the two unknowns that could change the design, and gather the evidence later evaluations need.
 - **Evaluates:** D7.
 - **Work:**
@@ -432,8 +434,8 @@ PROJECT_PLAN §12 allows parallel Claude Code sessions in git worktrees for inde
 | A2 | The specifications stay at the versions pinned in `specs.lock.json` for the whole of Phase 1: KerML 1.0, SysML 2.0, metamodel `20250201`. | A revision goes through `check_schema_assumptions.py` and the errata tests, and its cost is estimated separately. |
 | A3 | The normative machine-readable files take precedence over the documents (SysML Clause 2). Their defects go into errata tables with tests (ADRs 0005, 0006). | — |
 | A4 | The OMG pilot implementation is used only as a behavioral reference. None of its code is reused (CLAUDE.md). | — |
-| A5 | A UUID oracle can be found (§2.3, D7). | UUID conformance rests on the clause text and is reported as unverified in the 0.1 release notes. |
-| A6 | `rowan`, `salsa`, `uuid` (v5) and the LSP and WASM crates build for wasm32, pass `cargo deny`, and work on Rust 1.89. Spiked in 1a.0. | The affected decision (D1 or D2) adopts an alternative (§2.5), or raising the minimum Rust version goes to the owner. |
+| A5 | A UUID oracle can be found (§2.3, D7). **Holds** (ADR 0009). | UUID conformance rests on the clause text and is reported as unverified in the 0.1 release notes. |
+| A6 | `rowan`, `salsa`, `uuid` (v5) and the LSP and WASM crates build for wasm32, pass `cargo deny`, and work on Rust 1.89. **Spiked in 1a.0:** holds for `rowan`, `uuid` and `wasm-bindgen`. `salsa` also needs `Zlib`, now allowed in `deny.toml` (owner approval, 2026-11-20). The LSP crates are checked in 1b.8. | The affected decision (D1 or D2) adopts an alternative (§2.5), or raising the minimum Rust version goes to the owner. |
 | A7 | The parser stays hand-written and shared between KerML and SysML (D1), so SysML adds productions, not a second parser. | 1b.1 grows. |
 | A8 | Phase 1 does not need PostgreSQL, the server or a web UI. Interchange, the CLI and the LSP work on files. | — |
 | A9 | The 1M-element budgets can be met with incremental `salsa` queries and the arena design. 1b.9 checks this before the release. | Design changes, or a budget renegotiated in PROJECT_PLAN §7, before 0.1 |

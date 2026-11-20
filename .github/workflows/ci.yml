@@ -40,6 +40,9 @@ jobs:
       - name: Check codegen schema assumptions
         run: python scripts/check_schema_assumptions.py
 
+      - name: Check the library UUID oracle (ADR 0009)
+        run: python scripts/check_uuid_oracle.py
+
       - uses: dtolnay/rust-toolchain@stable
         with:
           components: rustfmt, clippy

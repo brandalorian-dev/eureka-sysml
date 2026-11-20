@@ -1,6 +1,6 @@
 # Eureka SysML — Project Plan
 
-Status: Draft v0.7 · 2026-11-20 · Project name: **Eureka SysML** (`eureka-sysml`)
+Status: Draft v0.8 · 2026-11-20 · Project name: **Eureka SysML** (`eureka-sysml`)
 
 Change history:
 - v0.1: initial plan
@@ -10,6 +10,7 @@ Change history:
 - v0.5: aligned with the formal OMG Systems Modeling API & Services v1.0 (PIM, PSMs, versioning rules, conformance suite)
 - v0.6: owner decisions applied: a solo developer with Claude Code, free and open-source software, all diagram views and document generation in 1.0, ITAR/FedRAMP-ready self-hosting, staged releases
 - v0.7: review after the Phase 0 work (PRs #1–#5). Facts corrected against the normative files, Phase 0 status recorded, its remaining items moved to the phases that need them, and the lessons on spec-artifact defects and code review added to the risks.
+- v0.8: Phase 1 detailed in `PHASE_1_EXECUTION_PLAN.md`, with its decision methodology. Step 1a.0 done: the library UUID oracle (ADR 0009) and the dependency spike.
 
 ## 1. Goal
 
@@ -61,7 +62,7 @@ Build a web application that lets **multiple concurrent users** create, edit, vi
   - JSON (10.4) serializes each element as `@id` and `@type` plus all owned and inherited properties. References are written as `{"@id": …}`.
   - A `.kpar` archive is a ZIP holding the model files plus `.project.json` and `.meta.json`. Their schemas are in `KerML-Model-Interchange.json`. Project usages carry version constraints; in the standard libraries these are all bare versions such as `1.0.0`.
   - **The OMG library archives do not follow 10.3 exactly.** Each wraps its project in one folder, two index entries name files that do not exist, two usages name a library IRI that does not exist, and one archive contains macOS metadata. The test corpus corrects these with an errata table that fails when OMG fixes them (ADR 0006).
-- **Element identity.** Library elements have **deterministic v5 UUIDs**, derived from the library package URL and each element's `path()`.
+- **Element identity.** Library elements have **deterministic v5 UUIDs**, derived from the library package URL and each element's `path()`. The oracle for testing them is the XMI library serialization of SysML-v2-Release 2025-02, whose library text is identical to the normative files. Its ids for all 94 library packages and all 9,662 named elements were independently recomputed to match KerML 9.1 (ADR 0009).
 - **Execution.** KerML Annex A (informative) describes a procedure for incrementally instantiating structures and behaviors. It is the basis for later simulation work.
 
 ### 2.2 SysML v2 essentials that shape the design
@@ -439,6 +440,8 @@ Delivered in PRs #1–#5 (ADRs 0004–0008):
 **Exit:** met. CI is green, the Rust types are generated, the corpus and the benchmark harness run, and the spec clauses can be looked up. No §7 budget can be measured yet: each needs a component from a later phase.
 
 ### Phase 1a — KerML core in Rust (10–14 wks), the critical path
+Phases 1a and 1b are broken into ordered steps, with entry and exit criteria and a decision methodology, in [`PHASE_1_EXECUTION_PLAN.md`](PHASE_1_EXECUTION_PLAN.md). Step 1a.0 is done.
+
 - Error-tolerant KerML parser (8.2.2–8.2.5) producing a lossless syntax tree, mapped to the arena-based model
 - Namespaces, imports, aliases, visibility, specialization, subsetting, redefinition, conjugation, feature chains, multiplicities
 - Implied relationships (8.4.3/8.4.4) with the redundancy rules. Validation constraints. Incremental recomputation with salsa.
@@ -450,6 +453,8 @@ Delivered in PRs #1–#5 (ADRs 0004–0008):
 **Exit:** the KerML libraries resolve with zero errors, the UUIDs follow the scheme, the WASM build passes the same tests, and the estimates are recalibrated.
 
 ### Phase 1b — SysML language, CLI and language server (8–10 wks)
+Steps 1b.1–1b.10 of the execution plan. Its bottom-up estimate is 9–13 weeks; the recalibration after Phase 1a decides which estimate to plan by.
+
 - SysML grammar, abstract syntax mapping, implicit specializations, validation. Systems Library and the six domain libraries.
 - Serializer/formatter that preserves comments and formatting, with a text → model → text round-trip
 - `.kpar` and JSON (KerML 10.4) import/export
@@ -612,6 +617,7 @@ Delivered in PRs #1–#5 (ADRs 0004–0008):
   - `Systems-Modeling-API.xmi` (PIM)
   - the KerML and SysML OSLC vocabularies and shapes
 - The informative pilot implementation files in `docs/specs/api/`, from the pilot repository (EPL-2.0). `README-SOURCE.md` records the source commit.
+- The library UUID oracle: the XMI serializations of the 10 standard libraries (`sysml.library.xmi/`, 94 files) from SysML-v2-Release release 2025-02 (EPL-2.0), pinned by commit in `specs.lock.json` under `docs/specs/SysML-v2-Release/2025-02/` (ADR 0009). It is used as data only.
 
 **Optional:**
 - The SysML v2 Pilot Implementation, to use as a behavioral reference for the language engine
@@ -632,6 +638,7 @@ Delivered in PRs #1–#5 (ADRs 0004–0008):
   3. Implement.
   4. Review.
 - **Small, reviewable increments.** One feature branch and PR per issue. CI must pass. Use `/code-review` before merging. Keep architecture decision records in `docs/adr/` (0001–0008 so far). In practice: signed-off commits, review findings fixed in a further commit on the same PR, and a rebase merge that keeps `main` linear.
+- **Decisions on evidence.** Each design decision starts as a recommended default and is evaluated in the step that first depends on it: against at least one alternative, with evidence from spikes, benchmarks or corpus tests, recorded in an ADR, and with owner approval where it changes scope, budgets, licensing, release obligations or the schedule (`PHASE_1_EXECUTION_PLAN.md` §2.5). Spike evidence is kept in `docs/proj-mgmt/evidence/`.
 - **Generated code where possible.** Metaclass types, API types and the API client come from the normative JSON and OpenAPI files, which reduces hand-written surface area.
 - **Parallel Claude Code sessions** for independent work (for example, grammar productions in one, API endpoints in another), using git worktrees, with the developer integrating.
 - **Recalibration:** throughput is measured at the end of Phase 1a and each release, and §6 is updated.
