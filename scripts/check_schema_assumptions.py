@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 # SPDX-License-Identifier: Apache-2.0
-"""Check the structural assumptions that crates/sysml-model/build.rs makes about SysML.json.
+"""Check the structural assumptions that the code generators make about the normative schemas:
+crates/sysml-model/build.rs (SysML.json) and crates/sysml-api-types/build.rs (API Schema.json).
 
 Runs in CI right after the specs are fetched. If a future metamodel revision changes the
 schema layout, this fails with a readable message before the Rust build fails in a confusing way.
@@ -56,6 +57,53 @@ for e in enums:
 print(f"{len(metaclasses)} metaclasses, {len(enums)} enumerations")
 if len(metaclasses) != 175 or len(enums) != 7:
     errors.append("counts differ from metamodel 20250201 (175/7); update crates/sysml-model tests")
+
+# ---- crates/sysml-api-types/build.rs: the API record definitions in Schema.json ----
+api_defs = json.loads((ROOT / "docs/specs/api/omg/normative/Schema.json").read_text(encoding="utf-8"))["$defs"]
+API = [n for n, d in api_defs.items() if "SystemsModelingAPI/" in d.get("$id", "")]
+KNOWN_ENUMS = {("PrimitiveConstraint", "operator"), ("CompositeConstraint", "operator")}
+VALUE_ITEM = {"Identified", "boolean", "number", "string"}
+
+
+def api_property_ok(rec, prop, s):
+    if "oneOf" in s:
+        alts = s["oneOf"]
+        non_null = [a for a in alts if a.get("type") != "null"]
+        if len(non_null) == 1 and len(alts) == 2:
+            return api_property_ok(rec, prop, non_null[0])
+        kinds = {a["$ref"].rsplit("/", 1)[-1] if "$ref" in a else a.get("type") for a in non_null}
+        return kinds == VALUE_ITEM and len(alts) == 5  # PrimitiveConstraint.value items
+    if s.get("type") == "array":
+        return api_property_ok(rec, prop, s["items"])
+    if "$ref" in s:
+        target = s["$ref"].rsplit("/", 1)[-1]
+        return target in ("Identified", "Element", "ElementRequest") or target in API
+    if "enum" in s:
+        return (rec.removesuffix("Request"), prop) in KNOWN_ENUMS
+    return (s.get("type"), s.get("format")) in {
+        ("string", None), ("string", "uuid"), ("string", "date-time"), ("string", "uri"), ("boolean", None)}
+
+
+unions = 0
+for name in API:
+    d = api_defs[name]
+    if "oneOf" in d:
+        unions += 1
+        if not all("$ref" in a for a in d["oneOf"]):
+            errors.append(f"API {name}: union member is not a $ref")
+        continue
+    if d.get("type") != "object":
+        errors.append(f"API {name}: not an object schema")
+        continue
+    if d["properties"].get("@type", {}).get("const") != name.removesuffix("Request"):
+        errors.append(f"API {name}: @type const does not match the record name")
+    for pname, ps in d["properties"].items():
+        if pname != "@type" and not api_property_ok(name, pname, ps):
+            errors.append(f"API {name}.{pname}: unrecognized property schema {json.dumps(ps)[:120]}")
+print(f"{len(API) - unions} API records, {unions} API unions")
+if len(API) != 30 or unions != 4:
+    errors.append("API definition counts differ from Systems Modeling API 1.0 (26 records, 4 unions); "
+                  "update crates/sysml-api-types tests")
 for e in errors:
     print("ERROR:", e, file=sys.stderr)
 sys.exit(1 if errors else 0)
