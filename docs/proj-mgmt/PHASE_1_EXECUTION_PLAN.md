@@ -1,8 +1,12 @@
 # Eureka SysML: Phase 1 execution plan
 
-Status: Draft v1.0 · 2026-11-20 · Covers PROJECT_PLAN v0.7 §6, Phases 1a and 1b (Release 0.1 "Language")
+Status: Draft v1.1 · 2026-11-20 · Covers PROJECT_PLAN v0.7 §6, Phases 1a and 1b (Release 0.1 "Language")
 
-This plan breaks Phase 1 into ordered steps, each small enough for one or a few pull requests. PROJECT_PLAN.md remains the source of truth for scope, architecture and budgets. Where this plan finds something the project plan does not settle, it is listed under [decisions to make before or during Phase 1](#24-decisions-needed).
+This plan breaks Phase 1 into ordered steps, each small enough for one or a few pull requests. PROJECT_PLAN.md remains the source of truth for scope, architecture and budgets. Where this plan finds something the project plan does not settle, it is listed under [decisions](#24-decisions-and-their-recommended-defaults), and settled by the [decision methodology](#25-decision-methodology): each recommended default is evaluated during the step that first depends on it.
+
+Change history:
+- v1.0: first version
+- v1.1: the decision methodology (§2.5). Each decision is evaluated in its execution step, so the decisions are no longer entry criteria.
 
 ## 1. Executive summary
 
@@ -31,6 +35,7 @@ Phase 1 builds the language engine: everything needed to read, check and write K
 
 **How it is controlled.**
 - **Test first, from the spec.** Every step starts from tests derived from the spec: the 95-source corpus, the KerML 8.4.3/8.4.4 tables, the reference UUIDs, the synthetic models.
+- **Decisions on evidence.** Nine design and release decisions have recommended defaults (§2.4). Each default is evaluated in the step that first depends on it, against stated criteria and at least one alternative, and recorded in an ADR (§2.5).
 - **One PR per item.** Every PR passes CI, including the WASM run and the minimum Rust version, and gets `/code-review` before merging.
 - **Recalibration.** The estimates are recalibrated at the end of Phase 1a, before Phase 1b is committed to. This plan's bottom-up estimate for Phase 1b already exceeds the project plan's (see §3.3).
 
@@ -64,8 +69,8 @@ Phase 1 starts when all of these hold.
 | E4 | The synthetic generator produces 1k, 50k and 1M models | Met (`sysml-synth`) |
 | E5 | The §7 budgets are recorded as data, with the phase that measures each one | Met (`sysml-bench`) |
 | E6 | Per-clause spec text available locally | Met (`scripts/extract_spec_text.py`) |
-| E7 | A reference for the library element UUIDs has been chosen (§2.3) | **Open**: step 1a.0 |
-| E8 | The decisions marked "before 1a" in §2.4 have ADRs | **Open**: step 1a.0 |
+
+All entry criteria are met. The open questions of §2.3 and §2.4 (the UUID reference and the design decisions) are not entry criteria. Each is settled in the step that first depends on it (§2.5).
 
 ### 2.2 Tooling
 
@@ -85,30 +90,51 @@ Phase 1 is test-first, so each spec rule needs an oracle that is not our own cod
 | Lexical structure and grammar (KerML 8.2, SysML 8.2.2) | The 94 library files and SimpleVehicleModel must parse with zero errors and round-trip byte for byte. Plus the spec snippets (step 1a.5) and the EBNF in the clause text. | Available |
 | Name resolution (KerML 8.2.3.5) | The libraries must resolve with zero unresolved names. Plus hand-written cases from the clause's examples. | Available |
 | Implied relationships (KerML 8.4.3.1, 8.4.4.1 tables; SysML 8.4) | One golden test per table row, written from the tables. The OMG pilot implementation is allowed as a behavioral cross-check only (CLAUDE.md: no reuse of its code). | Available; the pilot cross-check is optional |
-| Library element UUIDs (KerML 9.1, SysML 9.1) | **Needs a source of published UUIDs.** The `.kpar` archives hold only text. A candidate is the library serializations in the EPL-2.0 SysML-v2-Release repository, which PROJECT_PLAN §13 already names as the source for shipped libraries. If they carry element ids, pin that commit in `specs.lock.json`. | **Open**: step 1a.0 |
+| Library element UUIDs (KerML 9.1, SysML 9.1) | **Needs a source of published UUIDs.** The `.kpar` archives hold only text. A candidate is the library serializations in the EPL-2.0 SysML-v2-Release repository, which PROJECT_PLAN §13 already names as the source for shipped libraries. If they carry element ids, pin that commit in `specs.lock.json`. | **Open**: evaluated in step 1a.0 (D7) |
 | JSON serialization (KerML 10.4) | `SysML.json` and `KerML.json`, through the property descriptors `sysml-model` generates. Plus the element examples in the API `OpenAPI.json`. | Available |
 | Project interchange (KerML 10.3) | The 10 library archives, with the errata of ADR 0006 | Available |
 | Element-count rules of `sysml-synth` | The parser's element counts (step 1b.4) | Arrives in Phase 1b |
 
-### 2.4 Decisions needed
+### 2.4 Decisions and their recommended defaults
 
-| # | Decision | Needed before | Recommended default |
+Each recommended default is a starting hypothesis, not a decision. It is evaluated in the step listed, using the methodology in §2.5.
+
+| # | Decision | Evaluated in | Recommended default |
 |---|---|---|---|
-| D1 | Parser architecture: hand-written recursive descent producing a `rowan` lossless tree, or a parser generator | 1a.2 (ADR) | Hand-written recursive descent with `rowan`, the rust-analyzer approach PROJECT_PLAN §4.2 names. It gives the best error recovery and full control over trivia. |
-| D2 | `salsa` version and the boundaries of the incremental query graph (file → tree → elements → resolution → semantics) | 1a.7 (ADR) | The current `salsa` release, if it builds for wasm32 and on Rust 1.89. A spike in 1a.0 confirms this. |
-| D3 | Arena and ID design for the element graph: element ids as API `DataIdentity` ids (PROJECT_PLAN §4.3), and storage of implied versus owned relationships | 1a.6 (ADR) | Interned dense indices in an arena, mapped to UUIDs. Implied relationships are kept apart from owned ones, so serialization can include or omit them (KerML 10.3 `includesImplied`). |
-| D4 | Diagnostics model: codes, severity, spans, the constraint name and the spec clause | 1a.2 (ADR) | One diagnostic type across the parser, resolver and validator. Every semantic diagnostic names its constraint, for example `validateFeatureMultiplicityDomain`. |
-| D5 | Snapshot format for the pre-resolved libraries | 1a.11 (ADR) | A versioned binary format through a serde-compatible crate such as `postcard`, keyed by metamodel IRI, library version and crate version |
-| D6 | How CI gates timings (ADR 0007): a dedicated runner or instruction counts | 1a.11 (ADR) | Instruction counts on GitHub-hosted runners (for example a Cachegrind-based harness), with wall-clock budgets measured but not gated until a dedicated runner exists |
-| D7 | Library UUID oracle (§2.3) | 1a.0 | As in §2.3 |
+| D1 | Parser architecture: hand-written recursive descent producing a `rowan` lossless tree, or a parser generator | 1a.2 | Hand-written recursive descent with `rowan`, the rust-analyzer approach PROJECT_PLAN §4.2 names. It gives the best error recovery and full control over trivia. |
+| D2 | `salsa` version and the boundaries of the incremental query graph (file → tree → elements → resolution → semantics) | 1a.7 | The current `salsa` release, provided the 1a.0 spike shows it builds for wasm32 and on Rust 1.89 |
+| D3 | Arena and ID design for the element graph: element ids as API `DataIdentity` ids (PROJECT_PLAN §4.3), and storage of implied versus owned relationships | 1a.6 | Interned dense indices in an arena, mapped to UUIDs. Implied relationships are kept apart from owned ones, so serialization can include or omit them (KerML 10.3 `includesImplied`). |
+| D4 | Diagnostics model: codes, severity, spans, the constraint name and the spec clause | 1a.2 | One diagnostic type across the parser, resolver and validator. Every semantic diagnostic names its constraint, for example `validateFeatureMultiplicityDomain`. |
+| D5 | Snapshot format for the pre-resolved libraries | 1a.11 | A versioned binary format through a serde-compatible crate such as `postcard`, keyed by metamodel IRI, library version and crate version |
+| D6 | How CI gates timings (ADR 0007): a dedicated runner or instruction counts | 1a.11 | Instruction counts on GitHub-hosted runners (for example a Cachegrind-based harness), with wall-clock budgets measured but not gated until a dedicated runner exists |
+| D7 | Library UUID oracle (§2.3) | 1a.0 | The library serializations in the SysML-v2-Release repository, if they carry element ids |
 | D8 | VS Code extension tooling. The extension is TypeScript, but PROJECT_PLAN v0.7 moved the pnpm/TypeScript workspace to Phase 3. | 1b.8 | A self-contained `editors/vscode` npm package: a thin `vscode-languageclient` wrapper, with its own lockfile and `npm audit` and an npm SBOM in its CI job. The pnpm workspace still waits for Phase 3. |
 | D9 | Release 0.1: which crates go to crates.io, their license (Apache-2.0, or MIT OR Apache-2.0 per PROJECT_PLAN §13.1), and whether to sign the 0.1 artifacts | 1b.10 (owner decision) | Publish nothing to crates.io at 0.1; ship binaries through GitHub Releases. Attach the SBOMs (§4.8 requires an SBOM for every release) and sign with Sigstore now, since that is cheap to do from the first release. |
+
+### 2.5 Decision methodology
+
+1. **When.** A decision is evaluated during its execution step (§2.4), in the step's first PR, before any code that depends on it is written. Choosing early would mean choosing without evidence; choosing late would mean reworking code built on an unexamined default.
+2. **How.** The evaluation compares the recommended default with at least one real alternative, against stated criteria:
+   - **correctness** against the spec clauses the step implements
+   - **the constraints that every crate must meet:** it builds for wasm32, on the minimum Rust version (1.89), and passes `cargo deny`
+   - **performance** against the §7 budgets the decision affects
+   - **cost:** effort in this step and the later steps, and the maintenance and ecosystem risk of any new dependency
+   - **fit** with the existing ADRs and PROJECT_PLAN §4
+3. **Evidence.** The comparison rests on evidence, not opinion: a spike, a prototype, a benchmark in `sysml-bench`, or tests run against the corpus. The evidence is kept in the PR or the ADR, so the evaluation can be checked and repeated.
+4. **Record.** Each decision gets an ADR in `docs/adr/` with its context, criteria, options, evidence, decision and consequences. The ADR is reviewed like code: CI and `/code-review` on its PR.
+5. **Outcome.**
+   - If the default meets the criteria, it is adopted.
+   - If an alternative is better, the alternative is adopted, and this plan is updated where the change affects steps, estimates or exit criteria.
+   - If neither is acceptable, the step stops, and the problem is raised with the owner before work continues.
+6. **Owner decisions.** A decision that changes scope, budgets, licensing, release obligations or the schedule needs the owner's approval. That includes D9, and any evaluation whose outcome changes PROJECT_PLAN. Its ADR starts as "Proposed" and becomes "Accepted" when the owner approves the PR.
+7. **Revisiting.** Later evidence can reopen an adopted decision, for example a benchmark that misses its budget. The reopened decision is evaluated the same way, and the new ADR supersedes the old one.
 
 ## 3. Detailed steps, in recommended sequence
 
 ### 3.1 Working rules for every step
 
 - **Test first.** Write the failing tests from the spec rule and the oracle in §2.3, then implement (CLAUDE.md).
+- **Decide with evidence.** A step that evaluates a decision (§2.4) starts with that evaluation, following §2.5.
 - **Cite.** Every spec behavior cites its clause in a comment, for example `// KerML 8.4.4.6.2`. Every interpretation of an ambiguous clause gets an ADR. Every defect in an OMG file goes into an errata table with a test that fails when OMG fixes it (ADRs 0005, 0006).
 - **Small PRs.** One branch and PR per item, signed-off commits, CI green, `/code-review` findings fixed in a further commit, then a rebase merge.
 - **WASM parity.** From step 1a.1 on, every test also runs on the WASM build.
@@ -119,13 +145,13 @@ Each step below gives its goal, the spec clauses, what it delivers, the tests to
 
 ### 3.2 Phase 1a: KerML core
 
-#### 1a.0 Start-up: decisions, spikes and the UUID oracle
-- **Goal:** settle the "before 1a" decisions of §2.4 and remove the two unknowns that could change the design.
+#### 1a.0 Start-up: dependency spikes and the UUID oracle
+- **Goal:** remove the two unknowns that could change the design, and gather the evidence later evaluations need.
+- **Evaluates:** D7.
 - **Work:**
-  - Write the ADRs for D1, D3 and D4.
-  - Spike the candidate dependencies (`rowan`, `salsa`, `uuid` with the `v5` feature, `wasm-bindgen`, `wasm-bindgen-test`). Each must build for wasm32, pass `cargo deny` and work on Rust 1.89.
-  - Find and pin the library UUID oracle (D7).
-- **Done when:** the ADRs are merged, the spike results are recorded in them, and the UUID oracle is in `specs.lock.json`, or the fallback is decided. The fallback is to test the top-level package UUIDs and the `path()` rules from the clause text alone, and treat full UUID conformance as unverified.
+  - Spike the candidate dependencies (`rowan`, `salsa`, `uuid` with the `v5` feature, `wasm-bindgen`, `wasm-bindgen-test`). Each must build for wasm32, pass `cargo deny` and work on Rust 1.89. The results are evidence for D1 (1a.2) and D2 (1a.7); they do not decide them.
+  - Evaluate D7: find and pin the library UUID oracle.
+- **Done when:** the spike results are recorded, and D7's ADR is merged with the oracle in `specs.lock.json`, or with the fallback adopted. The fallback is to test the top-level package UUIDs and the `path()` rules from the clause text alone, and treat full UUID conformance as unverified.
 - **Effort:** 0.5
 
 #### 1a.1 WASM test harness (moved from Phase 0)
@@ -142,6 +168,7 @@ Each step below gives its goal, the spec clauses, what it delivers, the tests to
 
 #### 1a.2 Lexer and lossless syntax tree
 - **Goal:** turn any text into tokens and a lossless tree, never failing.
+- **Evaluates:** D1 (parser architecture) and D4 (diagnostics model), in the step's first PR.
 - **Clauses:** KerML 8.2.2 (8.2.2.1 line terminators and white space, 8.2.2.2 notes and comments, 8.2.2.3 names including unrestricted names, 8.2.2.4 numeric values, 8.2.2.5 strings, 8.2.2.6 reserved words, 8.2.2.7 symbols).
 - **Delivers:**
   - the `sysml-syntax` crate: the token kinds, a hand-written lexer, and the `rowan` tree types
@@ -189,6 +216,7 @@ Each step below gives its goal, the spec clauses, what it delivers, the tests to
 
 #### 1a.6 Arena element graph and the mapping to the abstract syntax
 - **Goal:** turn syntax trees into model elements and relationships.
+- **Evaluates:** D3 (arena and ID design).
 - **Clauses:** KerML 8.3.2–8.3.4 (the abstract syntax), and the mapping notes on each production in 8.2.3–8.2.5.
 - **Delivers:**
   - the element graph in `sysml-model` (D3), with typed access to the properties of all 82 KerML metaclasses through the generated descriptors
@@ -201,6 +229,7 @@ Each step below gives its goal, the spec clauses, what it delivers, the tests to
 
 #### 1a.7 Name resolution, imports and incremental queries
 - **Goal:** resolve every qualified name, incrementally.
+- **Evaluates:** D2 (`salsa` and the query graph).
 - **Clauses:**
   - KerML 8.2.3.5 (8.2.3.5.1–8.2.3.5.4: local and global namespaces, local and visible resolution, full resolution)
   - KerML 8.2.3.4.2 (imports, including recursive imports and filters)
@@ -249,6 +278,7 @@ Each step below gives its goal, the spec clauses, what it delivers, the tests to
 
 #### 1a.11 Library UUIDs, the snapshot and the first budget
 - **Goal:** normative library identity, and fast library loading.
+- **Evaluates:** D5 (snapshot format) and D6 (CI timing gates).
 - **Clauses:** KerML 9.1, the v5 UUID scheme: the `NameSpace_URL` namespace, the package URL `https://www.omg.org/spec/KerML/<package>`, and `path()` for the elements inside.
 - **Delivers:**
   - UUID assignment for library elements
@@ -351,6 +381,7 @@ Each step below gives its goal, the spec clauses, what it delivers, the tests to
 
 #### 1b.8 `eureka-lsp` and the VS Code extension
 - **Goal:** language features in an editor.
+- **Evaluates:** D8 (VS Code extension tooling).
 - **Delivers:**
   - an LSP server, with incremental text sync driving the `salsa` queries. Its features: diagnostics, completion, hover, go-to-definition, find references, document symbols, formatting, and rename where the IDs allow it
   - a thin VS Code extension (D8)
@@ -365,6 +396,7 @@ Each step below gives its goal, the spec clauses, what it delivers, the tests to
 - **Effort:** 0.5–1. This step is mostly measurement and tuning, so it can overlap with 1b.5–1b.8.
 
 #### 1b.10 Release 0.1 "Language"
+- **Evaluates:** D9, an owner decision (§2.5): proposed at the start of the step, so the release workflow is built for the approved choice.
 - **Delivers:**
   - a release workflow: versioned binaries of `eureka` and `eureka-lsp` for the supported platforms, with SBOMs attached (PROJECT_PLAN §4.8) and the signing scope decided in D9
   - the packaged VS Code extension
@@ -401,7 +433,7 @@ PROJECT_PLAN §12 allows parallel Claude Code sessions in git worktrees for inde
 | A3 | The normative machine-readable files take precedence over the documents (SysML Clause 2). Their defects go into errata tables with tests (ADRs 0005, 0006). | — |
 | A4 | The OMG pilot implementation is used only as a behavioral reference. None of its code is reused (CLAUDE.md). | — |
 | A5 | A UUID oracle can be found (§2.3, D7). | UUID conformance rests on the clause text and is reported as unverified in the 0.1 release notes. |
-| A6 | `rowan`, `salsa`, `uuid` (v5) and the LSP and WASM crates build for wasm32, pass `cargo deny`, and work on Rust 1.89. Spiked in 1a.0. | Raise the minimum Rust version, or choose alternatives, before 1a.2. |
+| A6 | `rowan`, `salsa`, `uuid` (v5) and the LSP and WASM crates build for wasm32, pass `cargo deny`, and work on Rust 1.89. Spiked in 1a.0. | The affected decision (D1 or D2) adopts an alternative (§2.5), or raising the minimum Rust version goes to the owner. |
 | A7 | The parser stays hand-written and shared between KerML and SysML (D1), so SysML adds productions, not a second parser. | 1b.1 grows. |
 | A8 | Phase 1 does not need PostgreSQL, the server or a web UI. Interchange, the CLI and the LSP work on files. | — |
 | A9 | The 1M-element budgets can be met with incremental `salsa` queries and the arena design. 1b.9 checks this before the release. | Design changes, or a budget renegotiated in PROJECT_PLAN §7, before 0.1 |
@@ -426,6 +458,7 @@ All of these are checked by automated tests in CI, except X1.7.
 | X1.7 | The estimates are recalibrated: PROJECT_PLAN §6 and this plan's Phase 1b updated from measured throughput | A plan revision PR |
 | X1.8 | The `library-load` budget is measured and gated: < 300 ms server, < 1 s browser | `sysml-bench` |
 | X1.9 | Editing one file recomputes only what depends on it | Incrementality tests |
+| X1.10 | Decisions D1–D7 are evaluated per §2.5, each with an accepted ADR | `docs/adr/` |
 
 ### 5.2 Phase 1b exit and Release 0.1
 
@@ -442,3 +475,4 @@ All of these are checked by automated tests in CI, except X1.7.
 | X2.9 | The WASM build passes the same tests | The CI WASM job |
 | X2.10 | **Release 0.1 is published**: binaries, the VS Code extension, SBOMs (PROJECT_PLAN §4.8), signing per D9, and release notes stating the conformance points claimed (SysML Clause 2) | The GitHub Release |
 | X2.11 | CLAUDE.md, PROJECT_PLAN §4.2 and the ADR index reflect the crates and decisions of Phase 1 | Review |
+| X2.12 | Decisions D8 and D9 are evaluated per §2.5, each with an accepted ADR, D9 with the owner's approval | `docs/adr/` |
