@@ -66,6 +66,7 @@ A Rust core in `crates/` compiles natively (for the server) and to WASM (for the
 - `sysml-syntax`: lossless, error-tolerant parser
 - `sysml-model`: generated metaclasses plus an arena element graph
 - `sysml-api-types`: API records (Project, Commit, DataVersion, Query, …) generated from the API `Schema.json`; spec corrections in ADR 0005
+- `sysml-corpus` (test infrastructure): the standard libraries and example models from `docs/specs/`. Corpus tests use `sysml_corpus::Corpus::load()` and iterate `sources()`; library archive errata in ADR 0006
 - `sysml-semantics`: salsa-based incremental resolution and implied relationships
 - `sysml-versioning`: API PIM commit, diff and merge rules
 - `sysml-store`: PostgreSQL

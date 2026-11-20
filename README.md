@@ -42,7 +42,7 @@ cargo test --workspace
 
 | Path | Contents |
 |---|---|
-| `crates/` | Rust crates (`sysml-model`: metaclasses generated from `SysML.json`; `sysml-api-types`: API records generated from `Schema.json`; …) |
+| `crates/` | Rust crates (`sysml-model`: metaclasses generated from `SysML.json`; `sysml-api-types`: API records generated from `Schema.json`; `sysml-corpus`: the test corpus; …) |
 | `scripts/` | Developer tools: spec fetching, spec text extraction, schema checks |
 | `docs/proj-mgmt/` | Project plan and other project management documents |
 | `docs/adr/` | Architecture decision records |

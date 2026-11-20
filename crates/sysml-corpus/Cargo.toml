@@ -1,0 +1,20 @@
+[package]
+name = "sysml-corpus"
+description = "Test corpus harness: the KerML/SysML standard libraries and example models, loaded from the local docs/specs/"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+authors.workspace = true
+publish = false
+
+[lints]
+workspace = true
+
+[dependencies]
+serde.workspace = true
+serde_json.workspace = true
+zip.workspace = true
+# zip's deflate support needs a backend; miniz_oxide (pure Rust) also builds for wasm32.
+flate2.workspace = true
