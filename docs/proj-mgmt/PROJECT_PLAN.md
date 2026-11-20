@@ -10,7 +10,7 @@ Change history:
 - v0.5: aligned with the formal OMG Systems Modeling API & Services v1.0 (PIM, PSMs, versioning rules, conformance suite)
 - v0.6: owner decisions applied: a solo developer with Claude Code, free and open-source software, all diagram views and document generation in 1.0, ITAR/FedRAMP-ready self-hosting, staged releases
 - v0.7: review after the Phase 0 work (PRs #1–#5). Facts corrected against the normative files, Phase 0 status recorded, its remaining items moved to the phases that need them, and the lessons on spec-artifact defects and code review added to the risks.
-- v0.8: Phase 1 detailed in `PHASE_1_EXECUTION_PLAN.md`, with its decision methodology. Step 1a.0 done: the library UUID oracle (ADR 0009) and the dependency spike. Step 1a.1 done: every test also runs as WebAssembly, with a parity check, and `sysml-wasm` is packaged with `wasm-pack` (ADR 0010).
+- v0.8: Phase 1 detailed in `PHASE_1_EXECUTION_PLAN.md`, with its decision methodology. Step 1a.0 done: the library UUID oracle (ADR 0009) and the dependency spike. Step 1a.1 done: every test also runs as WebAssembly, with a parity check, and `sysml-wasm` is packaged with `wasm-pack` (ADR 0010). Step 1a.2 done: D1 and D4 adopted (ADRs 0011, 0012), and `sysml-syntax` lexes the whole corpus losslessly.
 
 ## 1. Goal
 
@@ -232,7 +232,7 @@ The options were compared in detail during planning:
 | `sysml-synth` | Deterministic synthetic SysML models of any size, valid by construction, for benchmarks and scale tests (ADR 0007) |
 | `sysml-bench` | The §7 budgets as data, kept equal to this plan by a test, and the `divan` benchmarks (ADR 0007) |
 
-**Status.** `sysml-wasm` exists as a skeleton since step 1a.1: its exports, its WebAssembly tests and its `wasm-pack` package. At the end of Phase 0, built: `sysml-model` (the metaclass and enumeration types and property descriptors; the arena element graph comes in Phase 1a), `sysml-api-types` (the Rust records; the TypeScript client comes in Phase 3), and the three test-infrastructure crates. The other crates start in the phases listed in §6.
+**Status.** `sysml-syntax` has the lexer, the parser framework and the diagnostics type since step 1a.2; the KerML productions follow in steps 1a.3–1a.4. `sysml-wasm` exists as a skeleton since step 1a.1: its exports, its WebAssembly tests and its `wasm-pack` package. At the end of Phase 0, built: `sysml-model` (the metaclass and enumeration types and property descriptors; the arena element graph comes in Phase 1a), `sysml-api-types` (the Rust records; the TypeScript client comes in Phase 3), and the three test-infrastructure crates. The other crates start in the phases listed in §6.
 
 ### 4.3 Editing model: element storage with text as a view
 
@@ -440,7 +440,7 @@ Delivered in PRs #1–#5 (ADRs 0004–0008):
 **Exit:** met. CI is green, the Rust types are generated, the corpus and the benchmark harness run, and the spec clauses can be looked up. No §7 budget can be measured yet: each needs a component from a later phase.
 
 ### Phase 1a — KerML core in Rust (10–14 wks), the critical path
-Phases 1a and 1b are broken into ordered steps, with entry and exit criteria and a decision methodology, in [`PHASE_1_EXECUTION_PLAN.md`](PHASE_1_EXECUTION_PLAN.md). Steps 1a.0 and 1a.1 are done.
+Phases 1a and 1b are broken into ordered steps, with entry and exit criteria and a decision methodology, in [`PHASE_1_EXECUTION_PLAN.md`](PHASE_1_EXECUTION_PLAN.md). Steps 1a.0–1a.2 are done.
 
 - Error-tolerant KerML parser (8.2.2–8.2.5) producing a lossless syntax tree, mapped to the arena-based model
 - Namespaces, imports, aliases, visibility, specialization, subsetting, redefinition, conjugation, feature chains, multiplicities

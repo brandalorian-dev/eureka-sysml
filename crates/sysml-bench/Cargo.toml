@@ -18,6 +18,7 @@ serde_json.workspace = true
 sysml-api-types.workspace = true
 sysml-corpus.workspace = true
 sysml-synth.workspace = true
+sysml-syntax.workspace = true
 
 [target.'cfg(target_arch = "wasm32")'.dev-dependencies]
 # Runs the tests as WebAssembly under Node (step 1a.1).
@@ -25,4 +26,8 @@ wasm-bindgen-test.workspace = true
 
 [[bench]]
 name = "phase0"
+harness = false
+
+[[bench]]
+name = "syntax"
 harness = false
