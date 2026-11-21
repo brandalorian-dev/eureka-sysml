@@ -1,6 +1,6 @@
 # Eureka SysML: Phase 1 execution plan
 
-Status: Draft v1.5 · 2026-11-20 · Covers PROJECT_PLAN v0.7 §6, Phases 1a and 1b (Release 0.1 "Language")
+Status: Draft v1.6 · 2026-11-20 · Covers PROJECT_PLAN v0.7 §6, Phases 1a and 1b (Release 0.1 "Language")
 
 This plan breaks Phase 1 into ordered steps, each small enough for one or a few pull requests. PROJECT_PLAN.md remains the source of truth for scope, architecture and budgets. Where this plan finds something the project plan does not settle, it is listed under [decisions](#24-decisions-and-their-recommended-defaults), and settled by the [decision methodology](#25-decision-methodology): each recommended default is evaluated during the step that first depends on it.
 
@@ -11,6 +11,7 @@ Change history:
 - v1.3: step 1a.1 done (ADR 0010). All 77 tests run as WebAssembly with a parity check; `wasm-pack build` packages `sysml-wasm`.
 - v1.4: D1 and D4 adopted (ADRs 0011, 0012), from the step 1a.2 parser spike.
 - v1.5: step 1a.2 done: the `sysml-syntax` lexer, parser framework and diagnostics.
+- v1.6: step 1a.3 done, with the owner-approved scope change: the Kernel parts the Root and Core layers need first (packages, multiplicities with literal and feature-reference bounds, prefix metadata) are pulled forward from 1a.4, and the library criterion is restated as measurable. ADR 0014 records two readings of the grammar.
 
 ## 1. Executive summary
 
@@ -190,6 +191,12 @@ Each step below gives its goal, the spec clauses, what it delivers, the tests to
 - **Effort:** 0.75–1
 
 #### 1a.3 KerML grammar: Root and Core layers
+- **Status:** done 2026-11-20. Every Root and Core production parses into the tree, with a node per element and owned relationship. 65 grammar tests, with inline tree snapshots (`expect-test`), cover each production and the recovery cases, along with 20 clause 7 examples and a token-soup robustness test. ADR 0014 records two readings where the grammar and its examples disagree: `standard` is optional in a library package, and an import needs a visibility. The parser handles the 36 KerML library files in about 2.5 ms (`parse_kerml_library` benchmark).
+- **Scope change (owner-approved, 2026-11-20):**
+  - Every KerML library file is a `standard library package` and uses Kernel multiplicities, so almost no part of the library uses only Root and Core. The original done criterion could not be met as worded.
+  - Pulled forward from 1a.4: packages and library packages (8.2.5.13), multiplicities with literal and feature-reference bounds (8.2.5.11, 8.2.5.8.3–8.2.5.8.4) and prefix metadata (8.2.5.12).
+  - The other Kernel constructs are reported as `syntax::not-yet-supported` and skipped as a whole: classes, functions, value parts and filters, for example. The rest of the file still parses.
+  - The library criterion is restated: every KerML library file parses losslessly, and every diagnostic is `not-yet-supported`. The count is 524 at the end of 1a.3, and 1a.4 takes it to zero.
 - **Goal:** parse the Root and Core concrete syntax into the tree.
 - **Clauses:**
   - KerML 8.2.3 (8.2.3.1 elements and relationships, 8.2.3.2 dependencies, 8.2.3.3 annotations, comments, documentation and textual representation, 8.2.3.4 namespaces, imports and namespace elements)
@@ -197,7 +204,7 @@ Each step below gives its goal, the spec clauses, what it delivers, the tests to
 - **Tests first:**
   - One parse test per production, from the EBNF and the clause examples, checked against stored tree snapshots.
   - Error recovery: a missing `;`, `}` or name still yields a tree with one diagnostic and the rest of the file parsed.
-- **Done when:** every Root and Core production has a test, and the parts of the library files that use only these layers parse with zero errors.
+- **Done when:** every Root and Core production has a test, and the parts of the library files that use only these layers parse with zero errors. *Restated in the scope change above: every KerML library diagnostic is `syntax::not-yet-supported`.*
 - **Effort:** 1–1.5
 
 #### 1a.4 KerML grammar: Kernel layer and expressions
@@ -205,7 +212,7 @@ Each step below gives its goal, the spec clauses, what it delivers, the tests to
 - **Clauses:**
   - KerML 8.2.5.1–8.2.5.7: data types, classes, structures, associations, connectors (including binding connectors and successions), behaviors and steps, functions, expressions, predicates, Boolean expressions and invariants
   - KerML 8.2.5.8, expressions: operator expressions with their precedence and associativity, primary, base and literal expressions
-  - KerML 8.2.5.9–8.2.5.13: interactions and flows, feature values, multiplicities, metadata, packages
+  - KerML 8.2.5.9–8.2.5.13: interactions and flows, feature values, multiplicities, metadata, packages. Packages, multiplicities with literal and feature-reference bounds, and prefix metadata were pulled forward into 1a.3. This step adds metadata features, element filters, general bound expressions and feature values, and removes `syntax::not-yet-supported`.
 - **Tests first:**
   - One test per production.
   - An operator-precedence and associativity test table built from KerML Table 6 (8.2.5.8.1).

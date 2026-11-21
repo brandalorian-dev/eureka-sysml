@@ -77,7 +77,11 @@ impl Parser {
         self.nth(0)
     }
 
-    #[allow(dead_code)] // used by the KerML productions from step 1a.3
+    /// Whether the `n`-th significant token ahead is `kind`.
+    pub(crate) fn nth_at(&self, n: usize, kind: SyntaxKind) -> bool {
+        self.nth(n) == kind
+    }
+
     pub(crate) fn at(&self, kind: SyntaxKind) -> bool {
         self.current() == kind
     }
@@ -99,7 +103,6 @@ impl Parser {
     }
 
     /// Add the current token if it is `kind`.
-    #[allow(dead_code)] // used by the KerML productions from step 1a.3
     pub(crate) fn eat(&mut self, kind: SyntaxKind) -> bool {
         let at = self.at(kind);
         if at {
@@ -109,7 +112,6 @@ impl Parser {
     }
 
     /// Add the current token if it is `kind`, or report that it was expected.
-    #[allow(dead_code)] // used by the KerML productions from step 1a.3
     pub(crate) fn expect(
         &mut self,
         kind: SyntaxKind,
@@ -147,6 +149,7 @@ impl Parser {
     /// At a token in `recovery` it consumes nothing: that token belongs to the enclosing
     /// production (for example the `}` that closes a body), which must consume it. A caller that
     /// loops must therefore also stop at its recovery tokens.
+    #[allow(dead_code)] // members recover in the grammar; expression lists will use it (step 1a.4)
     pub(crate) fn err_recover(
         &mut self,
         code: &'static str,
@@ -194,21 +197,18 @@ impl Marker {
         CompletedMarker { pos: self.pos }
     }
 
-    #[allow(dead_code)] // used by the KerML productions from step 1a.3
     /// Drop the node. Its start stays in the event list as a tombstone, so that no other event
     /// takes its position: a `precede` link may still point at it.
     pub(crate) fn abandon(self, _p: &mut Parser) {}
 }
 
 /// A completed node, which can still be wrapped in a parent.
-#[allow(dead_code)] // `pos` is read by `precede`, used from step 1a.4
 pub(crate) struct CompletedMarker {
     pos: u32,
 }
 
 impl CompletedMarker {
     /// Start a node that will become the parent of this one.
-    #[allow(dead_code)] // used by the KerML productions from step 1a.3
     pub(crate) fn precede(self, p: &mut Parser) -> Marker {
         let parent = p.start();
         if let Event::Start { forward_parent, .. } = &mut p.events[self.pos as usize] {
@@ -235,6 +235,7 @@ pub(crate) fn build(
     };
     let mut depth = 0usize;
     let mut parents = Vec::new();
+    let mut last_error: Option<TextRange> = None;
     for i in 0..events.len() {
         match std::mem::replace(&mut events[i], Event::Tombstone) {
             Event::Start {
@@ -300,9 +301,15 @@ pub(crate) fn build(
                 message,
                 clause,
             } => {
-                let mut d = Diagnostic::error(code, b.next_significant_range(), message);
-                d.clause = clause;
-                diagnostics.push(d);
+                // One syntax error per position: the first is the cause, a second one at the same
+                // token (from the enclosing production's recovery) only repeats it.
+                let range = b.next_significant_range();
+                if last_error != Some(range) {
+                    let mut d = Diagnostic::error(code, range, message);
+                    d.clause = clause;
+                    diagnostics.push(d);
+                    last_error = Some(range);
+                }
             }
             Event::Tombstone => {}
         }

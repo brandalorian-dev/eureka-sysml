@@ -17,6 +17,8 @@ rowan.workspace = true
 
 [dev-dependencies]
 sysml-corpus.workspace = true
+# Inline tree snapshots for the grammar tests; `UPDATE_EXPECT=1` rewrites them (step 1a.3).
+expect-test.workspace = true
 
 [target.'cfg(target_arch = "wasm32")'.dev-dependencies]
 # Runs the tests as WebAssembly under Node (step 1a.1).
