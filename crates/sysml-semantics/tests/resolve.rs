@@ -1,0 +1,401 @@
+// SPDX-License-Identifier: Apache-2.0
+//! Name resolution (KerML 8.2.3.5) on the three KerML libraries, loaded as one circular unit, and
+//! on the clause examples (step 1a.7).
+
+use expect_test::expect;
+use salsa::Setter;
+use sysml_model::{FileId, Slot};
+use sysml_semantics::{
+    effective_names, lowered, resolved_names, Database, Global, Project, SourceFile,
+};
+use sysml_syntax::Language;
+#[cfg(target_arch = "wasm32")]
+use wasm_bindgen_test::wasm_bindgen_test as test;
+
+/// The KerML library sources, as files of one project.
+fn kerml_library(db: &Database) -> (Project, Vec<(SourceFile, String, String)>) {
+    let corpus = sysml_corpus::Corpus::load().unwrap();
+    let mut files = Vec::new();
+    for s in corpus.sources() {
+        if s.language != sysml_corpus::Language::KerML {
+            continue;
+        }
+        let f = SourceFile::new(
+            db,
+            FileId(files.len() as u32),
+            s.id.clone(),
+            Language::KerML,
+            s.text.clone(),
+        );
+        files.push((f, s.id.clone(), s.text.clone()));
+    }
+    let project = Project::new(db, files.iter().map(|f| f.0).collect());
+    (project, files)
+}
+
+#[test]
+fn the_kerml_libraries_resolve_with_no_unresolved_names() {
+    let db = Database::default();
+    let (project, files) = kerml_library(&db);
+    let mut unresolved = Vec::new();
+    let mut total = 0;
+    for (f, id, text) in &files {
+        let l = lowered(&db, *f);
+        for n in resolved_names(&db, project, *f) {
+            total += 1;
+            if n.target.is_none() {
+                let rel = sysml_model::ElementIx::from_index(n.relationship as usize);
+                let ends = match n.slot {
+                    Slot::Source => l.graph.source(rel),
+                    _ => l.graph.target(rel),
+                };
+                let name = match ends[n.position as usize] {
+                    sysml_model::Endpoint::Name(x) => l.graph.name(x).clone(),
+                    _ => unreachable!(),
+                };
+                let span = name.span.unwrap();
+                let line = text[..span.start as usize].matches('\n').count() + 1;
+                unresolved.push(format!(
+                    "{id}:{line} {} `{}`",
+                    l.graph.metaclass(rel).name(),
+                    &text[span.start as usize..span.end as usize]
+                ));
+            }
+        }
+    }
+    assert!(
+        unresolved.is_empty(),
+        "{} of {total} names unresolved:\n{}",
+        unresolved.len(),
+        unresolved
+            .iter()
+            .take(60)
+            .cloned()
+            .collect::<Vec<_>>()
+            .join("\n")
+    );
+}
+
+// ---- clause examples ----
+
+/// A project of the given KerML sources, after the KerML libraries if `library`.
+fn project(db: &Database, sources: &[&str], library: bool) -> (Project, Vec<SourceFile>) {
+    let mut files: Vec<SourceFile> = Vec::new();
+    if library {
+        files.extend(kerml_library(db).1.into_iter().map(|f| f.0));
+    }
+    let mine: Vec<SourceFile> = sources
+        .iter()
+        .enumerate()
+        .map(|(i, text)| {
+            let n = (files.len() + i) as u32;
+            SourceFile::new(
+                db,
+                FileId(n),
+                format!("test{i}.kerml"),
+                Language::KerML,
+                text.to_string(),
+            )
+        })
+        .collect();
+    files.extend(mine.iter().copied());
+    (Project::new(db, files), mine)
+}
+
+/// The qualified effective name of an element: the names of it and its owners.
+fn path(db: &Database, project: Project, g: Global) -> String {
+    let l = lowered(db, g.file);
+    let start = sysml_model::ElementIx::from_index(g.index as usize);
+    // A membership (the target of a MembershipImport): its namespace and its member name.
+    if l.graph
+        .metaclass(start)
+        .specializes(sysml_model::Metaclass::Membership)
+    {
+        let owner = l.graph.owning_related_element(start).unwrap();
+        let name = l
+            .graph
+            .string(start, sysml_model::Attr::MemberName)
+            .map(str::to_string)
+            .or_else(|| {
+                let e = *l.graph.owned_related_elements(start).first()?;
+                effective_names(db, project, g.file, e.index() as u32)
+                    .0
+                    .as_deref()
+                    .map(str::to_string)
+            })
+            .unwrap_or_default();
+        let ns = path(
+            db,
+            project,
+            Global {
+                file: g.file,
+                index: owner.index() as u32,
+            },
+        );
+        if l.graph.owner(owner).is_none() {
+            return format!("membership {name}");
+        }
+        return format!("membership {ns}::{name}");
+    }
+    let mut x = Some(start);
+    let mut names = Vec::new();
+    while let Some(e) = x {
+        let (name, short) = effective_names(db, project, g.file, e.index() as u32).clone();
+        if let Some(n) = name.or(short) {
+            names.push(n.to_string());
+        } else if e == start {
+            names.push(format!("({})", l.graph.metaclass(e).name()));
+        }
+        x = l.graph.owner(e);
+    }
+    names.reverse();
+    names.join("::")
+}
+
+/// Each name of a file, with what it resolves to.
+fn resolutions(db: &Database, project: Project, file: SourceFile) -> String {
+    let l = lowered(db, file);
+    let text = file.text(db);
+    let mut out = String::new();
+    for n in resolved_names(db, project, file) {
+        let rel = sysml_model::ElementIx::from_index(n.relationship as usize);
+        let ends = match n.slot {
+            Slot::Source => l.graph.source(rel),
+            _ => l.graph.target(rel),
+        };
+        let sysml_model::Endpoint::Name(x) = ends[n.position as usize] else {
+            continue;
+        };
+        let span = l.graph.name(x).span.unwrap();
+        let target = n
+            .target
+            .map_or("unresolved".to_string(), |t| path(db, project, t));
+        out.push_str(&format!(
+            "{} {} -> {}\n",
+            l.graph.metaclass(rel).name(),
+            &text[span.start as usize..span.end as usize],
+            target
+        ));
+    }
+    out
+}
+
+fn snippet(id: &str) -> String {
+    sysml_corpus::snippets()
+        .unwrap()
+        .into_iter()
+        .find(|s| s.source.id == id)
+        .unwrap_or_else(|| panic!("no snippet {id}"))
+        .source
+        .text
+}
+
+#[test]
+fn private_members_are_not_visible_outside_their_namespace() {
+    // KerML 7.2.5.2, 8.2.3.5.3: an import brings in the visible (public) memberships only.
+    let db = Database::default();
+    let user = "namespace Use { private import N3::*; feature x : C; feature y : D; }";
+    let (project, files) = project(&db, &[&snippet("kerml/7.2.5.2/2"), user], false);
+    expect![[r#"
+        NamespaceImport N3 -> N3
+        FeatureTyping C -> N3::C
+        FeatureTyping D -> unresolved
+    "#]]
+    .assert_eq(&resolutions(&db, project, files[1]));
+}
+
+#[test]
+fn aliases_resolve_by_name_and_short_name_and_keep_their_visibility() {
+    // KerML 7.2.5.2: an alias membership names its member element; a private alias is not
+    // visible outside.
+    let db = Database::default();
+    let user = "namespace Use { feature a : N4::CCC; feature b : N4::C; feature c : N4::D; }";
+    let (project, files) = project(&db, &[&snippet("kerml/7.2.5.2/3"), user], false);
+    expect![[r#"
+        Membership B -> N4::B
+        Membership B -> N4::B
+        FeatureTyping N4::CCC -> N4::B
+        FeatureTyping N4::C -> N4::B
+        FeatureTyping N4::D -> unresolved
+    "#]]
+    .assert_eq(&format!(
+        "{}{}",
+        resolutions(&db, project, files[0]),
+        resolutions(&db, project, files[1])
+    ));
+}
+
+#[test]
+fn imported_memberships_are_reimported_and_recursive_imports_reach_nested_members() {
+    // KerML 7.2.5.4: a membership import keeps the member's name; `::**` also imports the
+    // members of nested namespaces, and `N8::*::**` does not import N8 itself.
+    let db = Database::default();
+    let n6 = snippet("kerml/7.2.5.4/1").replace(
+        "import C; // \"C\" is re-imported from N4 into M.",
+        "import C; feature x : C; feature y : A;",
+    );
+    let recursive = "namespace N9 { private import N8::**; feature a : A; feature c : C; }
+        namespace N10 { private import N8::*::**; feature m : M; feature c : C; }";
+    let (project, files) = project(
+        &db,
+        &[
+            &snippet("kerml/7.2.5.2/3"),
+            &n6,
+            &snippet("kerml/7.2.5.4/3"),
+            recursive,
+        ],
+        false,
+    );
+    expect![[r#"
+        MembershipImport N4::A -> membership N4::A
+        MembershipImport N4::C -> membership N4::CCC
+        MembershipImport C -> membership N4::CCC
+        FeatureTyping C -> N4::B
+        FeatureTyping A -> N4::A
+    "#]]
+    .assert_eq(&resolutions(&db, project, files[1]));
+    expect![[r#"
+        MembershipImport N8 -> membership N8
+        FeatureTyping A -> N8::A
+        FeatureTyping C -> N8::M::C
+        NamespaceImport N8 -> N8
+        FeatureTyping M -> N8::M
+        FeatureTyping C -> N8::M::C
+    "#]]
+    .assert_eq(&resolutions(&db, project, files[3]));
+}
+
+#[test]
+fn a_type_inherits_its_generals_public_and_protected_members_only() {
+    // KerML 7.3.2.3, 8.3.3.1.10: B inherits f and g from A, but not the private h.
+    let db = Database::default();
+    let user =
+        "type C specializes B { feature x subsets f; feature y subsets g; feature z subsets h; }";
+    let source = snippet("kerml/7.3.2.3/4").replace("specializes Base::Anything ", "");
+    let (project, files) = project(&db, &[&source, user], false);
+    expect![[r#"
+        Specialization B -> B
+        Subsetting f -> A::f
+        Subsetting g -> A::g
+        Subsetting h -> unresolved
+    "#]]
+    .assert_eq(&resolutions(&db, project, files[1]));
+}
+
+#[test]
+fn redefinitions_resolve_in_the_generals_and_name_the_redefining_feature() {
+    // KerML 7.3.4.5 and 8.2.3.5.1: `redefines identifier` resolves in the general types of the
+    // owning type (the snippet's `: RegisteredAsset` is `:>`, `snippets.json`); a feature with no declared name takes its effective name from the feature it
+    // redefines (8.3.3.3.4), and hides it from inheritance (8.3.3.1.10).
+    let db = Database::default();
+    let user = "classifier Use specializes Automobile { feature x subsets wheels; }";
+    let (project, files) = project(
+        &db,
+        &[
+            &snippet("kerml/7.3.4.5/4").replace(": RegisteredAsset", ":> RegisteredAsset"),
+            &snippet("kerml/7.3.4.5/5"),
+            user,
+        ],
+        false,
+    );
+    expect![[r#"
+        FeatureTyping Identifier -> unresolved
+        Subclassification RegisteredAsset -> RegisteredAsset
+        Redefinition identifier -> RegisteredAsset::identifier
+    "#]]
+    .assert_eq(&resolutions(&db, project, files[0]));
+    expect![[r#"
+        FeatureTyping Wheel -> unresolved
+        Subclassification WheeledVehicle -> WheeledVehicle
+        Redefinition wheels -> WheeledVehicle::wheels
+        Subclassification MotorizedVehicle -> MotorizedVehicle
+        Redefinition wheels -> MotorizedVehicle::wheels
+        FeatureTyping AutomobileWheel -> unresolved
+    "#]]
+    .assert_eq(&resolutions(&db, project, files[1]));
+    expect![[r#"
+        Subclassification Automobile -> Automobile
+        Subsetting wheels -> Automobile::wheels
+    "#]]
+    .assert_eq(&resolutions(&db, project, files[2]));
+}
+
+#[test]
+fn implied_specializations_and_redefinitions_take_part_in_resolution() {
+    // KerML 8.4.2: a behavior implicitly specializes Performances::Performance
+    // (checkBehaviorSpecialization), so its steps see enclosedPerformances; a parameter
+    // implicitly redefines the parameter at its position (checkFeatureParameterRedefinition),
+    // which hides it, so `x` resolves outside, and names an unnamed parameter (8.3.3.3.4). A
+    // feature implicitly subsets Base::things (checkFeatureSpecialization), so `that` is visible
+    // in it.
+    let db = Database::default();
+    let user = "package P {
+        feature x;
+        behavior B { in x; in y; }
+        behavior C specializes B {
+            in a; in b;
+            step s subsets enclosedPerformances;
+            feature u subsets x;
+            feature v subsets y; // hidden by `b`, and found only by the last resort (ADR 0020)
+        }
+        behavior D { in p; }
+        behavior E specializes D { in; feature q subsets p; feature w { feature t subsets that; } }
+    }";
+    let (project, files) = project(&db, &[user], true);
+    expect![[r#"
+        Subclassification B -> P::B
+        Subsetting enclosedPerformances -> Performances::Performance::enclosedPerformances
+        Subsetting x -> P::x
+        Subsetting y -> P::B::y
+        Subclassification D -> P::D
+        Subsetting p -> P::E::p
+        Subsetting that -> Base::things::that
+    "#]]
+    .assert_eq(&resolutions(&db, project, files[0]));
+}
+
+#[test]
+fn an_edit_reruns_only_the_queries_that_depend_on_it() {
+    // ADR 0019: an edit of layout reruns the edited file's parse and lowering, and stops at its
+    // span-free structure. An edit of a file's names reruns that file's resolution, and no other
+    // file's, because the memberships the others read backdate.
+    let log = std::sync::Arc::new(std::sync::Mutex::new(Vec::<String>::new()));
+    let sink = log.clone();
+    let mut db = Database::with_log(move |e| sink.lock().unwrap().push(e));
+    let (project, files) = project(
+        &db,
+        &[
+            "package A { class X; }",
+            "package B { private import A::*; feature f : X; }",
+            "package C { class Y; feature g : Y; }",
+        ],
+        false,
+    );
+    let resolve_all = |db: &Database| -> Vec<String> {
+        files.iter().map(|f| resolutions(db, project, *f)).collect()
+    };
+    let before = resolve_all(&db);
+    let edit = |db: &mut Database, text: &str| -> Vec<String> {
+        log.lock().unwrap().clear();
+        files[2].set_text(db).to(text.to_string());
+        for f in &files {
+            resolved_names(db, project, *f);
+        }
+        log.lock().unwrap().clone()
+    };
+
+    let reran = edit(
+        &mut db,
+        "package C {\n    class Y;\n    feature g : Y;\n}\n",
+    );
+    let kinds: Vec<&str> = reran.iter().map(|e| e.split('(').next().unwrap()).collect();
+    assert_eq!(kinds, ["parsed", "lowered", "structure"], "{reran:#?}");
+    assert_eq!(resolve_all(&db), before);
+
+    let reran = edit(&mut db, "package C { class Z; feature g : Z; }");
+    let count = |q: &str| reran.iter().filter(|e| e.starts_with(q)).count();
+    assert_eq!(count("resolved_names("), 1, "{reran:#?}");
+    let after = resolve_all(&db);
+    assert_eq!(after[..2], before[..2]);
+    assert_eq!(after[2], "FeatureTyping Z -> C::Z\n");
+}

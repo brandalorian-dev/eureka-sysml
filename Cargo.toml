@@ -25,6 +25,8 @@ sysml-synth = { path = "crates/sysml-synth", version = "0.0.1" }
 divan = "0.1"
 wasm-bindgen = "0.2"
 rowan = "0.17"
+# Incremental queries (ADR 0019); minimal features, which build for wasm32 and on Rust 1.89.
+salsa = { version = "0.28", default-features = false, features = ["macros", "inventory"] }
 sysml-syntax = { path = "crates/sysml-syntax", version = "0.0.1" }
 sysml-semantics = { path = "crates/sysml-semantics", version = "0.0.1" }
 wasm-bindgen-test = "0.3"
