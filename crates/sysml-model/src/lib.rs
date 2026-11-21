@@ -3,11 +3,13 @@
 //!
 //! [`Metaclass`], its property descriptors and the metamodel enumerations are generated at
 //! build time from the normative `SysML.json` (see `build.rs`), and the stored attributes of the
-//! KerML metaclasses from `KerML.xmi`. [`Graph`] is the arena-based element graph (ADR 0017).
+//! KerML metaclasses, their `derive…` rules, operations and constraints ([`DERIVE_RULES`],
+//! [`OPERATIONS`], [`CONSTRAINTS`]) from `KerML.xmi`. [`Graph`] is the arena-based element
+//! graph (ADR 0017).
 
 #[allow(clippy::all, missing_docs)] // lints are not useful on generated code
 mod generated {
-    use super::{PropertyDef, PropertyKind, Slot, StoredAttribute};
+    use super::{PropertyDef, PropertyKind, Rule, Slot, StoredAttribute};
     include!(concat!(env!("OUT_DIR"), "/generated.rs"));
 }
 pub use generated::*;
@@ -70,6 +72,20 @@ pub enum Slot {
     Target,
     /// An attribute that is not a reference: a name, a flag, an enumeration value or a literal.
     Value(Attr),
+}
+
+/// A rule or an operation of a KerML metaclass (KerML 8.3), generated from `KerML.xmi`, with its
+/// OCL body as the metamodel gives it (empty where it gives none).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct Rule {
+    /// The layer of the metaclass: `Root`, `Core` or `Kernel` (KerML 8.3.2–8.3.4).
+    pub layer: &'static str,
+    /// The metaclass it belongs to, for example `Type`.
+    pub metaclass: &'static str,
+    /// Its name, for example `deriveTypeFeature` or `allSupertypes`.
+    pub name: &'static str,
+    /// Its OCL body.
+    pub body: &'static str,
 }
 
 /// A stored attribute of a KerML metaclass (KerML 8.3), generated from `KerML.xmi`.

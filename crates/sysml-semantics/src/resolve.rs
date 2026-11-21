@@ -50,7 +50,8 @@ pub struct Global {
 }
 
 impl Global {
-    pub(crate) fn ix(self) -> ElementIx {
+    /// The element's index in its file's fragment.
+    pub fn ix(self) -> ElementIx {
         ix(self.index)
     }
 }
@@ -153,7 +154,7 @@ impl Entry {
     }
 }
 
-fn visibility(g: &Graph, x: ElementIx) -> Visibility {
+pub(crate) fn visibility(g: &Graph, x: ElementIx) -> Visibility {
     match g.values(x, Attr::Visibility).next() {
         Some(Value::Enumeration("private")) => Visibility::Private,
         Some(Value::Enumeration("protected")) => Visibility::Protected,
@@ -226,6 +227,12 @@ settle!(
     (Project, SourceFile, u32)
 );
 settle!(settle_entries, Vec<Entry>, (Project, SourceFile, u32));
+settle!(
+    pub(crate) settle_qualified_name,
+    Option<Arc<str>>,
+    (Project, Global)
+);
+settle!(pub(crate) settle_path, Arc<str>, (Project, Global));
 settle!(settle_generals, Vec<Global>, (Project, Global));
 // A name whose resolution does not converge is unresolved.
 settle!(
@@ -354,40 +361,7 @@ pub fn imported_memberships(
 ) -> Vec<Entry> {
     let mut out: Vec<Entry> = Vec::new();
     for decl in imports(db, file, ns) {
-        let at = Global {
-            file,
-            index: decl.filtered.unwrap_or(decl.import),
-        };
-        let Some(target) = resolve_end(db, project, at, Slot::Target, 0).clone() else {
-            continue;
-        };
-        let mut found: Vec<Entry> = Vec::new();
-        if decl.namespace {
-            // NamespaceImport (KerML 8.3.2.4.6): the namespace's visible memberships, with
-            // `isRecursive` and `isImportAll` passed on to `visibleMemberships`.
-            let Some(target) = member_element(db, project, &target) else {
-                continue;
-            };
-            found = namespace_memberships(db, project, target, decl.recursive, decl.all);
-        } else {
-            // MembershipImport (KerML 8.3.2.4.4): the membership itself (8.2.3.4.2, Note 1) and,
-            // if recursive and its element is a namespace, that namespace's memberships.
-            let element = member_element(db, project, &target);
-            found.push(target);
-            if let Some(e) = element.filter(|_| decl.recursive) {
-                if structure(db, e.file)
-                    .graph()
-                    .metaclass(e.ix())
-                    .specializes(M::Namespace)
-                {
-                    for x in namespace_memberships(db, project, e, true, decl.all) {
-                        if !found.iter().any(|f| f.membership == x.membership) {
-                            found.push(x);
-                        }
-                    }
-                }
-            }
-        }
+        let found = decl_memberships(db, project, file, decl);
         for mut e in found {
             e.visibility = decl.visibility;
             if !out
@@ -445,14 +419,14 @@ pub fn imported_memberships(
         .collect()
 }
 
-fn member_metaclass(db: &dyn salsa::Database, project: Project, e: &Entry) -> Option<M> {
+pub(crate) fn member_metaclass(db: &dyn salsa::Database, project: Project, e: &Entry) -> Option<M> {
     member_element(db, project, e).map(|x| structure(db, x.file).graph().metaclass(x.ix()))
 }
 
 /// Two memberships are not distinguishable (KerML 8.3.2.4.3 `isDistinguishableFrom`) when a name
 /// or short name of one is a name or short name of the other, and the metaclass of one member
 /// element conforms to the other's. An element not resolved yet collides with nothing.
-fn collide(a: &Entry, ka: Option<M>, b: &Entry, kb: Option<M>) -> bool {
+pub(crate) fn collide(a: &Entry, ka: Option<M>, b: &Entry, kb: Option<M>) -> bool {
     let (Some(ka), Some(kb)) = (ka, kb) else {
         return false;
     };
@@ -464,12 +438,72 @@ fn collide(a: &Entry, ka: Option<M>, b: &Entry, kb: Option<M>) -> bool {
     shared && (ka.specializes(kb) || kb.specializes(ka))
 }
 
+/// The memberships one import brings (KerML 8.3.2.4.2 `Import::importedMemberships`), before the
+/// exclusion of collisions and with the visibilities they have where they are found.
+fn decl_memberships(
+    db: &dyn salsa::Database,
+    project: Project,
+    file: SourceFile,
+    decl: &ImportDecl,
+) -> Vec<Entry> {
+    let at = Global {
+        file,
+        index: decl.filtered.unwrap_or(decl.import),
+    };
+    let Some(target) = resolve_end(db, project, at, Slot::Target, 0).clone() else {
+        return Vec::new();
+    };
+    let mut found: Vec<Entry> = Vec::new();
+    if decl.namespace {
+        // NamespaceImport (KerML 8.3.2.4.6): the namespace's visible memberships, with
+        // `isRecursive` and `isImportAll` passed on to `visibleMemberships`.
+        let Some(target) = member_element(db, project, &target) else {
+            return Vec::new();
+        };
+        found = namespace_memberships(db, project, target, decl.recursive, decl.all);
+    } else {
+        // MembershipImport (KerML 8.3.2.4.4): the membership itself (8.2.3.4.2, Note 1) and,
+        // if recursive and its element is a namespace, that namespace's memberships.
+        let element = member_element(db, project, &target);
+        found.push(target);
+        if let Some(e) = element.filter(|_| decl.recursive) {
+            if structure(db, e.file)
+                .graph()
+                .metaclass(e.ix())
+                .specializes(M::Namespace)
+            {
+                for x in namespace_memberships(db, project, e, true, decl.all) {
+                    if !found.iter().any(|f| f.membership == x.membership) {
+                        found.push(x);
+                    }
+                }
+            }
+        }
+    }
+    found
+}
+
+/// The memberships the import `import` of the namespace `ns` brings (KerML 8.3.2.4.2), or none
+/// if `import` is not one of its imports.
+pub(crate) fn import_memberships(
+    db: &dyn salsa::Database,
+    project: Project,
+    ns: Global,
+    import: Global,
+) -> Vec<Entry> {
+    imports(db, ns.file, ns.index)
+        .iter()
+        .find(|d| d.import == import.index)
+        .map(|d| decl_memberships(db, project, ns.file, d))
+        .unwrap_or_default()
+}
+
 /// `visibleMemberships(excluded, isRecursive, includeAll)` (KerML 8.3.2.4.5, and 8.3.3.1.10 for
 /// a type): all the memberships with `all`, else the public ones; if recursive, also those of
 /// each owned namespace, through a public owning membership unless `all`. The excluded set is
 /// not needed: recursion follows ownership, which has no cycles, and the memberships of each
 /// namespace come from queries that iterate to a fixpoint.
-fn namespace_memberships(
+pub(crate) fn namespace_memberships(
     db: &dyn salsa::Database,
     project: Project,
     ns: Global,
