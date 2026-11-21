@@ -273,8 +273,7 @@ impl Evaluation<'_> {
             return items.clone();
         }
         // `Anything::self`, explicitly or as the omitted operand: the target (7.4.9.2).
-        let anything_self = library(db, project, "Base::Anything::self");
-        if anything_self.is_some_and(|s| all_redefined_features(db, project, r).contains(&s)) {
+        if is_anything_self(db, project, r) {
             return target.clone().into_iter().collect();
         }
         match target {
@@ -291,19 +290,23 @@ impl Evaluation<'_> {
                     .into_iter()
                     .find(|f| all_redefined_features(db, project, *f).contains(&r));
                 if let Some(f) = found {
+                    // That feature's value; without one, the referent (8.4.4.9.8 rule 3).
                     return match valuation(db, f) {
                         Some(v) => self.evaluate(v, target),
-                        None if !kind_of(db, f, M::Expression) => vec![Item::Element(f)],
+                        None if !kind_of(db, r, M::Expression) => vec![Item::Element(r)],
                         None => Vec::new(),
                     };
                 }
             }
             _ => {}
         }
-        if featuring_type(db, project, r).is_empty() {
-            if let Some(v) = valuation(db, r) {
-                return self.evaluate(v, target);
-            }
+        // A referent with featuring types that the target does not give a value has none (the
+        // OCL's `else Sequence{}`), so a filter does not hold on metadata without that feature.
+        if !featuring_type(db, project, r).is_empty() {
+            return Vec::new();
+        }
+        if let Some(v) = valuation(db, r) {
+            return self.evaluate(v, target);
         }
         if kind_of(db, r, M::Expression) {
             Vec::new()
@@ -485,6 +488,12 @@ fn literal(db: &dyn salsa::Database, x: Global) -> Option<Item> {
     })
 }
 
+/// Whether a feature is `Anything::self` or specializes it (`conformsTo`, 8.3.4.8.5).
+fn is_anything_self(db: &dyn salsa::Database, project: Project, r: Global) -> bool {
+    library(db, project, "Base::Anything::self")
+        .is_some_and(|s| r == s || specializes(db, project, r, s))
+}
+
 /// Whether a feature is declared in the KerML library model, which reflects the abstract syntax.
 fn library_owner(db: &dyn salsa::Database, project: Project, f: Global) -> bool {
     owning_type(db, project, f)
@@ -506,7 +515,8 @@ fn metadata_of(db: &dyn salsa::Database, project: Project, e: Global) -> Vec<Ite
         .filter(|m| super::root::annotated_element(db, project, *m).contains(&e))
         .map(Item::Element)
         .collect();
-    out.dedup();
+    let mut seen = HashSet::new();
+    out.retain(|i| seen.insert(target_key(&Some(i.clone()))));
     out.push(Item::Reflective(e));
     out
 }
@@ -597,6 +607,12 @@ pub fn reflective_property(
                     _ => Vec::new(),
                 };
             }
+            // An enumeration value is the literal of the library model's enumeration
+            // (`KerML::FeatureDirectionKind::'in'` …, 9.2.17), so it compares with it.
+            let enumeration = match a.kind {
+                sysml_model::PropertyKind::Enumeration { name } => Some(name),
+                _ => None,
+            };
             values
                 .into_iter()
                 .map(|v| match v {
@@ -604,7 +620,9 @@ pub fn reflective_property(
                     Value::Integer(i) => Item::Integer(*i),
                     Value::Real(x) => Item::Rational(*x),
                     Value::String(s) => Item::String(Arc::from(&**s)),
-                    Value::Enumeration(s) => Item::String(Arc::from(*s)),
+                    Value::Enumeration(s) => enumeration
+                        .and_then(|k| library(db, project, &format!("KerML::{k}::{s}")))
+                        .map_or_else(|| Item::String(Arc::from(*s)), Item::Element),
                 })
                 .collect()
         }
@@ -619,6 +637,9 @@ pub fn reflective_property(
         _ => Vec::new(),
     }
 }
+
+/// The longest range `..` gives, a bound on what one evaluation builds (ADR 0021).
+pub const MAX_RANGE: i64 = 100_000;
 
 fn number(i: &Item) -> Option<f64> {
     match i {
@@ -661,9 +682,12 @@ fn apply_data_function(q: &str, args: &[Vec<Item>]) -> Vec<Item> {
         ("BaseFunctions", "!=" | "!==") => bool_item(!equal()),
         ("BaseFunctions", ",") => args.iter().flatten().cloned().collect(),
         ("BaseFunctions", "#") => match (args.first(), one(1)) {
-            (Some(seq), Some(Item::Integer(i))) if *i >= 1 => {
-                seq.get(*i as usize - 1).cloned().into_iter().collect()
-            }
+            (Some(seq), Some(Item::Integer(i))) if *i >= 1 => usize::try_from(*i - 1)
+                .ok()
+                .and_then(|i| seq.get(i))
+                .cloned()
+                .into_iter()
+                .collect(),
             _ => Vec::new(),
         },
         ("DataFunctions", "not") => b(0).map(|v| bool_item(!v)).unwrap_or_default(),
@@ -694,7 +718,14 @@ fn apply_data_function(q: &str, args: &[Vec<Item>]) -> Vec<Item> {
             .unwrap_or_default()
         }
         ("DataFunctions", "+" | "-") if args.len() == 1 => match one(0) {
-            Some(Item::Integer(v)) => vec![Item::Integer(if name == "-" { -v } else { *v })],
+            Some(Item::Integer(v)) => if name == "-" {
+                v.checked_neg()
+            } else {
+                Some(*v)
+            }
+            .map(Item::Integer)
+            .into_iter()
+            .collect(),
             Some(Item::Rational(v)) => vec![Item::Rational(if name == "-" { -v } else { *v })],
             _ => Vec::new(),
         },
@@ -712,13 +743,16 @@ fn apply_data_function(q: &str, args: &[Vec<Item>]) -> Vec<Item> {
             }
         }
         ("DataFunctions", "+" | "-" | "*" | "%" | "^" | "/") => match (one(0), one(1)) {
-            (Some(Item::Integer(x)), Some(Item::Integer(y))) if name != "/" => {
+            // IntegerFunctions; `^` of a negative exponent is RationalFunctions::'^'.
+            (Some(Item::Integer(x)), Some(Item::Integer(y)))
+                if name != "/" && !(name == "^" && *y < 0) =>
+            {
                 let (x, y) = (*x, *y);
                 let v = match name {
                     "+" => x.checked_add(y),
                     "-" => x.checked_sub(y),
                     "*" => x.checked_mul(y),
-                    "%" => (y != 0).then(|| x.rem_euclid(y)),
+                    "%" => x.checked_rem_euclid(y),
                     _ => u32::try_from(y).ok().and_then(|e| x.checked_pow(e)),
                 };
                 v.map(|v| vec![Item::Integer(v)]).unwrap_or_default()
@@ -740,10 +774,12 @@ fn apply_data_function(q: &str, args: &[Vec<Item>]) -> Vec<Item> {
             },
             _ => Vec::new(),
         },
+        // A range longer than MAX_RANGE has no value, so that evaluation stays bounded.
         ("DataFunctions", "..") => match (one(0), one(1)) {
-            (Some(Item::Integer(x)), Some(Item::Integer(y))) => {
-                (*x..=*y).map(Item::Integer).collect()
-            }
+            (Some(Item::Integer(x)), Some(Item::Integer(y))) => match y.checked_sub(*x) {
+                Some(n) if n < MAX_RANGE => (*x..=*y).map(Item::Integer).collect(),
+                _ => Vec::new(),
+            },
             _ => Vec::new(),
         },
         _ => Vec::new(),
@@ -861,8 +897,7 @@ fn feature_reference_evaluable(
     r: Global,
     visited: &[Global],
 ) -> bool {
-    let anything_self = library(db, project, "Base::Anything::self");
-    if anything_self.is_some_and(|s| specializes(db, project, r, s) || r == s) {
+    if is_anything_self(db, project, r) {
         return true;
     }
     if visited.contains(&r) {

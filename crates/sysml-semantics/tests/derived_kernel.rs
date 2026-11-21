@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 //! Derived properties and operations of the Kernel layer (KerML 8.3.4; step 1a.8, ADR 0021): one
 //! test per `derive…` rule and operation, from its OCL, named after it
-//! (`tests/derived_inventory.rs` checks). Model-level evaluation follows in its own change.
+//! (`tests/derived_inventory.rs` checks). Model-level evaluation is in `tests/derived_evaluate.rs`.
 
 mod common;
 

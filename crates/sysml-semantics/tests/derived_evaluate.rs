@@ -412,3 +412,89 @@ fn package_imported_memberships() {
     assert_eq!(typing("Q::x"), ["D::A"]);
     assert!(typing("Q::y").is_empty(), "B's level is 0");
 }
+
+// ---- regressions from review ----
+
+#[test]
+fn evaluation_stays_bounded_and_does_not_overflow() {
+    // A range longer than MAX_RANGE, an index past usize, and integer overflow have no value;
+    // an integer to a negative power is a Rational (RationalFunctions::'^').
+    let m = model_with_library(
+        "feature r = (1..9223372036854775807) # (1); feature x = (10, 20, 30) # (4294967297);
+        feature y = (-9223372036854775807 - 1) % -1; feature z = -(-9223372036854775807 - 1);
+        feature p = 2 ^ -1; feature q = (1..3) # (3);",
+    );
+    assert!(eval(&m, "r").is_empty());
+    assert!(eval(&m, "x").is_empty());
+    assert!(eval(&m, "y").is_empty());
+    assert!(eval(&m, "z").is_empty());
+    assert_eq!(eval(&m, "p"), [Item::Rational(0.5)]);
+    assert_eq!(eval(&m, "q"), [Item::Integer(3)]);
+}
+
+#[test]
+fn a_feature_of_metadata_has_no_value_on_other_metadata() {
+    // `Approved::level` has no value on metadata that is not Approved (KerML 8.3.4.8.5
+    // `else Sequence{}`), and `null != 0` holds (BaseFunctions '!=' is `not ==`), so on every
+    // element's reflective metadata `Approved::level != 0` holds too: it includes every element.
+    // Testing the metadata first, `@Approved and …`, includes only A.
+    let m = model_with_library(
+        "metaclass Approved { feature level : ScalarValues::Integer; }
+        package D { class A { @Approved { level = 2; } } class B { @Approved { level = 0; } } class C; }
+        package P { private import D::*; filter Approved::level != 0; }
+        package Q { private import D::*; filter @Approved and Approved::level != 0; }
+        feature v = Approved::level;",
+    );
+    let (db, p) = (&m.db, m.project);
+    let reflective = Some(Item::Reflective(m.get("D::C")));
+    assert!(d::evaluate(db, p, value(&m, "v"), reflective).is_empty());
+    let imported = |pkg: &str| m.labels(d::package_imported_memberships(db, p, m.get(pkg)));
+    assert_eq!(imported("P").len(), 3);
+    assert_eq!(imported("Q"), ["OwningMembership(D::A)"]);
+}
+
+#[test]
+fn metadata_and_feature_values_by_the_rules_of_8_4_4_9_8() {
+    // Each metadata feature once; a target feature without a value gives the referent; a feature
+    // that subsets self is the target; enumeration values are the library's literals.
+    let m = model_with_library(
+        "metaclass M1; metaclass M2; classifier A; classifier B; #M1 #M2 dependency X from A to B;
+        feature mx = X.metadata;
+        classifier Car { feature engine; } classifier Car2 specializes Car { feature redefines engine; }
+        feature e = Car::engine;
+        classifier K specializes Base::Anything { feature me subsets self; feature k = me; }
+        classifier C { in feature i; }
+        feature t = (C::i meta KerML::Feature).direction == KerML::FeatureDirectionKind::'in';",
+    );
+    let (db, p) = (&m.db, m.project);
+    let metadata = eval(&m, "mx");
+    assert_eq!(
+        metadata.len(),
+        3,
+        "M1, M2 and the reflective metadata, once each: {metadata:?}"
+    );
+    let on = |f: &str, t: &str| d::evaluate(db, p, value(&m, f), Some(Item::Element(m.get(t))));
+    assert_eq!(on("e", "Car2"), [Item::Element(m.get("Car::engine"))]);
+    let k = m.get("K::k");
+    let kv = value_in(&m, k);
+    assert_eq!(
+        d::evaluate(db, p, kv, Some(Item::Element(m.get("A")))),
+        [Item::Element(m.get("A"))]
+    );
+    assert_eq!(eval(&m, "t"), [Item::Boolean(true)]);
+}
+
+/// The value expression of a feature anywhere.
+fn value_in(m: &Model, f: Global) -> Global {
+    let l = sysml_semantics::lowered(&m.db, f.file).clone();
+    let g = &l.graph;
+    let r = g
+        .owned_relationships(f.ix())
+        .iter()
+        .find(|r| g.metaclass(**r) == sysml_model::Metaclass::FeatureValue)
+        .unwrap();
+    Global {
+        file: f.file,
+        index: g.owned_related_elements(*r)[0].index() as u32,
+    }
+}
