@@ -66,10 +66,9 @@ fn ends(db: &dyn salsa::Database, project: Project, rel: Global, slot: Slot) -> 
 fn owned_relationships_of(db: &dyn salsa::Database, x: Global, kind: M) -> Vec<Global> {
     let s = structure(db, x.file);
     let g = s.graph();
-    g.owned_relationships(x.ix())
-        .iter()
-        .filter(|r| g.metaclass(**r).specializes(kind))
-        .map(|r| at(x.file, *r))
+    g.all_owned_relationships(x.ix())
+        .filter(|r| g.metaclass(*r).specializes(kind))
+        .map(|r| at(x.file, r))
         .collect()
 }
 
@@ -83,11 +82,14 @@ pub fn owner(db: &dyn salsa::Database, _project: Project, x: Global) -> Option<G
         .map(|o| at(x.file, o))
 }
 
-/// `ownedElement` (deriveElementOwnedElement): `ownedRelationship.ownedRelatedElement`.
+/// `ownedElement` (deriveElementOwnedElement): `ownedRelationship.ownedRelatedElement`. Like
+/// every `ownedRelationship` here, it includes the implied relationships once `isImpliedIncluded`
+/// is true (KerML 8.3.2.1.2; ADR 0017).
 pub fn owned_element(db: &dyn salsa::Database, _project: Project, x: Global) -> Vec<Global> {
-    structure(db, x.file)
-        .graph()
-        .owned_elements(x.ix())
+    let s = structure(db, x.file);
+    let g = s.graph();
+    g.all_owned_relationships(x.ix())
+        .flat_map(|r| g.owned_related_elements(r).iter().copied())
         .map(|e| at(x.file, e))
         .collect()
 }
@@ -176,10 +178,7 @@ pub fn escaped_name(db: &dyn salsa::Database, project: Project, x: Global) -> Op
 pub fn qualified_name(db: &dyn salsa::Database, project: Project, x: Global) -> Option<Arc<str>> {
     let ns = owning_namespace(db, project, x)?;
     if let Some(n) = name(db, project, x) {
-        let first = owned_member(db, project, ns)
-            .into_iter()
-            .find(|m| name(db, project, *m).as_deref() == Some(&*n));
-        if first != Some(x) {
+        if first_owned_members(db, project, ns).get(&n) != Some(&x) {
             return None;
         }
     }
@@ -189,6 +188,23 @@ pub fn qualified_name(db: &dyn salsa::Database, project: Project, x: Global) -> 
     }
     let q = qualified_name(db, project, ns).clone()?;
     Some(format!("{q}::{escaped}").into())
+}
+
+/// The first owned member of a namespace with each name, for `qualifiedName`: computed once per
+/// namespace.
+#[salsa::tracked(returns(ref))]
+fn first_owned_members(
+    db: &dyn salsa::Database,
+    project: Project,
+    ns: Global,
+) -> std::collections::HashMap<Arc<str>, Global> {
+    let mut out = std::collections::HashMap::new();
+    for m in owned_member(db, project, ns) {
+        if let Some(n) = name(db, project, m) {
+            out.entry(n).or_insert(m);
+        }
+    }
+    out
 }
 
 pub(crate) fn no_qualified_name(
@@ -216,11 +232,12 @@ pub fn path(db: &dyn salsa::Database, project: Project, x: Global) -> Arc<str> {
         }
     }
     if m.specializes(M::Relationship) && g.owning_relationship(x.ix()).is_none() {
-        // 8.3.2.1.3: the position among the owning related element's owned relationships.
+        // 8.3.2.1.3: the position among the owning related element's owned relationships. An
+        // implied relationship not included yet (`isImpliedIncluded`) is not among them.
         if let Some(o) = g.owning_related_element(x.ix()) {
-            let i = g.owned_relationships(o).iter().position(|r| *r == x.ix());
-            let i = i.expect("an owned relationship is among its owner's") + 1;
-            return format!("{}/{i}", path(db, project, at(x.file, o))).into();
+            if let Some(i) = g.all_owned_relationships(o).position(|r| r == x.ix()) {
+                return format!("{}/{}", path(db, project, at(x.file, o)), i + 1).into();
+            }
         }
     }
     // 8.3.2.1.2.
@@ -306,10 +323,51 @@ pub fn is_library_element(db: &dyn salsa::Database, project: Project, x: Global)
 
 // ---- Relationship (KerML 8.3.2.1.3) ----
 
+/// `source` (KerML 8.3.2.1.3) as each metaclass redefines it: the ends written as sources where
+/// the metaclass stores them; otherwise the owning related element (`membershipOwningNamespace`,
+/// `importOwningNamespace`, `featureChained`, `owningType` …). An Annotation's source is its
+/// annotating element, owned or owning (8.3.2.3.3).
+pub fn source(db: &dyn salsa::Database, project: Project, x: Global) -> Vec<Global> {
+    let s = structure(db, x.file);
+    let m = s.graph().metaclass(x.ix());
+    if m.specializes(M::Annotation) {
+        return annotating_element(db, project, x).into_iter().collect();
+    }
+    if m.stored_attributes().iter().any(|a| a.slot == Slot::Source) {
+        return ends(db, project, x, Slot::Source);
+    }
+    s.graph()
+        .owning_related_element(x.ix())
+        .map(|o| at(x.file, o))
+        .into_iter()
+        .collect()
+}
+
+/// `target` (KerML 8.3.2.1.3) as each metaclass redefines it: the ends written as targets where
+/// the metaclass stores them; otherwise the owned related elements (an OwningMembership's
+/// `ownedMemberElement`). An Annotation's target is its annotated element (8.3.2.3.3).
+pub fn target(db: &dyn salsa::Database, project: Project, x: Global) -> Vec<Global> {
+    let s = structure(db, x.file);
+    let g = s.graph();
+    let m = g.metaclass(x.ix());
+    if m.specializes(M::Annotation) {
+        return annotation_annotated_element(db, project, x)
+            .into_iter()
+            .collect();
+    }
+    if m.stored_attributes().iter().any(|a| a.slot == Slot::Target) {
+        return ends(db, project, x, Slot::Target);
+    }
+    g.owned_related_elements(x.ix())
+        .iter()
+        .map(|e| at(x.file, *e))
+        .collect()
+}
+
 /// `relatedElement` (deriveRelationshipRelatedElement): `source->union(target)`.
 pub fn related_element(db: &dyn salsa::Database, project: Project, x: Global) -> Vec<Global> {
-    let mut out = ends(db, project, x, Slot::Source);
-    out.extend(ends(db, project, x, Slot::Target));
+    let mut out = source(db, project, x);
+    out.extend(target(db, project, x));
     out
 }
 
@@ -431,10 +489,9 @@ pub fn owned_membership(db: &dyn salsa::Database, _project: Project, ns: Global)
 pub fn owned_member(db: &dyn salsa::Database, _project: Project, ns: Global) -> Vec<Global> {
     let s = structure(db, ns.file);
     let g = s.graph();
-    g.owned_relationships(ns.ix())
-        .iter()
-        .filter(|r| g.metaclass(**r).specializes(M::OwningMembership))
-        .filter_map(|r| g.owned_related_elements(*r).first())
+    g.all_owned_relationships(ns.ix())
+        .filter(|r| g.metaclass(*r).specializes(M::OwningMembership))
+        .filter_map(|r| g.owned_related_elements(r).first())
         .map(|e| at(ns.file, *e))
         .collect()
 }
@@ -446,10 +503,13 @@ pub fn owned_import(db: &dyn salsa::Database, _project: Project, ns: Global) -> 
 
 /// `importedMembership` (deriveNamespaceImportedMembership): `importedMemberships(Set{})`.
 pub fn imported_membership(db: &dyn salsa::Database, project: Project, ns: Global) -> Vec<Global> {
-    namespace_imported_memberships(db, project, ns)
-        .into_iter()
-        .map(|e| e.membership)
-        .collect()
+    let mut out: Vec<Global> = Vec::new();
+    for e in namespace_imported_memberships(db, project, ns) {
+        if !out.contains(&e.membership) {
+            out.push(e.membership);
+        }
+    }
+    out
 }
 
 /// `membership` (KerML 8.3.2.4.5): the owned, imported and, for a type, inherited memberships,
@@ -464,13 +524,18 @@ pub fn membership(db: &dyn salsa::Database, project: Project, ns: Global) -> Vec
     out
 }
 
-/// `member` (deriveNamespaceMembers): `membership.memberElement`.
+/// `member` (deriveNamespaceMembers): `membership.memberElement`, for each membership once.
 pub fn member(db: &dyn salsa::Database, project: Project, ns: Global) -> Vec<Global> {
-    memberships(db, project, ns)
-        .iter()
-        .filter(|e| !e.hidden)
-        .filter_map(|e| member_element(db, project, e))
-        .collect()
+    let mut seen: Vec<Global> = Vec::new();
+    let mut out = Vec::new();
+    for e in memberships(db, project, ns) {
+        if e.hidden || seen.contains(&e.membership) {
+            continue;
+        }
+        seen.push(e.membership);
+        out.extend(member_element(db, project, &e));
+    }
+    out
 }
 
 /// `Namespace::importedMemberships(excluded)` (KerML 8.3.2.4.5): the memberships of the owned
@@ -514,15 +579,20 @@ pub fn memberships_of_visibility(
     let s = structure(db, ns.file);
     let g = s.graph();
     let mut out: Vec<Global> = g
-        .owned_relationships(ns.ix())
-        .iter()
-        .filter(|r| g.metaclass(**r).specializes(M::Membership))
-        .filter(|r| visibility_kind.is_none_or(|v| visibility(g, **r) == v))
-        .map(|r| at(ns.file, *r))
+        .all_owned_relationships(ns.ix())
+        .filter(|r| g.metaclass(*r).specializes(M::Membership))
+        .filter(|r| visibility_kind.is_none_or(|v| visibility(g, *r) == v))
+        .map(|r| at(ns.file, r))
         .collect();
-    for e in namespace_imported_memberships(db, project, ns) {
-        if visibility_kind.is_none_or(|v| e.visibility == v) && !out.contains(&e.membership) {
-            out.push(e.membership);
+    // `ownedImport->select(imp | …).importedMemberships(…)`: each import's own memberships,
+    // without the namespace's exclusion of collisions.
+    for import in owned_import(db, project, ns) {
+        if visibility_kind.is_none_or(|v| visibility(g, import.ix()) == v) {
+            for m in import_imported_memberships(db, project, import) {
+                if !out.contains(&m) {
+                    out.push(m);
+                }
+            }
         }
     }
     out
@@ -578,10 +648,13 @@ pub fn visibility_of(
     ns: Global,
     mem: Global,
 ) -> Visibility {
-    for import in owned_import(db, project, ns) {
-        if import_imported_memberships(db, project, import).contains(&mem) {
-            let s = structure(db, import.file);
-            return visibility(s.graph(), import.ix());
+    // `importedMembership->includes(mem)`: after the exclusion of collisions.
+    if imported_membership(db, project, ns).contains(&mem) {
+        for import in owned_import(db, project, ns) {
+            if import_imported_memberships(db, project, import).contains(&mem) {
+                let s = structure(db, import.file);
+                return visibility(s.graph(), import.ix());
+            }
         }
     }
     if membership(db, project, ns).contains(&mem) {
@@ -691,55 +764,57 @@ pub fn imported_element(
 // ---- string resolution (KerML 8.3.2.4.5) ----
 
 /// The segments of a qualified name written as KerML text (KerML 8.2.3.4.1), unescaped, and
-/// whether it starts with `$::`. `None` if it is not a qualified name.
+/// whether it starts with `$::`. White space may separate the tokens (8.2.2.1). `None` if it is
+/// not a qualified name.
 fn segments(text: &str) -> Option<(bool, Vec<String>)> {
+    // KerML 8.2.2.1: space, tab, form feed and the line terminators.
+    let white = |c: &char| matches!(c, ' ' | '\t' | '\u{c}' | '\n' | '\r');
+    let mut chars = text.chars().peekable();
+    let skip = |chars: &mut std::iter::Peekable<std::str::Chars>| {
+        while chars.next_if(white).is_some() {}
+    };
+    // `::` is one token: its two colons are not separated.
+    let separator = |chars: &mut std::iter::Peekable<std::str::Chars>| {
+        chars.next() == Some(':') && chars.next() == Some(':')
+    };
     let mut out = Vec::new();
-    let mut chars = text.trim().chars().peekable();
-    let mut global = false;
+    skip(&mut chars);
+    let global = chars.next_if_eq(&'$').is_some();
+    if global {
+        skip(&mut chars);
+        separator(&mut chars).then_some(())?;
+    }
     loop {
+        skip(&mut chars);
         let mut s = String::new();
-        match chars.peek() {
-            Some('\'') => {
-                chars.next();
-                loop {
-                    match chars.next()? {
-                        '\'' => break,
-                        '\\' => s.push(match chars.next()? {
-                            'b' => '\u{8}',
-                            'f' => '\u{c}',
-                            't' => '\t',
-                            'n' => '\n',
-                            c => c,
-                        }),
-                        c => s.push(c),
-                    }
+        if chars.next_if_eq(&'\'').is_some() {
+            loop {
+                match chars.next()? {
+                    '\'' => break,
+                    '\\' => s.push(match chars.next()? {
+                        'b' => '\u{8}',
+                        'f' => '\u{c}',
+                        't' => '\t',
+                        'n' => '\n',
+                        c => c,
+                    }),
+                    c => s.push(c),
                 }
             }
-            Some('$') if out.is_empty() && !global => {
-                chars.next();
-                global = true;
-                (chars.next()? == ':' && chars.next()? == ':').then_some(())?;
-                continue;
+        } else {
+            while let Some(c) = chars.next_if(|c| c.is_ascii_alphanumeric() || *c == '_') {
+                s.push(c);
             }
-            _ => {
-                while let Some(c) = chars
-                    .peek()
-                    .filter(|c| c.is_ascii_alphanumeric() || **c == '_')
-                {
-                    s.push(*c);
-                    chars.next();
-                }
-                if s.is_empty() || s.starts_with(|c: char| c.is_ascii_digit()) {
-                    return None;
-                }
+            if s.is_empty() || s.starts_with(|c: char| c.is_ascii_digit()) {
+                return None;
             }
         }
         out.push(s);
-        match chars.next() {
-            None => return Some((global, out)),
-            Some(':') if chars.next() == Some(':') => {}
-            _ => return None,
+        skip(&mut chars);
+        if chars.peek().is_none() {
+            return Some((global, out));
         }
+        separator(&mut chars).then_some(())?;
     }
 }
 

@@ -875,3 +875,89 @@ fn namespace_unqualified_name_of() {
     assert_eq!(d::unqualified_name_of("A").as_deref(), Some("A"));
     assert_eq!(d::unqualified_name_of("A::"), None);
 }
+
+// ---- regressions from review ----
+
+#[test]
+fn derive_relationship_related_element_with_derived_ends() {
+    // relatedElement = source->union(target), with the ends each metaclass derives
+    let m = model(
+        "classifier A; classifier B; package Q; package P { class C; import Q::*; comment K about C /* k */ }
+        metaclass M; #M dependency X from A to B;",
+    );
+    let (db, p) = (&m.db, m.project);
+    let related = |x: Global| m.labels(d::related_element(db, p, x));
+    // membershipOwningNamespace and ownedMemberElement.
+    assert_eq!(related(m.membership("P::C")), ["P", "P::C"]);
+    // importOwningNamespace and importedNamespace.
+    assert_eq!(
+        related(m.relationship("P", Metaclass::NamespaceImport, 1)),
+        ["P", "Q"]
+    );
+    // An Annotation: its annotating element, owning or owned, and its annotated element.
+    assert_eq!(
+        related(m.relationship("P::K", Metaclass::Annotation, 1)),
+        ["P::K", "P::C"]
+    );
+    assert_eq!(
+        related(m.relationship("X", Metaclass::Annotation, 1)),
+        ["X::(MetadataFeature)", "X"]
+    );
+}
+
+#[test]
+fn a_membership_two_imports_bring_is_one_membership() {
+    // member = membership.memberElement, and importedMembership, once per membership
+    let m = model("package Q { class X; } package P { public import Q::*; private import Q::*; }");
+    let (db, p) = (&m.db, m.project);
+    assert_eq!(m.labels(d::member(db, p, m.get("P"))), ["Q::X"]);
+    assert_eq!(
+        m.labels(d::imported_membership(db, p, m.get("P"))),
+        ["OwningMembership(Q::X)"]
+    );
+}
+
+#[test]
+fn visibility_of_an_import_excluded_by_a_collision_is_private() {
+    // visibilityOf(mem): `importedMembership->includes(mem)` is tested first; Q::X collides with
+    // P's own X, so it is not imported (KerML 8.3.2.4.5; ADR 0020)
+    let m = model("package Q { class X; } package P { class X; public import Q::*; }");
+    let (db, p) = (&m.db, m.project);
+    assert_eq!(
+        d::visibility_of(db, p, m.get("P"), m.membership("Q::X")),
+        Visibility::Private
+    );
+}
+
+#[test]
+fn memberships_of_visibility_take_each_imports_own_memberships() {
+    // membershipsOfVisibility: `ownedImport->select(…).importedMemberships(…)`, which excludes no
+    // collisions; the namespace's importedMembership excludes both X
+    let m = model("package A { class X; } package B { class X; } package P { public import A::*; public import B::*; }");
+    let (db, p) = (&m.db, m.project);
+    assert_eq!(
+        m.labels(d::memberships_of_visibility(
+            db,
+            p,
+            m.get("P"),
+            Some(Visibility::Public)
+        )),
+        ["OwningMembership(A::X)", "OwningMembership(B::X)"]
+    );
+    assert!(d::imported_membership(db, p, m.get("P")).is_empty());
+}
+
+#[test]
+fn qualified_names_as_text_may_have_white_space_between_tokens() {
+    // KerML 8.2.2.1: white space separates tokens; `::` itself is one token
+    assert_eq!(d::qualification_of("A :: B").as_deref(), Some("A"));
+    assert_eq!(d::unqualified_name_of("$ :: A").as_deref(), Some("A"));
+    assert_eq!(
+        d::qualification_of(" 'x y' ::\n z ").as_deref(),
+        Some("'x y'")
+    );
+    assert_eq!(d::unqualified_name_of("A : : B"), None);
+    let m = model("package Q { class B; } package P;");
+    let found = d::resolve(&m.db, m.project, m.get("P"), "Q :: B");
+    assert_eq!(m.label_of(found), Some("OwningMembership(Q::B)".into()));
+}
