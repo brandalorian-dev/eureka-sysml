@@ -935,6 +935,36 @@ fn the_kerml_library_element_counts() {
 }
 
 #[test]
+fn a_body_expression_can_be_the_primary_of_an_arrow_operation() {
+    // `{ a }->collect { b }`: the first body is the PrimaryArgumentMember, the second the
+    // BodyArgumentMember (KerML 8.2.5.8.2; PR #16 review).
+    let l = lowered("feature f = { a }->collect { b };");
+    let g = &l.graph;
+    let invocation = g
+        .elements()
+        .find(|x| g.metaclass(*x) == Metaclass::InvocationExpression)
+        .unwrap();
+    let parameters = g
+        .owned_relationships(invocation)
+        .iter()
+        .filter(|r| g.metaclass(**r) == Metaclass::ParameterMembership)
+        .count();
+    assert_eq!(parameters, 2, "the primary and the body are both arguments");
+    let bodies = g
+        .elements()
+        .filter(|x| g.metaclass(*x) == Metaclass::Expression)
+        .count();
+    assert_eq!(bodies, 2, "both bodies are in the graph");
+}
+
+#[test]
+fn a_real_literal_that_is_not_finite_is_reported() {
+    let l = lowered("feature f = 1e400;");
+    assert_eq!(l.diagnostics.len(), 1);
+    assert_eq!(l.diagnostics[0].code, "lower::real-out-of-range");
+}
+
+#[test]
 fn a_literal_too_large_is_reported() {
     let l = lowered("feature f [99999999999999999999];");
     assert_eq!(l.diagnostics.len(), 1);

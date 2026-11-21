@@ -88,13 +88,23 @@ pub struct StoredAttribute {
 }
 
 impl Metaclass {
-    /// Whether this metaclass is `general` or one of its direct or indirect subtypes.
+    /// Whether this metaclass is `general` or one of its direct or indirect subtypes. The walk
+    /// visits each metaclass once: the SysML hierarchy has many diamonds.
     pub fn specializes(self, general: Metaclass) -> bool {
-        self == general
-            || general
-                .direct_subtypes()
-                .iter()
-                .any(|s| self.specializes(*s))
+        let mut visited = [false; Metaclass::ALL.len()];
+        let mut stack = vec![general];
+        while let Some(m) = stack.pop() {
+            if m == self {
+                return true;
+            }
+            for s in m.direct_subtypes() {
+                // `ALL` is in declaration order, so a metaclass's discriminant is its index.
+                if !std::mem::replace(&mut visited[*s as usize], true) {
+                    stack.push(*s);
+                }
+            }
+        }
+        false
     }
 }
 
@@ -113,6 +123,14 @@ mod tests {
         assert_eq!(Metaclass::ALL.len(), 175);
         assert_eq!(VisibilityKind::ALL.len(), 3);
         assert_eq!(FeatureDirectionKind::ALL.len(), 3);
+    }
+
+    #[test]
+    fn discriminants_are_indices_of_all() {
+        // `specializes` relies on it.
+        for (i, m) in Metaclass::ALL.iter().enumerate() {
+            assert_eq!(*m as usize, i);
+        }
     }
 
     #[test]
@@ -267,6 +285,31 @@ mod tests {
         );
         assert!(Metaclass::Feature.specializes(Metaclass::Element));
         assert!(!Metaclass::Class.specializes(Metaclass::Behavior));
+    }
+
+    #[test]
+    fn specialization_agrees_with_a_full_walk_of_the_hierarchy() {
+        // Against the subtypes of every metaclass, collected with a visited set: the same
+        // answers, for every pair of the 175 metaclasses (PR #16 review).
+        for &general in Metaclass::ALL {
+            let mut below = vec![general];
+            let mut i = 0;
+            while i < below.len() {
+                for s in below[i].direct_subtypes() {
+                    if !below.contains(s) {
+                        below.push(*s);
+                    }
+                }
+                i += 1;
+            }
+            for &m in Metaclass::ALL {
+                assert_eq!(
+                    m.specializes(general),
+                    below.contains(&m),
+                    "{m:?} {general:?}"
+                );
+            }
+        }
     }
 
     #[test]

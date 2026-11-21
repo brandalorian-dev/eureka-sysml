@@ -36,6 +36,7 @@ The lowering sets the stored values that a validation constraint requires, since
 3. **A cast has one result.** For `as` and `meta`, the TypeResultMember is the result parameter, so no EmptyResultMember follows it: an expression has one result. The grammar names its metaclass `ResultParameterMembership`, which does not exist; it is a ReturnParameterMembership.
 4. **The source target of a feature chain.** KerML 8.3.4.8.4 defines `sourceTargetFeature()` as the first owned feature of the first input parameter of a FeatureChainExpression. Its `check` constraints require that feature to redefine the target feature. The lowering creates it, through a FeatureMembership of the argument. Its redefinitions are implied relationships (step 1a.9).
 5. **`LiteralReal`** is written as a LiteralRational, the metaclass of KerML 8.3.4.8.13 (there is no `LiteralReal` metaclass).
+6. **Literal values have fixed sizes.** A LiteralInteger holds an `i64`, and a LiteralRational a finite `f64`. A literal outside them is reported (`lower::integer-too-large`, `lower::real-out-of-range`), and its element has no value. KerML's Integer is unbounded, so this is a limit of the implementation. A minus sign is an operator, applied to the literal after it (KerML 8.2.5.8.1), so `-9223372036854775808` is out of range too, although `i64::MIN` is that value.
 
 ### Differences from the pilot that remain
 

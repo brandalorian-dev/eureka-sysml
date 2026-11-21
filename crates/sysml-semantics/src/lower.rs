@@ -26,6 +26,11 @@ pub struct Lowered {
 
 /// Lower the tree of one file. `ids` gives the `DataIdentity` id of each new element, in creation
 /// order (ADR 0017): random v4 ids for user models, v5 ids for the libraries (step 1a.11).
+///
+/// # Panics
+///
+/// If `ids` gives the same id twice: a graph has one element per id. An id source must give a new
+/// id on every call.
 pub fn lower(file: FileId, root: &SyntaxNode, ids: &mut dyn FnMut() -> Uuid) -> Lowered {
     let mut l = Lowerer {
         g: Graph::new(),
@@ -238,7 +243,8 @@ fn string_value(t: &SyntaxToken) -> String {
     unescape(&text[1..text.len().saturating_sub(1).max(1)])
 }
 
-/// The escape sequences of KerML 8.2.2.5, Table 4.
+/// The escape sequences of KerML 8.2.2.3, Table 4. Any other escape is kept as written: the lexer
+/// reports it (`syntax::invalid-escape`).
 fn unescape(s: &str) -> String {
     let mut out = String::with_capacity(s.len());
     let mut chars = s.chars();
@@ -252,8 +258,11 @@ fn unescape(s: &str) -> String {
             Some('t') => out.push('\t'),
             Some('n') => out.push('\n'),
             Some('f') => out.push('\u{c}'),
-            Some('r') => out.push('\r'),
-            Some(other) => out.push(other),
+            Some(c @ ('\'' | '"' | '\\')) => out.push(c),
+            Some(other) => {
+                out.push('\\');
+                out.push(other);
+            }
             None => out.push('\\'),
         }
     }
@@ -272,15 +281,24 @@ fn comment_body(text: &str) -> String {
     let mut rest = inner;
     let leading = rest.len() - rest.trim_start_matches([' ', '\t', '\u{c}']).len();
     rest = &rest[leading..];
+    // Step 2 ends at the first line terminator; if it removed one, every line left is a
+    // subsequent line, and otherwise the first line left is the comment's first line, which step 3
+    // does not touch (`/** a */` keeps its `*`).
+    let mut first_is_subsequent = false;
     if let Some(r) = rest
         .strip_prefix("\r\n")
         .or_else(|| rest.strip_prefix('\n'))
         .or_else(|| rest.strip_prefix('\r'))
     {
         rest = r;
+        first_is_subsequent = true;
     }
     let mut out = String::new();
-    for line in rest.split_inclusive('\n') {
+    for (i, line) in rest.split_inclusive('\n').enumerate() {
+        if i == 0 && !first_is_subsequent {
+            out.push_str(line);
+            continue;
+        }
         let mut l = line.trim_start_matches([' ', '\t', '\u{c}']);
         if let Some(r) = l.strip_prefix('*') {
             l = r;
@@ -979,8 +997,13 @@ impl Lowerer<'_> {
                 // LiteralReal: `value = RealValue`, a LiteralRational (KerML 8.3.4.8.13)
                 let e = self.related(rel, M::LiteralRational, x);
                 let text: String = tokens(x).map(|t| t.text().to_owned()).collect();
-                if let Ok(v) = text.parse::<f64>() {
-                    self.g.set(e, Attr::Value, Value::Real(v));
+                match text.parse::<f64>() {
+                    Ok(v) if v.is_finite() => self.g.set(e, Attr::Value, Value::Real(v)),
+                    _ => self.diagnostics.push(Diagnostic::error(
+                        "lower::real-out-of-range",
+                        x.text_range(),
+                        format!("the real {text} is out of range"),
+                    )),
                 }
                 e
             }
@@ -1130,9 +1153,16 @@ impl Lowerer<'_> {
             K::FunctionOperationExpression => {
                 // FunctionOperationExpression : InvocationExpression (KerML 8.2.5.8.2)
                 let e = self.related(rel, M::InvocationExpression, x);
-                if let Some(o) = expressions(x).find(|c| c.kind() != K::BodyExpression) {
+                // The PrimaryArgumentMember is the expression before `->`, whatever its kind; a
+                // BodyArgumentMember is a body expression after it (`{ a }->collect { b }`).
+                if let Some(o) = expressions(x).next() {
                     self.argument(e, &o);
                 }
+                let body = x
+                    .children_with_tokens()
+                    .skip_while(|c| c.kind() != K::Arrow)
+                    .filter_map(SyntaxElement::into_node)
+                    .find(|c| c.kind() == K::BodyExpression);
                 let mut refs =
                     nodes(x).filter(|c| matches!(c.kind(), K::QualifiedName | K::FeatureChain));
                 if let Some(function) = refs.next() {
@@ -1152,7 +1182,7 @@ impl Lowerer<'_> {
                     // A FeatureReferenceExpression has its EmptyResultMember (ADR 0018).
                     self.empty_result(reference, &function);
                 }
-                if let Some(body) = child(x, K::BodyExpression) {
+                if let Some(body) = body {
                     self.argument(e, &body);
                 }
                 if let Some(args) = child(x, K::ArgumentList) {
@@ -1331,7 +1361,24 @@ mod tests {
     }
 
     #[test]
+    fn the_first_line_keeps_its_star() {
+        // Step 3 of Note 1 applies to each *subsequent* line: with no line terminator after the
+        // white space following `/*`, the first line keeps its `*` (PR #16 review).
+        assert_eq!(comment_body("/** note */"), "* note ");
+        assert_eq!(comment_body("/**\n * a\n */"), "*\na\n");
+        assert_eq!(comment_body("/* a\n * b */"), "a\nb ");
+    }
+
+    #[test]
     fn names_and_strings_are_unescaped() {
         assert_eq!(unescape(r"a\'b\nc\\"), "a'b\nc\\");
+    }
+
+    #[test]
+    fn an_escape_not_in_table_4_is_kept_as_written() {
+        // KerML 8.2.2.3, Table 4 has no `\r`; the lexer reports any other escape
+        // (syntax::invalid-escape), and the lowering keeps it as written.
+        assert_eq!(unescape(r"a\rb"), r"a\rb");
+        assert_eq!(unescape(r"a\qb"), r"a\qb");
     }
 }
