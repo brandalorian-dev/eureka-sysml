@@ -173,7 +173,7 @@ fn every_kerml_library_name_resolves_as_in_the_pilot() {
         }
     }
     assert!(
-        different.is_empty() && unresolved.is_empty(),
+        same == 4003 && different.is_empty() && unresolved.is_empty(),
         "{same} names as the pilot; {} different, {} unresolved:\n{}\n---\n{}",
         different.len(),
         unresolved.len(),

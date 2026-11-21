@@ -64,6 +64,8 @@ fn the_kerml_libraries_resolve_with_no_unresolved_names() {
             }
         }
     }
+    // Every name of the libraries, counted against the pilot's (tests/resolve_oracle.rs).
+    assert_eq!(total, 4003, "the number of names");
     assert!(
         unresolved.is_empty(),
         "{} of {total} names unresolved:\n{}",
@@ -559,5 +561,120 @@ fn a_connector_without_owned_ends_is_binary_by_its_inherited_ends() {
         project,
         files[0],
         sysml_model::Metaclass::Connector,
+    ));
+}
+
+#[test]
+fn a_redefinition_looks_in_every_general_before_their_namespaces() {
+    // KerML 8.2.3.5.1: B declares `x`, so the redefinition does not reach `P::x` through the
+    // namespace of A, the first general (ADR 0020).
+    let db = Database::default();
+    let user = "package P {
+        feature x;
+        classifier A;
+        classifier B { feature x; }
+        classifier T specializes A, B { feature redefines x; }
+    }";
+    let (project, files) = project(&db, &[user], false);
+    expect![[r#"
+        Subclassification A -> P::A
+        Subclassification B -> P::B
+        Redefinition x -> P::B::x
+    "#]]
+    .assert_eq(&resolutions(&db, project, files[0]));
+}
+
+#[test]
+fn a_user_package_named_like_a_library_package_does_not_hide_it() {
+    // KerML 8.4.2: `Links::BinaryLink` resolves globally; a user's `package Links`, listed before
+    // the libraries, has no `BinaryLink` and does not stop the lookup (ADR 0020).
+    let db = Database::default();
+    let user = SourceFile::new(
+        &db,
+        FileId(0),
+        "user.kerml".into(),
+        Language::KerML,
+        "package Links { assoc A { end feature s; end feature t; } }".into(),
+    );
+    let mut files = vec![user];
+    files.extend(kerml_library(&db).1.into_iter().map(|f| f.0));
+    let project = Project::new(&db, files);
+    expect![[r#"
+        Links::A: Subclassification Links::BinaryLink;
+    "#]]
+    .assert_eq(&implied_of(
+        &db,
+        project,
+        user,
+        sysml_model::Metaclass::Association,
+    ));
+}
+
+#[test]
+fn a_chained_name_resolves_only_among_the_features_of_the_argument() {
+    // KerML 8.2.3.5.2: in `a.foo`, `foo` is a feature of the result of `a`; C has none.
+    let db = Database::default();
+    let user = "package P { feature foo; classifier C; feature a : C; feature b = a.foo; }";
+    let (project, files) = project(&db, &[user], false);
+    expect![[r#"
+        FeatureTyping C -> P::C
+        Membership a -> P::a
+        Membership foo -> unresolved
+    "#]]
+    .assert_eq(&resolutions(&db, project, files[0]));
+}
+
+#[test]
+fn imported_memberships_that_collide_are_excluded() {
+    // KerML 8.3.2.4.5 importedMemberships, 8.3.2.4.3 isDistinguishableFrom: two classes named X
+    // collide; a class and a feature named Y do not, so the first import's is found.
+    let db = Database::default();
+    let user = "package A { public class X; public class Y; }
+        package B { public class X; public feature Y; }
+        package U { public import A::*; public import B::*; feature f : X; feature g : Y; }";
+    let (project, files) = project(&db, &[user], false);
+    expect![[r#"
+        NamespaceImport A -> A
+        NamespaceImport B -> B
+        FeatureTyping X -> unresolved
+        FeatureTyping Y -> A::Y
+    "#]]
+    .assert_eq(&resolutions(&db, project, files[0]));
+}
+
+#[test]
+fn circular_aliases_and_imports_settle_without_a_panic() {
+    // KerML 8.2.3.5.1 allows circular imports; aliases of each other resolve to nothing, and
+    // every fixpoint query settles (ADR 0020).
+    let db = Database::default();
+    let user = "package A { public import B::*; public class X; alias a for b; alias b for a; }
+        package B { public import A::*; public class X; feature f : a; feature g : X; }";
+    let (project, files) = project(&db, &[user], false);
+    expect![[r#"
+        NamespaceImport B -> B
+        Membership b -> unresolved
+        Membership a -> unresolved
+        NamespaceImport A -> A
+        FeatureTyping a -> unresolved
+        FeatureTyping X -> B::X
+    "#]]
+    .assert_eq(&resolutions(&db, project, files[0]));
+}
+
+#[test]
+fn an_implied_redefinition_makes_the_implied_subsetting_of_things_redundant() {
+    // KerML 8.4.2 rule 1: B::x already subsets Base::things, and `a` redefines it by implication.
+    let db = Database::default();
+    let user = "package P { behavior B { in x; } behavior C specializes B { in a; } }";
+    let (project, files) = project(&db, &[user], true);
+    expect![[r#"
+        P::B::x: Subsetting Base::things;
+        P::C::a: Redefinition P::B::x;
+    "#]]
+    .assert_eq(&implied_of(
+        &db,
+        project,
+        files[0],
+        sysml_model::Metaclass::Feature,
     ));
 }

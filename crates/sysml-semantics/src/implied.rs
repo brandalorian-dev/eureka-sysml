@@ -36,27 +36,41 @@ fn at(file: SourceFile, e: ElementIx) -> Global {
     }
 }
 
-/// A library element by its qualified name (KerML 8.4.2 `specializesFromLibrary`): the first
-/// segment in the global namespace, then each further one among the owned memberships of the
-/// element before, which is where the library declares every element the constraints name.
+/// A library element by its qualified name (KerML 8.4.2 `specializesFromLibrary`, which resolves
+/// it globally): the first segment in the global namespace, then each further one among the owned
+/// memberships of the element before, which is where the library declares every element the
+/// constraints name. Every root namespace with the first segment's name is tried, in order, so a
+/// user package of the same name, such as `Links`, does not hide the library's (ADR 0020).
 /// `None` when the library is not part of the project.
-#[salsa::tracked(cycle_initial = no_library)]
+#[salsa::tracked(cycle_initial = no_library, cycle_fn = settle_global)]
 pub fn library(db: &dyn salsa::Database, project: Project, name: &'static str) -> Option<Global> {
-    let mut segments = name.split("::");
-    let first = segments.next()?;
-    let mut entry = global_namespace(db, project)
-        .iter()
-        .find(|e| e.named(first))?
-        .clone();
-    for s in segments {
-        let ns = member_element(db, project, &entry)?;
-        entry = owned_memberships(db, project, ns.file, ns.index)
-            .iter()
-            .find(|e| e.named(s))?
-            .clone();
-    }
-    member_element(db, project, &entry)
+    let segments: Vec<&str> = name.split("::").collect();
+    qualified(db, project, &segments)
 }
+
+fn qualified(db: &dyn salsa::Database, project: Project, segments: &[&str]) -> Option<Global> {
+    let (first, rest) = segments.split_first()?;
+    global_namespace(db, project)
+        .iter()
+        .filter(|e| e.named(first))
+        .find_map(|root| {
+            let mut entry = root.clone();
+            for s in rest {
+                let ns = member_element(db, project, &entry)?;
+                entry = owned_memberships(db, project, ns.file, ns.index)
+                    .iter()
+                    .find(|e| e.named(s))?
+                    .clone();
+            }
+            member_element(db, project, &entry)
+        })
+}
+
+settle!(settle_global, Option<Global>, (Project, &'static str));
+settle!(settle_globals, Vec<Global>, (Project, SourceFile, u32));
+settle!(settle_result, Option<Global>, (Project, SourceFile, u32));
+settle!(settle_operator, Option<Global>, (Project, String));
+settle!(settle_implied, Vec<Implied>, (Project, SourceFile, u32));
 
 fn no_library(
     _db: &dyn salsa::Database,
@@ -69,7 +83,7 @@ fn no_library(
 
 /// Every direct or indirect general type of a type (KerML 8.3.3.1.10 `allSupertypes`, without
 /// the type itself unless specializations are circular): a fixpoint from the empty set.
-#[salsa::tracked(returns(ref), cycle_initial = no_globals)]
+#[salsa::tracked(returns(ref), cycle_initial = no_globals, cycle_fn = settle_globals)]
 pub fn supertypes(
     db: &dyn salsa::Database,
     project: Project,
@@ -150,7 +164,7 @@ fn owned_parameters(g: &Graph, t: ElementIx) -> Vec<ElementIx> {
 /// The end features of a type (KerML 8.3.3.1.10 `endFeature`): its owned ends or, with none, those
 /// of its first owned general that has ends. Implied generals are not consulted, which keeps this
 /// out of a cycle with them; every library type the constraints name owns its ends (ADR 0020).
-#[salsa::tracked(returns(ref), cycle_initial = no_globals)]
+#[salsa::tracked(returns(ref), cycle_initial = no_globals, cycle_fn = settle_globals)]
 pub fn end_features(
     db: &dyn salsa::Database,
     project: Project,
@@ -180,7 +194,7 @@ pub fn end_features(
 
 /// The result parameter of a function or expression (KerML 8.3.4.7.3, 8.3.4.7.4 `result`): its own, or the
 /// first one its generals have. A fixpoint from none.
-#[salsa::tracked(cycle_initial = no_result)]
+#[salsa::tracked(cycle_initial = no_result, cycle_fn = settle_result)]
 pub fn result_parameter(
     db: &dyn salsa::Database,
     project: Project,
@@ -259,18 +273,11 @@ fn instantiated_type(db: &dyn salsa::Database, project: Project, x: Global) -> O
 }
 
 /// The library function of an operator (KerML 8.3.4.8.17).
-#[salsa::tracked(cycle_initial = no_operator)]
+#[salsa::tracked(cycle_initial = no_operator, cycle_fn = settle_operator)]
 fn operator_function(db: &dyn salsa::Database, project: Project, op: String) -> Option<Global> {
     ["BaseFunctions", "DataFunctions", "ControlFunctions"]
         .iter()
-        .find_map(|p| {
-            let package = (*library(db, project, p))?;
-            let e = owned_memberships(db, project, package.file, package.index)
-                .iter()
-                .find(|e| e.named(&op))?
-                .clone();
-            member_element(db, project, &e)
-        })
+        .find_map(|p| qualified(db, project, &[p, &op]))
 }
 
 fn no_operator(
@@ -293,7 +300,7 @@ fn no_operator(
 /// features (`checkFeatureFlowFeatureRedefinition`) and payloads
 /// (`checkPayloadFeatureRedefinition`), each unless the feature already redefines its target.
 /// Implied relationships of the library build on the library's own: a fixpoint from none.
-#[salsa::tracked(returns(ref), cycle_initial = no_implied)]
+#[salsa::tracked(returns(ref), cycle_initial = no_implied, cycle_fn = settle_implied)]
 pub fn implied_generals(
     db: &dyn salsa::Database,
     project: Project,
@@ -518,26 +525,8 @@ pub fn implied_generals(
         push(subset, lib("Base::things"));
     }
 
-    // KerML 8.4.2: drop the specializations already implied.
-    let mut kept: Vec<Implied> = Vec::new();
-    let generals_so_far: Vec<Global> = candidates.iter().filter_map(|c| c.1).collect();
-    for (kind, general) in candidates {
-        let Some(general) = general else { continue };
-        if general == here || owned.contains(&general) || kept.iter().any(|k| k.general == general)
-        {
-            continue;
-        }
-        let redundant = owned.iter().chain(&generals_so_far).any(|o| {
-            *o != general
-                && *o != here
-                && supertypes(db, project, o.file, o.index).contains(&general)
-        });
-        if !redundant {
-            kept.push(Implied { kind, general });
-        }
-    }
-
     // ---- redefinition constraints ----
+    let mut redefinitions: Vec<Implied> = Vec::new();
     if m.specializes(M::Feature) {
         // A redefinition is implied unless the feature already redefines its target itself (the
         // OCL's `redefines`), whatever its other generals are.
@@ -555,11 +544,9 @@ pub fn implied_generals(
             if let Some(t) = target {
                 if t != here
                     && !redefined.contains(&t)
-                    && !kept
-                        .iter()
-                        .any(|k| k.kind == M::Redefinition && k.general == t)
+                    && !redefinitions.iter().any(|k| k.general == t)
                 {
-                    kept.push(Implied {
+                    redefinitions.push(Implied {
                         kind: M::Redefinition,
                         general: t,
                     });
@@ -632,6 +619,31 @@ pub fn implied_generals(
             redefine(lib("Transfers::Transfer::payload"));
         }
     }
+    // KerML 8.4.2: drop the specializations already implied, by an owned specialization, another
+    // implied specialization, or an implied redefinition (which itself is never dropped).
+    let mut kept: Vec<Implied> = Vec::new();
+    let generals_so_far: Vec<Global> = candidates.iter().filter_map(|c| c.1).collect();
+    for (kind, general) in candidates {
+        let Some(general) = general else { continue };
+        if general == here || owned.contains(&general) || kept.iter().any(|k| k.general == general)
+        {
+            continue;
+        }
+        let redundant = owned
+            .iter()
+            .chain(&generals_so_far)
+            .chain(redefinitions.iter().map(|r| &r.general))
+            .any(|o| {
+                *o != general
+                    && *o != here
+                    && supertypes(db, project, o.file, o.index).contains(&general)
+            });
+        if !redundant {
+            kept.push(Implied { kind, general });
+        }
+    }
+
+    kept.extend(redefinitions);
     kept
 }
 

@@ -171,7 +171,7 @@ fn visibility(g: &Graph, x: ElementIx) -> Visibility {
 /// `effectiveShortName`): its declared names or, for a feature with neither, those of its naming
 /// feature, the redefined feature of its first owned redefinition (`namingFeature`). Naming
 /// features may form a cycle: a fixpoint from no name.
-#[salsa::tracked(returns(ref), cycle_initial = no_names)]
+#[salsa::tracked(returns(ref), cycle_initial = no_names, cycle_fn = settle_names)]
 pub fn effective_names(
     db: &dyn salsa::Database,
     project: Project,
@@ -221,6 +221,21 @@ pub fn effective_names(
     }
 }
 
+settle!(
+    settle_names,
+    (Option<Arc<str>>, Option<Arc<str>>),
+    (Project, SourceFile, u32)
+);
+settle!(settle_entries, Vec<Entry>, (Project, SourceFile, u32));
+settle!(settle_generals, Vec<Global>, (Project, Global));
+// A name whose resolution does not converge is unresolved.
+settle!(
+    settle_resolution,
+    Option<Entry>,
+    (Project, Global, Slot, u32),
+    |_: &Option<Entry>| None
+);
+
 fn no_names(
     _db: &dyn salsa::Database,
     _id: salsa::Id,
@@ -234,7 +249,7 @@ fn no_names(
 /// The owned memberships of a namespace (KerML 8.3.2.4.5 `ownedMembership`), named by their
 /// member's effective names. A span-free projection that backdates (ADR 0019). An effective name
 /// may need resolution, which may come back here: a fixpoint from the empty set.
-#[salsa::tracked(returns(ref), cycle_initial = no_entries)]
+#[salsa::tracked(returns(ref), cycle_initial = no_entries, cycle_fn = settle_entries)]
 pub fn owned_memberships(
     db: &dyn salsa::Database,
     project: Project,
@@ -331,7 +346,7 @@ fn imports(db: &dyn salsa::Database, file: SourceFile, ns: u32) -> Vec<ImportDec
 
 /// The memberships a namespace imports (KerML 8.3.2.4.5 `importedMembership`, 8.2.3.4.2), each
 /// with its import's visibility. Imports may be circular: a fixpoint from the empty set.
-#[salsa::tracked(returns(ref), cycle_initial = no_entries)]
+#[salsa::tracked(returns(ref), cycle_initial = no_entries, cycle_fn = settle_entries)]
 pub fn imported_memberships(
     db: &dyn salsa::Database,
     project: Project,
@@ -384,7 +399,70 @@ pub fn imported_memberships(
             }
         }
     }
-    out
+    // KerML 8.3.2.4.5 `importedMemberships`: memberships that collide with each other or with an
+    // owned membership in distinguishability are excluded (ADR 0020).
+    let owned = owned_memberships(db, project, file, ns);
+    let kinds: Vec<Option<M>> = out
+        .iter()
+        .map(|e| member_metaclass(db, project, e))
+        .collect();
+    let owned_kinds: Vec<Option<M>> = owned
+        .iter()
+        .map(|e| member_metaclass(db, project, e))
+        .collect();
+    // Only entries that share a name can collide: index them by name.
+    let mut by_name: std::collections::HashMap<&str, Vec<usize>> = Default::default();
+    for (i, e) in out.iter().enumerate() {
+        for n in [&e.name, &e.short_name].into_iter().flatten() {
+            by_name.entry(n).or_default().push(i);
+        }
+    }
+    let keep: Vec<bool> = (0..out.len())
+        .map(|i| {
+            let collides_owned = owned
+                .iter()
+                .zip(&owned_kinds)
+                .filter(|(o, _)| {
+                    [&o.name, &o.short_name]
+                        .into_iter()
+                        .flatten()
+                        .any(|n| by_name.get(&**n).is_some_and(|v| v.contains(&i)))
+                })
+                .any(|(o, k)| collide(&out[i], kinds[i], o, *k));
+            let collides_imported = [&out[i].name, &out[i].short_name]
+                .into_iter()
+                .flatten()
+                .flat_map(|n| by_name.get(&**n).into_iter().flatten())
+                .any(|&j| {
+                    out[j].membership != out[i].membership
+                        && collide(&out[i], kinds[i], &out[j], kinds[j])
+                });
+            !collides_owned && !collides_imported
+        })
+        .collect();
+    out.into_iter()
+        .zip(keep)
+        .filter_map(|(e, k)| k.then_some(e))
+        .collect()
+}
+
+fn member_metaclass(db: &dyn salsa::Database, project: Project, e: &Entry) -> Option<M> {
+    member_element(db, project, e).map(|x| structure(db, x.file).graph().metaclass(x.ix()))
+}
+
+/// Two memberships are not distinguishable (KerML 8.3.2.4.3 `isDistinguishableFrom`) when a name
+/// or short name of one is a name or short name of the other, and the metaclass of one member
+/// element conforms to the other's. An element not resolved yet collides with nothing.
+fn collide(a: &Entry, ka: Option<M>, b: &Entry, kb: Option<M>) -> bool {
+    let (Some(ka), Some(kb)) = (ka, kb) else {
+        return false;
+    };
+    let names = |e: &Entry| [e.name.clone(), e.short_name.clone()];
+    let shared = names(a)
+        .iter()
+        .flatten()
+        .any(|n| names(b).iter().flatten().any(|m| m == n));
+    shared && (ka.specializes(kb) || kb.specializes(ka))
 }
 
 /// `visibleMemberships(excluded, isRecursive, includeAll)` (KerML 8.3.2.4.5, and 8.3.3.1.10 for
@@ -444,7 +522,7 @@ fn no_entries(
 /// The general types a type declares: those of its owned specializations (KerML 8.3.3.1.8, including
 /// FeatureTyping, Subsetting and Redefinition) and its conjugation (8.3.3.1.2); for a feature
 /// with chainings, its last chaining feature (8.3.3.3.5).
-#[salsa::tracked(returns(ref), cycle_initial = no_generals)]
+#[salsa::tracked(returns(ref), cycle_initial = no_generals, cycle_fn = settle_generals)]
 pub(crate) fn owned_generals(
     db: &dyn salsa::Database,
     project: Project,
@@ -483,7 +561,7 @@ pub(crate) fn owned_generals(
 }
 
 /// The general types of a type: its owned ones, then its implied ones (KerML 8.4.2; ADR 0020).
-#[salsa::tracked(returns(ref), cycle_initial = no_generals)]
+#[salsa::tracked(returns(ref), cycle_initial = no_generals, cycle_fn = settle_generals)]
 pub(crate) fn generals(db: &dyn salsa::Database, project: Project, ty: Global) -> Vec<Global> {
     let mut out = owned_generals(db, project, ty).clone();
     for i in implied_generals(db, project, ty.file, ty.index) {
@@ -506,7 +584,7 @@ fn no_generals(
 /// The memberships a type inherits (KerML 8.3.3.1.10 `inheritedMemberships`): the non-private
 /// memberships of its general types, without those its own features redefine. Specializations
 /// may be circular: a fixpoint from the empty set.
-#[salsa::tracked(returns(ref), cycle_initial = no_entries)]
+#[salsa::tracked(returns(ref), cycle_initial = no_entries, cycle_fn = settle_entries)]
 pub fn inherited_memberships(
     db: &dyn salsa::Database,
     project: Project,
@@ -583,7 +661,7 @@ pub fn memberships(db: &dyn salsa::Database, project: Project, ns: Global) -> Ve
 
 /// The visible memberships of a namespace (KerML 8.2.3.5.3): the public owned ones, those of its
 /// public imports, and the public inherited ones.
-#[salsa::tracked(returns(ref), cycle_initial = no_entries)]
+#[salsa::tracked(returns(ref), cycle_initial = no_entries, cycle_fn = settle_entries)]
 pub fn visible_memberships(
     db: &dyn salsa::Database,
     project: Project,
@@ -608,13 +686,21 @@ pub fn global_namespace(db: &dyn salsa::Database, project: Project) -> Vec<Entry
 }
 
 /// The member element of a membership found by a lookup: the element it owns, or for an alias
-/// the element its name resolves to.
+/// the element its name resolves to, through any further aliases. Aliases that name each other
+/// have no member element.
 pub fn member_element(db: &dyn salsa::Database, project: Project, e: &Entry) -> Option<Global> {
-    e.owned_element.or_else(|| {
-        resolve_end(db, project, e.membership, Slot::Target, 0)
-            .as_ref()
-            .and_then(|m| member_element(db, project, m))
-    })
+    let mut entry = e.clone();
+    let mut seen: Vec<Global> = Vec::new();
+    loop {
+        if let Some(owned) = entry.owned_element {
+            return Some(owned);
+        }
+        if seen.contains(&entry.membership) {
+            return None;
+        }
+        seen.push(entry.membership);
+        entry = resolve_end(db, project, entry.membership, Slot::Target, 0).clone()?;
+    }
 }
 
 // ---- local namespaces (KerML 8.2.3.5.2) ----
@@ -760,7 +846,7 @@ fn context(g: &Graph, file: SourceFile, rel: ElementIx) -> Option<Context> {
 
 /// The resolution of one end of a relationship: the Membership its qualified name identifies, if
 /// the end is a name. A name may be part of a cycle (an alias of an alias): a fixpoint from none.
-#[salsa::tracked(returns(ref), cycle_initial = no_resolution)]
+#[salsa::tracked(returns(ref), cycle_initial = no_resolution, cycle_fn = settle_resolution)]
 pub fn resolve_end(
     db: &dyn salsa::Database,
     project: Project,
@@ -853,29 +939,39 @@ fn resolve_simple(
 ) -> Option<Entry> {
     match ctx {
         Context::Namespace(ns) => full_resolution(db, project, ns, name, hidden),
-        // KerML 8.2.3.5.1: the generals of the owning type in turn. Where none of them has the
-        // name, the normative libraries still expect a resolution (for example
-        // FeatureReferencingPerformances: `feature redefines monitoredFeature`), so resolution
-        // continues from the namespace of the owning type (ADR 0020). The owning type itself is
-        // skipped: its member named by this very redefinition would otherwise resolve to itself.
-        Context::Generals(ty) => generals(db, project, ty)
-            .iter()
-            .copied()
-            .find_map(|general| full_resolution(db, project, general, name, hidden))
-            .or_else(|| {
-                let l = structure(db, ty.file);
-                let outer = owning_namespace(l.graph(), ty.ix())?;
-                full_resolution(
-                    db,
-                    project,
-                    Global {
-                        file: ty.file,
-                        index: outer.index() as u32,
-                    },
-                    name,
-                    hidden,
-                )
-            }),
+        // KerML 8.2.3.5.1: the generals of the owning type in turn. Each general's own memberships
+        // are looked up first, across all of them, so that the general declaring the name wins
+        // over a namespace that contains an earlier general; then full resolution from each.
+        // Where none of them has the name, the normative libraries still expect a resolution
+        // (for example FeatureReferencingPerformances: `feature redefines monitoredFeature`), so
+        // resolution continues from the namespace of the owning type (ADR 0020). The owning type
+        // itself is skipped: its member named by this very redefinition would otherwise resolve to
+        // itself.
+        Context::Generals(ty) => {
+            let generals = generals(db, project, ty);
+            generals
+                .iter()
+                .find_map(|general| lookup(&memberships(db, project, *general), name, hidden))
+                .or_else(|| {
+                    generals
+                        .iter()
+                        .find_map(|general| full_resolution(db, project, *general, name, hidden))
+                })
+                .or_else(|| {
+                    let l = structure(db, ty.file);
+                    let outer = owning_namespace(l.graph(), ty.ix())?;
+                    full_resolution(
+                        db,
+                        project,
+                        Global {
+                            file: ty.file,
+                            index: outer.index() as u32,
+                        },
+                        name,
+                        hidden,
+                    )
+                })
+        }
         Context::PreviousChaining(previous) => {
             let feature = resolve_end(db, project, previous, Slot::Target, 0)
                 .as_ref()
@@ -888,9 +984,19 @@ fn resolve_simple(
                 file: expression.file,
                 index: n.index() as u32,
             });
-            result_scope(db, project, expression)
-                .and_then(|scope| lookup(&memberships(db, project, scope), name, hidden))
-                .or_else(|| fallback.and_then(|n| full_resolution(db, project, n, name, hidden)))
+            // KerML 8.2.3.5.2: the features of the argument's result. Only where that result
+            // cannot be determined yet (an argument whose own result is an implied element, step
+            // 1a.9) is the name resolved from the expression's namespace (ADR 0020).
+            // A reference or chain whose own name is unresolved has no result to fall back from.
+            let determinable = chain_argument(db, expression).is_some_and(|a| {
+                let m = structure(db, a.file).graph().metaclass(a.ix());
+                m == M::FeatureReferenceExpression || m == M::FeatureChainExpression
+            });
+            match result_scope(db, project, expression) {
+                Some(scope) => lookup(&memberships(db, project, scope), name, hidden),
+                None if determinable => None,
+                None => fallback.and_then(|n| full_resolution(db, project, n, name, hidden)),
+            }
         }
     }
 }
@@ -899,6 +1005,11 @@ fn resolve_simple(
 /// feature a reference names, the target of a chain, or the result parameter of an invoked
 /// function (KerML 8.4.4.9).
 fn result_scope(db: &dyn salsa::Database, project: Project, chain: Global) -> Option<Global> {
+    expression_target(db, project, chain_argument(db, chain)?)
+}
+
+/// The argument of a FeatureChainExpression: its first parameter's FeatureValue's expression.
+fn chain_argument(db: &dyn salsa::Database, chain: Global) -> Option<Global> {
     let l = structure(db, chain.file);
     let g = &l.graph();
     let at = |i: ElementIx| Global {
@@ -916,7 +1027,7 @@ fn result_scope(db: &dyn salsa::Database, project: Project, chain: Global) -> Op
         .iter()
         .find(|r| g.metaclass(**r) == M::FeatureValue)?;
     let argument = *g.owned_related_elements(*value).first()?;
-    expression_target(db, project, at(argument))
+    Some(at(argument))
 }
 
 fn expression_target(db: &dyn salsa::Database, project: Project, x: Global) -> Option<Global> {
