@@ -4,7 +4,7 @@
 //! each `done`, `open` or `deferred`.
 //!
 //! - A `done` entry names its function in `sysml_semantics::derived`, and has a test in
-//!   `tests/derived.rs` named after it: the rule's name, or the metaclass and the operation, in
+//!   `tests/derived.rs` (Root) or `tests/derived_core.rs` (Core) named after it: the rule's name, or the metaclass and the operation, in
 //!   snake case (`derive_element_owner`, `element_path`).
 //! - The rules and operations the semantic and validation constraints use are "needed": those
 //!   named in a `check…` or `validate…` constraint, and `path()`, and what their OCL uses in turn.
@@ -17,11 +17,14 @@ use sysml_model::{Rule, CONSTRAINTS, DERIVE_RULES, OPERATIONS};
 use wasm_bindgen_test::wasm_bindgen_test as test;
 
 /// The layers done so far, Root (KerML 8.3.2) first.
-const COMPLETE_LAYERS: &[&str] = &["Root"];
+const COMPLETE_LAYERS: &[&str] = &["Root", "Core"];
 
 const INVENTORY: &str = include_str!("../derived.json");
-const FUNCTIONS: &str = include_str!("../src/derived.rs");
-const TESTS: &str = include_str!("derived.rs");
+const FUNCTIONS: &[&str] = &[
+    include_str!("../src/derived/root.rs"),
+    include_str!("../src/derived/types.rs"),
+];
+const TESTS: &[&str] = &[include_str!("derived.rs"), include_str!("derived_core.rs")];
 
 fn key(r: &Rule) -> String {
     format!("{}::{}", r.metaclass, r.name)
@@ -116,7 +119,8 @@ fn the_inventory_lists_every_rule_and_operation_with_its_status() {
             match status {
                 "done" => {
                     let f = entry["function"].as_str().unwrap_or_default();
-                    if f.is_empty() || !FUNCTIONS.contains(&format!("pub fn {f}(")) {
+                    let defined = format!("pub fn {f}(");
+                    if f.is_empty() || !FUNCTIONS.iter().any(|s| s.contains(&defined)) {
                         problems.push(format!("{}: no function `{f}` in derived.rs", key(r)));
                     }
                     let test = if is_derive {
@@ -124,7 +128,8 @@ fn the_inventory_lists_every_rule_and_operation_with_its_status() {
                     } else {
                         format!("{}_{}", snake(r.metaclass), snake(r.name))
                     };
-                    if !TESTS.contains(&format!("fn {test}(")) {
+                    let named = format!("fn {test}(");
+                    if !TESTS.iter().any(|s| s.contains(&named)) {
                         problems.push(format!("{}: no test `{test}` in tests/derived.rs", key(r)));
                     }
                 }

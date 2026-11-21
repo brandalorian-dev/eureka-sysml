@@ -233,6 +233,16 @@ settle!(
     (Project, Global)
 );
 settle!(pub(crate) settle_path, Arc<str>, (Project, Global));
+settle!(
+    pub(crate) settle_memberships,
+    Vec<Global>,
+    (Project, Global, bool)
+);
+settle!(
+    pub(crate) settle_all_supertypes,
+    Vec<Global>,
+    (Project, Global)
+);
 settle!(settle_generals, Vec<Global>, (Project, Global));
 // A name whose resolution does not converge is unresolved.
 settle!(
@@ -510,10 +520,15 @@ pub(crate) fn namespace_memberships(
     recursive: bool,
     all: bool,
 ) -> Vec<Entry> {
-    let mut out = if all {
-        memberships(db, project, ns)
-    } else {
+    // A recursive import inherits through the written specializations only: `visibleMemberships`
+    // of a Type passes `isRecursive` as `excludeImplied` (KerML 8.3.3.1.10; ADR 0021).
+    let mut out = if !recursive && !all {
         visible_memberships(db, project, ns.file, ns.index).clone()
+    } else {
+        memberships_with(db, project, ns, recursive)
+            .into_iter()
+            .filter(|e| all || e.visibility == Visibility::Public)
+            .collect()
     };
     if recursive {
         let l = structure(db, ns.file);
@@ -622,12 +637,18 @@ fn no_generals(
 /// indirectly, or if it or a feature it redefines is directly redefined by an owned feature of
 /// this type. Hidden memberships are kept, marked, for decision 3 of ADR 0020. Specializations
 /// may be circular: a fixpoint from the empty set.
-#[salsa::tracked(returns(ref), cycle_initial = no_entries, cycle_fn = settle_entries)]
+///
+/// With `exclude_implied` (the operation's `excludeImplied`), only the written specializations
+/// are followed, and the generals' memberships are computed the same way; a recursive import uses
+/// it (KerML 8.3.3.1.10 `visibleMemberships`). Hiding by redefinition sees every redefinition, as
+/// `removeRedefinedFeatures` does.
+#[salsa::tracked(returns(ref), cycle_initial = no_inherited, cycle_fn = settle_inherited)]
 pub fn inherited_memberships(
     db: &dyn salsa::Database,
     project: Project,
     file: SourceFile,
     ty: u32,
+    exclude_implied: bool,
 ) -> Vec<Entry> {
     let here = Global { file, index: ty };
     let l = structure(db, file);
@@ -648,12 +669,17 @@ pub fn inherited_memberships(
             },
         ));
     }
+    let generals = if exclude_implied {
+        owned_generals(db, project, here)
+    } else {
+        generals(db, project, here)
+    };
     let mut out: Vec<Entry> = Vec::new();
-    for general in generals(db, project, here).iter().copied() {
+    for general in generals.iter().copied() {
         if general == here {
             continue;
         }
-        for e in memberships(db, project, general) {
+        for e in memberships_with(db, project, general, exclude_implied) {
             if e.visibility == Visibility::Private {
                 continue;
             }
@@ -664,11 +690,10 @@ pub fn inherited_memberships(
         }
     }
     // Condition 1: what the inherited features redefine, from each general's memoized set.
-    let generals = generals(db, project, here);
     let redefined_by_members = |x: Global| {
-        generals
-            .iter()
-            .any(|general| *general != here && redefined_in(db, project, *general).contains(&x))
+        generals.iter().any(|general| {
+            *general != here && redefined_in(db, project, *general, exclude_implied).contains(&x)
+        })
     };
     for e in out.iter_mut() {
         let Some(x) = member_element(db, project, e) else {
@@ -697,6 +722,7 @@ pub fn redefined_in(
     db: &dyn salsa::Database,
     project: Project,
     ty: Global,
+    exclude_implied: bool,
 ) -> std::collections::HashSet<Global> {
     let l = structure(db, ty.file);
     let g = l.graph();
@@ -718,9 +744,18 @@ pub fn redefined_in(
             out.extend(redefined_features(db, project, f).iter().copied());
         }
     }
-    for general in generals(db, project, ty) {
+    let generals = if exclude_implied {
+        owned_generals(db, project, ty)
+    } else {
+        generals(db, project, ty)
+    };
+    for general in generals {
         if *general != ty {
-            out.extend(redefined_in(db, project, *general).iter().copied());
+            out.extend(
+                redefined_in(db, project, *general, exclude_implied)
+                    .iter()
+                    .copied(),
+            );
         }
     }
     out
@@ -731,14 +766,32 @@ fn no_redefined(
     _id: salsa::Id,
     _project: Project,
     _ty: Global,
+    _exclude_implied: bool,
 ) -> std::collections::HashSet<Global> {
     std::collections::HashSet::new()
 }
 
+fn no_inherited(
+    _db: &dyn salsa::Database,
+    _id: salsa::Id,
+    _project: Project,
+    _file: SourceFile,
+    _ty: u32,
+    _exclude_implied: bool,
+) -> Vec<Entry> {
+    Vec::new()
+}
+
+settle!(
+    settle_inherited,
+    Vec<Entry>,
+    (Project, SourceFile, u32, bool)
+);
+
 settle!(
     settle_redefined,
     std::collections::HashSet<Global>,
-    (Project, Global)
+    (Project, Global, bool)
 );
 
 /// The features a feature redefines directly: its owned Redefinitions' targets and its implied
@@ -795,6 +848,17 @@ pub fn redefined_features(db: &dyn salsa::Database, project: Project, f: Global)
 /// Every membership of a namespace: owned, imported and, for a type, inherited (KerML 8.2.3.5.3,
 /// local resolution).
 pub fn memberships(db: &dyn salsa::Database, project: Project, ns: Global) -> Vec<Entry> {
+    memberships_with(db, project, ns, false)
+}
+
+/// The memberships of a namespace, inheriting through the written specializations only when
+/// `exclude_implied` (KerML 8.3.3.1.10 `excludeImplied`).
+pub(crate) fn memberships_with(
+    db: &dyn salsa::Database,
+    project: Project,
+    ns: Global,
+    exclude_implied: bool,
+) -> Vec<Entry> {
     let mut out = owned_memberships(db, project, ns.file, ns.index).clone();
     out.extend(
         imported_memberships(db, project, ns.file, ns.index)
@@ -802,7 +866,7 @@ pub fn memberships(db: &dyn salsa::Database, project: Project, ns: Global) -> Ve
             .cloned(),
     );
     out.extend(
-        inherited_memberships(db, project, ns.file, ns.index)
+        inherited_memberships(db, project, ns.file, ns.index, exclude_implied)
             .iter()
             .cloned(),
     );

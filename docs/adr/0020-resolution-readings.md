@@ -82,7 +82,7 @@ In `import all A::*[@Approved];` the grammar (8.2.3.4.2) puts `isImportAll` on t
 
 **Reading:** `all` governs the FilterPackage, whose memberships are those its own import brings, once filtered. That import brings the visible memberships of `A`, so `all` does not reach `A`'s private members. The FilterPackage's own import has the default visibility of an Import, which is private. Its memberships are still what the outer import imports: otherwise an import with a filter and without `all` would import nothing, which 7.2.5.4 contradicts. Filter conditions are not evaluated yet (step 1a.10).
 
-Recursive imports follow `visibleMemberships(excluded, isRecursive, includeAll)` (8.3.2.4.5). They descend only into the namespaces a namespace owns, through a public owning membership unless `all`, and pass `all` to every level.
+Recursive imports follow `visibleMemberships(excluded, isRecursive, includeAll)` (8.3.2.4.5). They descend only into the namespaces a namespace owns, through a public owning membership unless `all`, and pass `all` to every level. For a type, they bring what it inherits through its written specializations only, because `Type::visibleMemberships` passes `isRecursive` as `excludeImplied` (8.3.3.1.10; ADR 0021).
 
 ### 8. The proper type of a resolution
 
