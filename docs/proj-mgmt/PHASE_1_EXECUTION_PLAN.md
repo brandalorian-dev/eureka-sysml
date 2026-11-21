@@ -1,6 +1,6 @@
 # Eureka SysML: Phase 1 execution plan
 
-Status: Draft v1.7 · 2026-11-20 · Covers PROJECT_PLAN v0.7 §6, Phases 1a and 1b (Release 0.1 "Language")
+Status: Draft v1.8 · 2026-11-20 · Covers PROJECT_PLAN v0.7 §6, Phases 1a and 1b (Release 0.1 "Language")
 
 This plan breaks Phase 1 into ordered steps, each small enough for one or a few pull requests. PROJECT_PLAN.md remains the source of truth for scope, architecture and budgets. Where this plan finds something the project plan does not settle, it is listed under [decisions](#24-decisions-and-their-recommended-defaults), and settled by the [decision methodology](#25-decision-methodology): each recommended default is evaluated during the step that first depends on it.
 
@@ -13,6 +13,7 @@ Change history:
 - v1.5: step 1a.2 done: the `sysml-syntax` lexer, parser framework and diagnostics.
 - v1.6: step 1a.3 done, with the owner-approved scope change: the Kernel parts the Root and Core layers need first (packages, multiplicities with literal and feature-reference bounds, prefix metadata) are pulled forward from 1a.4, and the library criterion is restated as measurable. ADR 0014 records two readings of the grammar.
 - v1.7: step 1a.4 done: the whole KerML grammar, including the expressions. All 36 KerML library files parse with zero diagnostics, and a mutation fuzzer ran 5 minutes without a failure. ADR 0015 records four readings of the Kernel grammar.
+- v1.8: step 1a.5 done: 923 spec snippets extracted from the PDFs by font (ADR 0016); the 191 valid KerML ones parse with zero diagnostics.
 
 ## 1. Executive summary
 
@@ -232,6 +233,10 @@ Each step below gives its goal, the spec clauses, what it delivers, the tests to
 - **Effort:** 1–1.5
 
 #### 1a.5 Spec snippets in the corpus (moved from Phase 0)
+- **Status:** done 2026-11-20 (ADR 0016).
+  - **Extraction:** `scripts/extract_spec_snippets.py` takes the code out of the PDFs by font (`pdftohtml -xml`; code is in Courier). It finds 221 KerML snippets (clauses 7 and 8.4) and 702 SysML ones (Part 1, clause 7), in about 1 s, and CI runs it. The rules have unit tests.
+  - **Expectations:** `crates/sysml-corpus/snippets.json` marks 20 KerML snippets as fragments and 10 as invalid, each with a reason. The invalid ones are the spec's own mistakes and one extraction artifact.
+  - **Results:** all 191 valid KerML snippets parse with zero diagnostics. `sysml_corpus::snippets()` serves the snippets natively and on WASM, and the corpus test counts them per clause.
 - **Goal:** add the textual examples from the KerML and SysML specification text to the corpus.
 - **Approach:** extract the code from the PDFs with font information (`pdftohtml -xml`; code is set in a monospaced font), or use the parser to accept only text that parses. Mark fragments that are not complete root namespaces, and the examples of deliberately invalid models, with their own `Expectation`.
 - **Delivers:** snippet sources in `sysml-corpus`, with a stable id per clause and example, and an ADR on the extraction rules.

@@ -13,7 +13,7 @@ The project plan is `docs/proj-mgmt/PROJECT_PLAN.md`. Read §4 (architecture) an
 
 ## Spec lookup
 
-Run `python scripts/fetch_specs.py fetch` and then `python scripts/extract_spec_text.py`. After that, the specs are available locally:
+Run `python scripts/fetch_specs.py fetch`, then `python scripts/extract_spec_text.py` and `python scripts/extract_spec_snippets.py`. After that, the specs are available locally:
 
 | Need | Look in |
 |---|---|
@@ -22,6 +22,7 @@ Run `python scripts/fetch_specs.py fetch` and then `python scripts/extract_spec_
 | Standard libraries | `docs/specs/KerML/normative/*.kpar` (KerML) and `docs/specs/normative/*.kpar` (SysML), which are ZIP files of `.kerml`/`.sysml` sources |
 | API | `docs/specs/api/omg/normative/OpenAPI.json`, `Schema.json` |
 | Example model | `docs/specs/informative/ptc-25-04-31.sysml` (SimpleVehicleModel) |
+| Spec examples (snippets) | `docs/specs/snippets/<kerml\|sysml>/<clause>-<n>.<ext>` and `index.json`, from `extract_spec_snippets.py` (ADR 0016) |
 | Library element UUIDs (test oracle) | `docs/specs/SysML-v2-Release/2025-02/sysml.library.xmi/` (`elementId` attributes; ADR 0009). Root namespace ids are not normative. |
 
 Commonly needed clauses:
@@ -42,7 +43,7 @@ Development happens in WSL2 (Ubuntu); CI runs on `ubuntu-latest`.
 - The git config must use Linux values: `core.filemode=true`, `core.symlinks=true`, `core.ignorecase=false`, `core.autocrlf=false`. `.gitattributes` enforces LF line endings, so never write CRLF.
 - `python` is Python 3 (via `python-is-python3`); `python3` also works.
 - Rust comes from `rustup`, and `rust-toolchain.toml` pins stable with rustfmt, clippy and `wasm32-unknown-unknown`.
-- `pdftotext` (`poppler-utils`) is needed for `extract_spec_text.py`.
+- `pdftotext` and `pdftohtml` (`poppler-utils`) are needed for `extract_spec_text.py` and `extract_spec_snippets.py`.
 - Installed: `cargo-deny` (run `cargo deny check` before a PR), `gh` (run `gh auth login` once before PR work), Node and pnpm (for `apps/web`), and Docker.
 - `wasm-bindgen-cli` 0.2.130 (`wasm-bindgen-test-runner`) runs WASM tests under Node. It must match the `wasm-bindgen` crate's version exactly, and it does not accept `cargo test -q`: `CARGO_TARGET_WASM32_UNKNOWN_UNKNOWN_RUNNER=wasm-bindgen-test-runner cargo test --target wasm32-unknown-unknown`.
 - Not installed yet: `wasm-pack` (`cargo install --locked wasm-pack`, needed in Phase 1a step 1a.1) and PostgreSQL. For the `sysml-store` integration tests, run PostgreSQL in Docker rather than installing it in WSL, to match the CI service container.
@@ -54,6 +55,7 @@ Development happens in WSL2 (Ubuntu); CI runs on `ubuntu-latest`.
 python scripts/fetch_specs.py fetch|verify|status   # spec files (lock maintainers: `lock`)
 python scripts/check_schema_assumptions.py           # validate codegen assumptions
 python scripts/extract_spec_text.py                  # per-clause spec text
+python scripts/extract_spec_snippets.py              # spec examples into docs/specs/snippets (ADR 0016)
 cargo fmt --all && cargo clippy --workspace --all-targets -- -D warnings
 cargo test --workspace
 cargo build --workspace --target wasm32-unknown-unknown
@@ -80,7 +82,7 @@ A Rust core in `crates/` compiles natively (for the server) and to WASM (for the
 - `sysml-synth` (test infrastructure): deterministic synthetic SysML models at any size (`Config::with_target_elements`), for benchmarks and scale tests
 - `sysml-wasm`: the `wasm-bindgen` interface the browser worker calls; a skeleton since step 1a.1 (ADR 0010)
 - `sysml-bench` (test infrastructure): the PROJECT_PLAN §7 budgets as data (`BUDGETS`, kept equal to the plan by a test) and the `divan` benchmarks; ADR 0007
-- `sysml-corpus` (test infrastructure): the standard libraries and example models from `docs/specs/`. Corpus tests use `sysml_corpus::Corpus::load()` and iterate `sources()`; library archive errata in ADR 0006
+- `sysml-corpus` (test infrastructure): the standard libraries and example models from `docs/specs/`. Corpus tests use `sysml_corpus::Corpus::load()` and iterate `sources()`; library archive errata in ADR 0006. The spec snippets come from `sysml_corpus::snippets()`, with their expectations in `crates/sysml-corpus/snippets.json` (ADR 0016)
 - `sysml-semantics`: salsa-based incremental resolution and implied relationships
 - `sysml-versioning`: API PIM commit, diff and merge rules
 - `sysml-store`: PostgreSQL

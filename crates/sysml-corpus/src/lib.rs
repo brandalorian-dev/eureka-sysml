@@ -82,8 +82,100 @@ pub const MAX_ENTRY_BYTES: u64 = 16 * 1024 * 1024;
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Expectation {
     /// A valid model: it parses, resolves and validates without errors. Every standard library
-    /// file and example model is valid.
+    /// file and example model is valid, and so is every spec snippet not marked otherwise.
     Valid,
+    /// Part of a model, or a schematic with placeholders such as `...`: not a complete root
+    /// namespace, so not required to parse (spec snippets only, ADR 0016).
+    Fragment,
+    /// Not a valid model: the parser must report an error. For spec snippets that are mistakes in
+    /// the specification, or extraction artifacts (ADR 0016).
+    Invalid,
+}
+
+/// A textual example from a specification (step 1a.5, ADR 0016), extracted from the PDF by
+/// `scripts/extract_spec_snippets.py` into `docs/specs/snippets/`.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct Snippet {
+    /// The source. Its id is `<spec>/<clause>/<n>`, for example `kerml/7.2.5.4/1`, and its path
+    /// is under `docs/specs/snippets/`.
+    pub source: Source,
+    /// `kerml` or `sysml` (SysML v2.0 Part 1).
+    pub spec: String,
+    /// The clause the example is in, for example `7.2.5.4`.
+    pub clause: String,
+    /// The page of the PDF it starts on.
+    pub page: u32,
+    /// Why the snippet is not valid, if it is not (`crates/sysml-corpus/snippets.json`).
+    pub reason: Option<String>,
+}
+
+/// The expectations of the spec snippets that are not valid models, by id, with the reason:
+/// `crates/sysml-corpus/snippets.json`, compiled in.
+pub fn snippet_expectations() -> Result<BTreeMap<String, (Expectation, String)>, CorpusError> {
+    let table: Value = serde_json::from_str(include_str!("../snippets.json"))
+        .map_err(|e| CorpusError(format!("snippets.json: {e}")))?;
+    let mut out = BTreeMap::new();
+    for (id, entry) in table.as_object().into_iter().flatten() {
+        if id.starts_with('$') {
+            continue;
+        }
+        let expect = match entry[0].as_str() {
+            Some("fragment") => Expectation::Fragment,
+            Some("invalid") => Expectation::Invalid,
+            other => {
+                return Err(CorpusError(format!(
+                    "snippets.json: {id}: unknown {other:?}"
+                )))
+            }
+        };
+        let reason = entry[1].as_str().unwrap_or_default().to_owned();
+        out.insert(id.clone(), (expect, reason));
+    }
+    Ok(out)
+}
+
+/// The spec snippets, in the order of the specifications (ADR 0016). They are not in
+/// `specs.lock.json`: `python scripts/extract_spec_snippets.py` extracts them from the pinned PDFs
+/// into `docs/specs/snippets/`, and on wasm32 `build.rs` embeds them.
+pub fn snippets() -> Result<Vec<Snippet>, CorpusError> {
+    let index = read_spec("snippets/index.json").map_err(|e| {
+        CorpusError(format!(
+            "{e}. Run `python scripts/extract_spec_snippets.py` to extract the spec snippets."
+        ))
+    })?;
+    let index: Value = serde_json::from_slice(&index)
+        .map_err(|e| CorpusError(format!("snippets/index.json: {e}")))?;
+    let expectations = snippet_expectations()?;
+    let mut out = Vec::new();
+    for entry in index["snippets"].as_array().into_iter().flatten() {
+        let field = |name: &str| entry[name].as_str().unwrap_or_default().to_owned();
+        let id = field("id");
+        let path = format!("snippets/{}", field("path"));
+        let text = String::from_utf8(read_spec(&path)?)
+            .map_err(|e| CorpusError(format!("{path}: {e}")))?;
+        let language = match field("language").as_str() {
+            "kerml" => Language::KerML,
+            _ => Language::SysML,
+        };
+        let (expect, reason) = match expectations.get(&id) {
+            Some((expect, reason)) => (*expect, Some(reason.clone())),
+            None => (Expectation::Valid, None),
+        };
+        out.push(Snippet {
+            source: Source {
+                id,
+                path,
+                language,
+                text,
+                expect,
+            },
+            spec: field("spec"),
+            clause: field("clause"),
+            page: entry["page"].as_u64().unwrap_or_default() as u32,
+            reason,
+        });
+    }
+    Ok(out)
 }
 
 /// One textual model in the corpus.
