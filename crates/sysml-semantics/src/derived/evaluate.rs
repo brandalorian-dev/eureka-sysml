@@ -128,6 +128,9 @@ enum Operand {
     Value(Global),
     Type(Global),
     Body(Global),
+    /// A parameter with neither a value nor a written type (one not resolved, say): it keeps
+    /// the positions of the others.
+    Missing,
 }
 
 /// The owned expression an argument refers to, when it is passed unevaluated: an
@@ -169,19 +172,23 @@ fn operands(db: &dyn salsa::Database, project: Project, x: Global) -> Vec<Operan
         let Some(p) = g.owned_related_elements(r).first().map(|e| at(x.file, *e)) else {
             continue;
         };
-        match valuation(db, p) {
-            Some(v) => out.push(match body_of(db, project, v) {
+        out.push(match valuation(db, p) {
+            Some(v) => match body_of(db, project, v) {
                 Some(b) => Operand::Body(b),
                 None => Operand::Value(v),
-            }),
-            None => {
-                if let Some(t) = r#type(db, project, p).first() {
-                    out.push(Operand::Type(*t));
-                }
-            }
-        }
+            },
+            None => written_type(db, project, p).map_or(Operand::Missing, Operand::Type),
+        });
     }
     out
+}
+
+/// The type a parameter's own FeatureTyping names (a TypeReference, KerML 8.2.5.8.1), not the
+/// types it inherits through implied redefinitions.
+fn written_type(db: &dyn salsa::Database, project: Project, p: Global) -> Option<Global> {
+    super::types::owned_typing(db, project, p)
+        .into_iter()
+        .find_map(|r| super::end(db, project, r, sysml_model::Slot::Target, 0))
 }
 
 /// The type of a cast, written as the result's typing (`as`, `meta`: KerML 8.2.5.8.1,
@@ -196,7 +203,7 @@ fn cast_type(db: &dyn salsa::Database, project: Project, x: Global) -> Option<Gl
         .owned_related_elements(r)
         .first()
         .map(|e| at(x.file, *e))?;
-    r#type(db, project, p).first().copied()
+    written_type(db, project, p)
 }
 
 // ---- evaluation ----
@@ -208,7 +215,13 @@ struct Evaluation<'a> {
     bindings: Vec<(Global, Vec<Item>)>,
     /// The expressions being evaluated, on which target: a value that refers to itself has none.
     active: HashSet<(Global, Option<Global>)>,
+    /// The steps taken and the items built so far; past MAX_STEPS, the evaluation has no value.
+    steps: u64,
 }
+
+/// The work one evaluation may do, in expressions evaluated and items built. Resolution
+/// evaluates filter conditions, so a model must not make it run without bound (ADR 0021).
+pub const MAX_STEPS: u64 = 1_000_000;
 
 fn target_key(t: &Option<Item>) -> Option<Global> {
     match t {
@@ -218,13 +231,25 @@ fn target_key(t: &Option<Item>) -> Option<Global> {
 }
 
 impl Evaluation<'_> {
+    fn exhausted(&self) -> bool {
+        self.steps > MAX_STEPS
+    }
+
     fn evaluate(&mut self, x: Global, target: &Option<Item>) -> Vec<Item> {
+        self.steps += 1;
+        if self.exhausted() {
+            return Vec::new();
+        }
         let key = (x, target_key(target));
         if !self.active.insert(key) {
             return Vec::new();
         }
         let out = self.evaluate_once(x, target);
         self.active.remove(&key);
+        self.steps += out.len() as u64;
+        if self.exhausted() {
+            return Vec::new();
+        }
         out
     }
 
@@ -277,13 +302,12 @@ impl Evaluation<'_> {
             return target.clone().into_iter().collect();
         }
         match target {
-            Some(Item::Reflective(e)) => {
-                if let Some(n) = name(db, project, r) {
-                    let values = reflective_property(db, project, *e, &n);
-                    if !values.is_empty() || library_owner(db, project, r) {
-                        return values;
-                    }
-                }
+            // On reflective metadata, a feature of the KerML library model is the MOF property of
+            // its name; a feature of another metaclass falls through, and has no value there.
+            Some(Item::Reflective(e)) if library_owner(db, project, r) => {
+                return name(db, project, r)
+                    .map(|n| reflective_property(db, project, *e, &n))
+                    .unwrap_or_default();
             }
             Some(Item::Element(t)) if kind_of(db, *t, M::Type) => {
                 let found = feature(db, project, *t)
@@ -318,7 +342,7 @@ impl Evaluation<'_> {
     fn operand(&mut self, o: &Operand, target: &Option<Item>) -> Vec<Item> {
         match o {
             Operand::Value(v) | Operand::Body(v) => self.evaluate(*v, target),
-            Operand::Type(_) => Vec::new(),
+            Operand::Type(_) | Operand::Missing => Vec::new(),
         }
     }
 
@@ -649,9 +673,23 @@ fn number(i: &Item) -> Option<f64> {
     }
 }
 
+/// Two numbers compare as Integers when both are, so that integers beyond 2^53 keep their
+/// order, and as Rationals otherwise; strings compare by their text.
+fn compare(a: &Item, b: &Item) -> Option<std::cmp::Ordering> {
+    match (a, b) {
+        (Item::Integer(x), Item::Integer(y)) => Some(x.cmp(y)),
+        (Item::String(x), Item::String(y)) => Some(x.cmp(y)),
+        _ => number(a)
+            .zip(number(b))
+            .and_then(|(x, y)| x.partial_cmp(&y)),
+    }
+}
+
 fn same(a: &Item, b: &Item) -> bool {
-    match (number(a), number(b)) {
-        (Some(x), Some(y)) => x == y,
+    match (a, b) {
+        (Item::Integer(_) | Item::Rational(_), Item::Integer(_) | Item::Rational(_)) => {
+            compare(a, b) == Some(std::cmp::Ordering::Equal)
+        }
         _ => a == b,
     }
 }
@@ -701,10 +739,7 @@ fn apply_data_function(q: &str, args: &[Vec<Item>]) -> Vec<Item> {
         },
         ("DataFunctions", "<" | ">" | "<=" | ">=") => {
             let ord = match (one(0), one(1)) {
-                (Some(Item::String(x)), Some(Item::String(y))) => x.partial_cmp(y),
-                (Some(x), Some(y)) => number(x)
-                    .zip(number(y))
-                    .and_then(|(x, y)| x.partial_cmp(&y)),
+                (Some(x), Some(y)) => compare(x, y),
                 _ => None,
             };
             ord.map(|o| {
@@ -768,7 +803,12 @@ fn apply_data_function(q: &str, args: &[Vec<Item>]) -> Vec<Item> {
                         "^" => x.powf(y),
                         _ => return Vec::new(),
                     };
-                    vec![Item::Rational(v)]
+                    // A result that is not finite (NaN, ∞) has no value.
+                    if v.is_finite() {
+                        vec![Item::Rational(v)]
+                    } else {
+                        Vec::new()
+                    }
                 }
                 _ => Vec::new(),
             },
@@ -796,13 +836,18 @@ pub fn evaluate(
     x: Global,
     target: Option<Item>,
 ) -> Vec<Item> {
-    Evaluation {
+    let mut e = Evaluation {
         db,
         project,
         bindings: Vec::new(),
         active: HashSet::new(),
+        steps: 0,
+    };
+    let out = e.evaluate(x, &target);
+    if e.exhausted() {
+        return Vec::new();
     }
-    .evaluate(x, &target)
+    out
 }
 
 /// `checkCondition(target)` (KerML 8.3.4.7.3): whether the expression evaluates to the single
@@ -831,9 +876,9 @@ pub fn model_level_evaluable(
         return true;
     }
     if m.specializes(M::FeatureReferenceExpression) {
+        // Without a referent it evaluates to nothing, so it is not evaluable.
         let Some(r) = referent(db, project, x) else {
-            return body_of(db, project, x)
-                .is_some_and(|b| model_level_evaluable(db, project, b, visited));
+            return false;
         };
         return feature_reference_evaluable(db, project, r, visited);
     }
@@ -846,6 +891,7 @@ pub fn model_level_evaluable(
                     model_level_evaluable(db, project, *v, visited)
                 }
                 Operand::Type(_) => true,
+                Operand::Missing => false,
             })
         } else {
             argument(db, project, x)

@@ -380,13 +380,7 @@ pub fn imported_memberships(
         .specializes(M::Package)
         && !crate::derived::filter_condition(db, project, here).is_empty();
     for decl in imports(db, file, ns) {
-        let mut found = decl_memberships(db, project, file, decl);
-        if filtered_package {
-            found.retain(|e| {
-                member_element(db, project, e)
-                    .is_some_and(|x| crate::derived::include_as_member(db, project, here, x))
-            });
-        }
+        let found = decl_memberships(db, project, file, decl);
         for mut e in found {
             e.visibility = decl.visibility;
             if !out
@@ -438,9 +432,16 @@ pub fn imported_memberships(
             !collides_owned && !collides_imported
         })
         .collect();
+    // KerML 8.3.4.13.4: a package's filter conditions select from `Namespace::importedMemberships`,
+    // after the exclusion of collisions.
     out.into_iter()
         .zip(keep)
         .filter_map(|(e, k)| k.then_some(e))
+        .filter(|e| {
+            !filtered_package
+                || member_element(db, project, e)
+                    .is_some_and(|x| crate::derived::include_as_member(db, project, here, x))
+        })
         .collect()
 }
 

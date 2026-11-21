@@ -76,19 +76,21 @@ The step's "done when" is therefore a test: all three layers complete.
   - Otherwise, a referent with featuring types has no value: the OCL's `else Sequence{}`. The text would give the referent itself, which would make a filter's `Approved::level` a value on every element's metadata.
   - Otherwise, for a referent without featuring types, the value is that of its own FeatureValue, or the referent itself if it is not an Expression. The OCL gives the referent, not its value, here; the text is followed.
   - A reference to `Anything::self`, or to a feature that specializes it (`conformsTo`), gives the target. The same test decides that it is evaluable.
-  - On reflective metadata, a reference to a feature of the KerML library model gives the MOF property of that name.
+  - On reflective metadata, a reference to a feature of the KerML library model gives the MOF property of that name. A feature of another metaclass that has the same name, such as a user's `Tag::name`, does not: it has no value there.
   - A value that refers to itself evaluates to nothing.
 - **The evaluable functions** are those that Tables 5 and 7 (8.2.5.8.1, 8.2.5.8.2) mark as model-level evaluable, by qualified name. That is what `Function::isModelLevelEvaluable` (8.3.4.7.4) means for the library, and every other function has false.
   - Lazy operands are passed as owned expression references (`OwnedExpressionReference`): the second operand of `and`, `or` and `implies`, those of `if` and `??`, and the bodies of `collect` and `select`. The function evaluates them itself.
   - `collect` and `select` bind each value to the body's first input parameter. A reference to such a parameter is evaluable, which the OCL of `FeatureReferenceExpression::modelLevelEvaluable` does not foresee.
+- **Operands** keep their positions: a parameter with neither a value nor a type, such as an unresolved one, gives no value in its place. A type operand is the type that its TypeReference's own FeatureTyping names, not a type it inherits through an implied redefinition. A feature reference without a referent evaluates to nothing and is not evaluable.
 - **Classification and casts.** An omitted first operand of `istype`, `hastype`, `@` or `as` is `Anything::self`, the target (7.4.9.2). `@@` and `meta` act on the metadata of their operand.
   - An element value is classified by its types, and reflective metadata by its metaclass in the KerML library (`KerML::<metaclass>`, 9.2.17).
   - A literal value is classified by its ScalarValues type: Boolean, String, Rational, and Positive, Natural or Integer for an integer by its sign. `*` is read as a Positive.
-- **Data functions.** Integers and rationals compare as numbers, so `1 == 1.0`.
+- **Data functions.** Two Integers compare as integers, so that values beyond 2^53 keep their order; an Integer and a Rational compare as numbers, so `1 == 1.0`. A Rational result that is not finite (NaN, an infinity) has no value.
   - `/` gives a Rational, and `%` is the Euclidean remainder.
   - `^` of integers with a non-negative exponent is an Integer (IntegerFunctions). With a negative one it is a Rational (RationalFunctions), so `2 ^ -1` is `0.5`.
   - `+` concatenates strings.
-  - `..` gives the integers from its first operand to its second, at most `MAX_RANGE` (100,000) of them. A longer range has no value, so that an evaluation, which resolution performs for filters, stays bounded.
+  - `..` gives the integers from its first operand to its second, at most `MAX_RANGE` (100,000) of them; a longer range has no value.
+  - **A step budget.** One evaluation may evaluate expressions and build items up to `MAX_STEPS` (1,000,000) in all. Past that it has no value, so nested ranges in `collect`, or sequences that double at each step, cannot make it run without bound. Resolution evaluates filter conditions, so this bound protects it too.
   - `#` indexes from 1. An index beyond the platform's `usize` has no value, natively and on WASM alike.
   - An operation that overflows, or divides by zero, has no value; none panics.
   - `null` (no value) follows `BaseFunctions::'=='`: two values are equal if both are null or both are equal. So `null != 0` holds.
@@ -101,7 +103,9 @@ The step's "done when" is therefore a test: all three layers complete.
 - **`includeAsMember`** tests the element's metadata, as defined above. Because every element has reflective metadata, and `null != 0` holds, a condition such as `Approved::level != 0` holds on every element. A filter tests the metadata first, as in `@Approved and Approved::level != 0`. The OCL takes `element.ownedAnnotation.annotatingElement`, which misses metadata written as a member (`@M;` in a body). It also leaves out the reflective metadata that 7.4.14 gives every element for filter conditions.
 - **`valueOf`** evaluates a bound on the type that owns the multiplicity. The OCL's `owningType` of a MultiplicityRange is null, because a multiplicity is not owned through a FeatureMembership, and a bound such as `[n]` needs the type whose feature `n` is.
 - **Typos:** `checkCondition`'s `result->size()` is read as `results->size()`, and `evaluateFeature`'s `ownedMember->selectAsKind(FeatureValue)` as `ownedMembership`.
-- **Filters in resolution.** `Package::importedMemberships` filters a package's imports by its `filter` conditions, and a filtered import by its FilterPackage's conditions. Resolution follows it (ADR 0020 decision 7). A condition that names an element of the package it filters may depend on what it filters, which 7.4.14 warns of. Such a cycle settles like any other (ADR 0020 decision 6).
+- **Filters in resolution.** `Package::importedMemberships` filters a package's imports by its `filter` conditions, and a filtered import by its FilterPackage's conditions. Resolution follows it (ADR 0020 decision 7).
+  - **When it applies.** The filter selects from `Namespace::importedMemberships`, so it applies after the exclusion of colliding memberships (ADR 0020 decision 5). Two colliding imports are both excluded, even if only one would pass the filter.
+  - **The names a condition uses.** The names in a condition resolve in the package it filters, and so through its filtered imports. 7.4.14 says so: "a filter condition in a package will filter all imports of that Package. That is why full qualification is used […], since imported elements […] would be filtered out by the very filter condition in which the elements are intended to be used". So `filter @Approved;`, with `Approved` imported by the same package, filters out `Approved` and every element with it, and `filter @Lib::Approved;` is what works. The cycle this makes settles like any other (ADR 0020 decision 6).
 
 ### 5. Other readings
 
