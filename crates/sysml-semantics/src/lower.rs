@@ -245,7 +245,7 @@ fn string_value(t: &SyntaxToken) -> String {
 
 /// The escape sequences of KerML 8.2.2.3, Table 4. Any other escape is kept as written: the lexer
 /// reports it (`syntax::invalid-escape`).
-fn unescape(s: &str) -> String {
+pub(crate) fn unescape(s: &str) -> String {
     let mut out = String::with_capacity(s.len());
     let mut chars = s.chars();
     while let Some(c) = chars.next() {

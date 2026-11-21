@@ -130,8 +130,11 @@ impl Model {
         names.join("::")
     }
 
-    fn labels(&self, xs: impl IntoIterator<Item = Global>) -> Vec<String> {
-        xs.into_iter().map(|x| self.label(x)).collect()
+    fn labels<T: std::borrow::Borrow<Global>>(
+        &self,
+        xs: impl IntoIterator<Item = T>,
+    ) -> Vec<String> {
+        xs.into_iter().map(|x| self.label(*x.borrow())).collect()
     }
 
     fn label_of(&self, x: Option<Global>) -> Option<String> {
@@ -960,4 +963,51 @@ fn qualified_names_as_text_may_have_white_space_between_tokens() {
     let m = model("package Q { class B; } package P;");
     let found = d::resolve(&m.db, m.project, m.get("P"), "Q :: B");
     assert_eq!(m.label_of(found), Some("OwningMembership(Q::B)".into()));
+}
+
+#[test]
+fn the_imported_element_of_an_import_with_filter_conditions_is_its_filter_package() {
+    // deriveNamespaceImportImportedElement: importedElement = importedNamespace, which with
+    // filter conditions is the FilterPackage (KerML 8.2.3.4.2), also its `target`
+    let m = model("package Q { class B; } package P { import Q::B[true]; import Q::*[true]; }");
+    let (db, p) = (&m.db, m.project);
+    for n in [1, 2] {
+        let i = m.relationship("P", Metaclass::NamespaceImport, n);
+        assert_eq!(
+            m.label_of(d::imported_element(db, p, i)),
+            Some("P::(Package)".into())
+        );
+        assert_eq!(m.labels(d::target(db, p, i)), ["P::(Package)"]);
+    }
+}
+
+#[test]
+fn the_target_of_a_membership_import_is_the_membership() {
+    // MembershipImport::importedMembership redefines target and is a Membership (KerML 8.3.2.4.4,
+    // 8.2.3.4.2 Note 1); its importedElement is the membership's element
+    let m = model("package Q { class B; } package P { import Q::B; }");
+    let (db, p) = (&m.db, m.project);
+    let i = m.relationship("P", Metaclass::MembershipImport, 1);
+    assert_eq!(m.labels(d::target(db, p, i)), ["OwningMembership(Q::B)"]);
+    assert_eq!(
+        m.labels(d::related_element(db, p, i)),
+        ["P", "OwningMembership(Q::B)"]
+    );
+    assert_eq!(
+        m.label_of(d::imported_element(db, p, i)),
+        Some("Q::B".into())
+    );
+}
+
+#[test]
+fn qualified_names_as_text_unescape_as_declared_names_do() {
+    // KerML 8.2.2.3: an escape outside Table 4 keeps its backslash, in the lowering and here
+    let m = model(r"package P { class 'a\qb'; }");
+    let (db, p) = (&m.db, m.project);
+    assert_eq!(
+        d::unqualified_name_of(r"P::'a\qb'").as_deref(),
+        Some(r"a\qb")
+    );
+    let found = d::resolve(db, p, m.root(), r"P::'a\qb'");
+    assert_eq!(m.label_of(found), Some(r"OwningMembership(P::a\qb)".into()));
 }

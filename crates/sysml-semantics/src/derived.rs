@@ -43,11 +43,31 @@ fn end(
         Slot::Source => s.graph().source(rel.ix()),
         _ => s.graph().target(rel.ix()),
     };
+    // An end whose stored attribute is typed Membership, as `MembershipImport::importedMembership`
+    // (KerML 8.3.2.4.4), is the membership itself (8.2.3.4.2, Note 1), not its member element.
+    let membership = s
+        .graph()
+        .metaclass(rel.ix())
+        .stored_attributes()
+        .iter()
+        .find(|a| a.slot == slot)
+        .is_some_and(|a| match a.kind {
+            sysml_model::PropertyKind::Reference { target } => M::ALL
+                .iter()
+                .find(|m| m.name() == target)
+                .is_some_and(|m| m.specializes(M::Membership)),
+            _ => false,
+        });
     match ends.get(i)? {
         Endpoint::Element(e) => Some(at(rel.file, *e)),
-        Endpoint::Name(_) => resolve_end(db, project, rel, slot, i as u32)
-            .as_ref()
-            .and_then(|e| member_element(db, project, e)),
+        Endpoint::Name(_) => {
+            let entry = resolve_end(db, project, rel, slot, i as u32).clone()?;
+            if membership {
+                Some(entry.membership)
+            } else {
+                member_element(db, project, &entry)
+            }
+        }
     }
 }
 
@@ -63,6 +83,12 @@ fn ends(db: &dyn salsa::Database, project: Project, rel: Global, slot: Slot) -> 
 }
 
 /// The owned relationships of an element that are of a metaclass, in order.
+/// The elements in order, each once.
+fn unique(xs: impl IntoIterator<Item = Global>) -> Vec<Global> {
+    let mut seen = std::collections::HashSet::new();
+    xs.into_iter().filter(|x| seen.insert(*x)).collect()
+}
+
 fn owned_relationships_of(db: &dyn salsa::Database, x: Global, kind: M) -> Vec<Global> {
     let s = structure(db, x.file);
     let g = s.graph();
@@ -503,37 +529,32 @@ pub fn owned_import(db: &dyn salsa::Database, _project: Project, ns: Global) -> 
 
 /// `importedMembership` (deriveNamespaceImportedMembership): `importedMemberships(Set{})`.
 pub fn imported_membership(db: &dyn salsa::Database, project: Project, ns: Global) -> Vec<Global> {
-    let mut out: Vec<Global> = Vec::new();
-    for e in namespace_imported_memberships(db, project, ns) {
-        if !out.contains(&e.membership) {
-            out.push(e.membership);
-        }
-    }
-    out
+    unique(
+        namespace_imported_memberships(db, project, ns)
+            .into_iter()
+            .map(|e| e.membership),
+    )
 }
 
 /// `membership` (KerML 8.3.2.4.5): the owned, imported and, for a type, inherited memberships,
 /// without those a redefinition removes (8.3.3.1.10).
 pub fn membership(db: &dyn salsa::Database, project: Project, ns: Global) -> Vec<Global> {
-    let mut out: Vec<Global> = Vec::new();
-    for e in memberships(db, project, ns) {
-        if !e.hidden && !out.contains(&e.membership) {
-            out.push(e.membership);
-        }
-    }
-    out
+    unique(
+        memberships(db, project, ns)
+            .into_iter()
+            .filter(|e| !e.hidden)
+            .map(|e| e.membership),
+    )
 }
 
 /// `member` (deriveNamespaceMembers): `membership.memberElement`, for each membership once.
 pub fn member(db: &dyn salsa::Database, project: Project, ns: Global) -> Vec<Global> {
-    let mut seen: Vec<Global> = Vec::new();
+    let mut seen = std::collections::HashSet::new();
     let mut out = Vec::new();
     for e in memberships(db, project, ns) {
-        if e.hidden || seen.contains(&e.membership) {
-            continue;
+        if !e.hidden && seen.insert(e.membership) {
+            out.extend(member_element(db, project, &e));
         }
-        seen.push(e.membership);
-        out.extend(member_element(db, project, &e));
     }
     out
 }
@@ -551,6 +572,7 @@ pub fn namespace_imported_memberships(
 
 /// `Import::importedMemberships(excluded)`, as NamespaceImport (KerML 8.3.2.4.6) and
 /// MembershipImport (8.3.2.4.4) redefine it: the memberships one import brings.
+#[salsa::tracked(returns(ref))]
 pub fn import_imported_memberships(
     db: &dyn salsa::Database,
     project: Project,
@@ -588,14 +610,14 @@ pub fn memberships_of_visibility(
     // without the namespace's exclusion of collisions.
     for import in owned_import(db, project, ns) {
         if visibility_kind.is_none_or(|v| visibility(g, import.ix()) == v) {
-            for m in import_imported_memberships(db, project, import) {
-                if !out.contains(&m) {
-                    out.push(m);
-                }
-            }
+            out.extend(
+                import_imported_memberships(db, project, import)
+                    .iter()
+                    .copied(),
+            );
         }
     }
-    out
+    unique(out)
 }
 
 /// `visibleMemberships(excluded, isRecursive, includeAll)` (KerML 8.3.2.4.5, and 8.3.3.1.10 for
@@ -607,13 +629,12 @@ pub fn visible_memberships(
     recursive: bool,
     include_all: bool,
 ) -> Vec<Global> {
-    let mut out: Vec<Global> = Vec::new();
-    for e in namespace_memberships(db, project, ns, recursive, include_all) {
-        if !e.hidden && !out.contains(&e.membership) {
-            out.push(e.membership);
-        }
-    }
-    out
+    unique(
+        namespace_memberships(db, project, ns, recursive, include_all)
+            .into_iter()
+            .filter(|e| !e.hidden)
+            .map(|e| e.membership),
+    )
 }
 
 /// `namesOf(element)` (KerML 8.3.2.4.5): the names and short names of the memberships with that
@@ -738,27 +759,19 @@ pub fn owned_member_short_name(
 }
 
 /// `importedElement`: `importedNamespace` for a NamespaceImport (deriveNamespaceImport-
-/// ImportedElement), `importedMembership.memberElement` for a MembershipImport
-/// (deriveMembershipImportImportedElement). With filter conditions, the namespace the
-/// FilterPackage's own import names (ADR 0020).
+/// ImportedElement), which with filter conditions is the FilterPackage (KerML 8.2.3.4.2);
+/// `importedMembership.memberElement` for a MembershipImport
+/// (deriveMembershipImportImportedElement).
 pub fn imported_element(
     db: &dyn salsa::Database,
     project: Project,
     import: Global,
 ) -> Option<Global> {
-    let s = structure(db, import.file);
-    let g = s.graph();
-    let decl = match g.target(import.ix()).first() {
-        Some(Endpoint::Element(p)) => g
-            .owned_relationships(*p)
-            .iter()
-            .find(|r| g.metaclass(**r).specializes(M::Import))
-            .map(|r| at(import.file, *r))?,
-        _ => import,
-    };
-    resolve_end(db, project, decl, Slot::Target, 0)
-        .as_ref()
-        .and_then(|e| member_element(db, project, e))
+    let imported = end(db, project, import, Slot::Target, 0)?;
+    if metaclass(db, import).specializes(M::MembershipImport) {
+        return membership_element(db, project, imported);
+    }
+    Some(imported)
 }
 
 // ---- string resolution (KerML 8.3.2.4.5) ----
@@ -788,19 +801,19 @@ fn segments(text: &str) -> Option<(bool, Vec<String>)> {
         skip(&mut chars);
         let mut s = String::new();
         if chars.next_if_eq(&'\'').is_some() {
+            // The text up to the closing quote, unescaped as the lowering does (KerML 8.2.2.3).
+            let mut raw = String::new();
             loop {
                 match chars.next()? {
                     '\'' => break,
-                    '\\' => s.push(match chars.next()? {
-                        'b' => '\u{8}',
-                        'f' => '\u{c}',
-                        't' => '\t',
-                        'n' => '\n',
-                        c => c,
-                    }),
-                    c => s.push(c),
+                    '\\' => {
+                        raw.push('\\');
+                        raw.push(chars.next()?);
+                    }
+                    c => raw.push(c),
                 }
             }
+            s = crate::lower::unescape(&raw);
         } else {
             while let Some(c) = chars.next_if(|c| c.is_ascii_alphanumeric() || *c == '_') {
                 s.push(c);
