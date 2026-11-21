@@ -65,7 +65,35 @@ The step's "done when" is therefore a test: all three layers complete.
   - `deriveConnectorDefaultFeaturingType`: the candidates of `relatedFeature->closure(featuringType)` are the featuring types of the related features, transitively. A related feature is a candidate only when it is the featuring type of another. Taken with its source, the closure would make a related feature with no featuring types, which is featured within anything, its connector's default featuring type.
   - Two properties have the same name in two metaclasses: `targetFeature` (Connector and FeatureChainExpression) and `argument` (InvocationExpression and ConstructorExpression). The second of each has its own function, `chain_target_feature` and `constructor_argument`.
 - **The result of a ConstructorExpression** specializes its instantiated type (`checkConstructorExpressionResultSpecialization`, 8.4.4.1 Table 10). Unlike the results of other expressions, it is written in the grammar (8.2.5.8.3), so `implied_generals` gives it now. Without it, the named arguments of `new T(a = 1)`, which are the result's features redefining T's, would not resolve. The kind of the relationship: Note 3 of Table 10 says a Subclassification when the instantiated type is a Classifier, and 8.4.4.9.4 says a FeatureTyping. The result is a Feature, which cannot be the specific end of a Subclassification, so it is a FeatureTyping, or a Subsetting when the instantiated type is a Feature.
-- **Model-level evaluation** (8.4.4.9.8) is the rest of the Kernel layer, in a fourth PR of this step. It covers `evaluate`, `modelLevelEvaluable`, `isModelLevelEvaluable`, `checkCondition`, `MultiplicityRange::valueOf` and `hasBounds`, `MetadataFeature::evaluateFeature` and `syntaxElement`, `MetadataAccessExpression::metaclassFeature`, `Package::importedMemberships` and `includeAsMember`. The owner chose this split on 2026-11-21. The constraints need all of these, so Kernel is marked complete only after that PR.
+- **Model-level evaluation** (8.4.4.9.8) was the rest of the Kernel layer, in a fourth PR of this step. It covers `evaluate`, `modelLevelEvaluable`, `isModelLevelEvaluable`, `checkCondition`, `MultiplicityRange::valueOf` and `hasBounds`, `MetadataFeature::evaluateFeature` and `syntaxElement`, `MetadataAccessExpression::metaclassFeature`, `Package::importedMemberships` and `includeAsMember`. The owner chose this split on 2026-11-21. The constraints need all of these, so Kernel is marked complete only after that PR.
+### 4. Model-level evaluation
+
+`derived/evaluate.rs` implements `evaluate`, `modelLevelEvaluable` and the operations that use them, by the rules of 8.4.4.9.8 and the OCL of 8.3.4.8. These readings are needed:
+
+- **Values.** KerML evaluates to Elements: LiteralExpressions, and Features that are not Expressions. A value that evaluation computes, such as the `7` of `1 + 2 * 3`, is not in the model, so an evaluation gives `Item`s: a literal as its value (Boolean, Integer, Rational, String, `*`), a model element, or an element's reflective metadata. "A LiteralExpression evaluates to itself" is read as evaluating to its value.
+- **Feature references** follow the text of 8.4.4.9.8 rule 3:
+  - The value is that of the target's feature that is or redefines the referent. Otherwise, for a referent without featuring types, it is that of the referent's own FeatureValue. Otherwise it is the referent itself, if the referent is not an Expression. The OCL instead gives the referent, not its value, when it has no featuring types; the text is followed.
+  - A reference to `Anything::self` gives the target.
+  - On reflective metadata, a reference to a feature of the KerML library model gives the MOF property of that name.
+  - A value that refers to itself evaluates to nothing.
+- **The evaluable functions** are those that Tables 5 and 7 (8.2.5.8.1, 8.2.5.8.2) mark as model-level evaluable, by qualified name. That is what `Function::isModelLevelEvaluable` (8.3.4.7.4) means for the library, and every other function has false.
+  - Lazy operands are passed as owned expression references (`OwnedExpressionReference`): the second operand of `and`, `or` and `implies`, those of `if` and `??`, and the bodies of `collect` and `select`. The function evaluates them itself.
+  - `collect` and `select` bind each value to the body's first input parameter. A reference to such a parameter is evaluable, which the OCL of `FeatureReferenceExpression::modelLevelEvaluable` does not foresee.
+- **Classification and casts.** An omitted first operand of `istype`, `hastype`, `@` or `as` is `Anything::self`, the target (7.4.9.2). `@@` and `meta` act on the metadata of their operand.
+  - An element value is classified by its types, and reflective metadata by its metaclass in the KerML library (`KerML::<metaclass>`, 9.2.17).
+  - A literal value is classified by its ScalarValues type: Boolean, String, Rational, and Positive, Natural or Integer for an integer by its sign. `*` is read as a Positive.
+- **Data functions.** Integers and rationals compare as numbers, so `1 == 1.0`. `/` gives a Rational. `%` is the Euclidean remainder. `^` of integers with a non-negative exponent is an Integer. `+` concatenates strings. `..` gives the integers from its first operand to its second. `#` indexes from 1. An operation that overflows, or divides by zero, has no value.
+- **Metadata.** An element's metadata is the MetadataFeatures among its owned elements that annotate it, then its reflective metadata (8.4.4.9.8 rule 4).
+  - The reflective metadata's MOF properties are the element's stored attributes (written values, or the metamodel's default for a flag). Its derived properties `name`, `shortName`, `qualifiedName`, `owner`, `owningNamespace`, `ownedElement`, `ownedMember`, `feature`, `ownedFeature` and `type` are included too.
+  - An element-valued property gives the elements' reflective metadata, so that a chain such as `(x meta KerML::Feature).owner.name` goes on.
+  - `metaclassFeature()` and `syntaxElement()` have no OCL. The first is the reflective metadata of the referenced element; the second is the element that reflective metadata represents, and none for a written metadata feature.
+- **`includeAsMember`** tests the element's metadata, as defined above. The OCL takes `element.ownedAnnotation.annotatingElement`, which misses metadata written as a member (`@M;` in a body). It also leaves out the reflective metadata that 7.4.14 gives every element for filter conditions.
+- **`valueOf`** evaluates a bound on the type that owns the multiplicity. The OCL's `owningType` of a MultiplicityRange is null, because a multiplicity is not owned through a FeatureMembership, and a bound such as `[n]` needs the type whose feature `n` is.
+- **Typos:** `checkCondition`'s `result->size()` is read as `results->size()`, and `evaluateFeature`'s `ownedMember->selectAsKind(FeatureValue)` as `ownedMembership`.
+- **Filters in resolution.** `Package::importedMemberships` filters a package's imports by its `filter` conditions, and a filtered import by its FilterPackage's conditions. Resolution follows it (ADR 0020 decision 7). A condition that names an element of the package it filters may depend on what it filters, which 7.4.14 warns of. Such a cycle settles like any other (ADR 0020 decision 6).
+
+### 5. Other readings
+
 - **`memberElementId`** is the `elementId` of the member element. Inside the query graph, an element is (file, index), and `DataIdentity` ids are assigned outside it (ADR 0019). It is deferred to the UUID mapping of step 1a.11, and no constraint needs it.
 
 ## Evidence
@@ -74,9 +102,11 @@ The step's "done when" is therefore a test: all three layers complete.
 - **The Root layer** (KerML 8.3.2): 49 tests, one per rule and operation, from the OCL. That is 25 derive rules, and 24 operations including `LibraryPackage::libraryNamespace` from Kernel. `memberElementId` is deferred.
 - **The Core layer** (KerML 8.3.3): 67 tests, one per rule and operation (35 derive rules, 32 operations). The library tests check implied supertypes (`Base::Anything`) and recursive imports.
 - **The Kernel layer, without evaluation** (KerML 8.3.4): 34 tests (27 derive rules, 7 operations), for connectors, associations, flows, expressions, multiplicities, metadata and packages.
+- **Model-level evaluation:** 23 tests, for every kind of expression, the evaluable functions of Tables 5 and 7, metadata access, multiplicity bounds, semantic metadata and filters, in the derived functions and in resolution.
+- **The step's criterion is a test:** the inventory test marks Root, Core and Kernel complete. No entry is open, and the one deferred (`memberElementId`) is not needed.
 
 ## Consequences
 
 - Steps 1a.9 to 1a.11 call these functions rather than re-deriving properties. The library UUIDs of 1a.11 can use `path()` directly.
-- Model-level evaluation follows in its own PR, which marks the Kernel layer complete in the inventory test and completes the step.
+- Step 1a.9 (implied relationships) materializes what these functions compute, and step 1a.10 (validation) evaluates multiplicity bounds and semantic metadata with them.
 - When `KerML.xmi` changes, the inventory test fails until `derived.json` and the needed counts are reviewed.

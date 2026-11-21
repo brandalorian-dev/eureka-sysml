@@ -33,7 +33,7 @@ fn first_end(db: &dyn salsa::Database, project: Project, rel: Global) -> Option<
 }
 
 /// The member element of the first membership of the library element with this name.
-fn library(db: &dyn salsa::Database, project: Project, name: &str) -> Option<Global> {
+pub(crate) fn library(db: &dyn salsa::Database, project: Project, name: &str) -> Option<Global> {
     let m = resolve_global(db, project, name)?;
     let s = structure(db, m.file);
     let entry = Entry {

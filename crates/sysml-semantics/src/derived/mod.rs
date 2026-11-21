@@ -10,10 +10,12 @@
 //! The functions are grouped by layer: Root (KerML 8.3.2), Core (8.3.3: types, classifiers and
 //! features) and Kernel (8.3.4).
 
+mod evaluate;
 mod kernel;
 mod root;
 mod types;
 
+pub use evaluate::*;
 pub use kernel::*;
 pub use root::*;
 pub use types::*;

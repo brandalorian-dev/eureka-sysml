@@ -4,8 +4,8 @@
 //! each `done`, `open` or `deferred`.
 //!
 //! - A `done` entry names its function in `sysml_semantics::derived`, and has a test in
-//!   `tests/derived.rs` (Root), `tests/derived_core.rs` (Core) or `tests/derived_kernel.rs`
-//!   (Kernel) named after it: the rule's name, or the metaclass and the operation, in
+//!   `tests/derived.rs` (Root), `tests/derived_core.rs` (Core), `tests/derived_kernel.rs`
+//!   (Kernel) or `tests/derived_evaluate.rs` (model-level evaluation) named after it: the rule's name, or the metaclass and the operation, in
 //!   snake case (`derive_element_owner`, `element_path`).
 //! - The rules and operations the semantic and validation constraints use are "needed": those
 //!   named in a `check…` or `validate…` constraint, and `path()`, and what their OCL uses in turn.
@@ -18,18 +18,20 @@ use sysml_model::{Rule, CONSTRAINTS, DERIVE_RULES, OPERATIONS};
 use wasm_bindgen_test::wasm_bindgen_test as test;
 
 /// The layers done so far, Root (KerML 8.3.2) first.
-const COMPLETE_LAYERS: &[&str] = &["Root", "Core"];
+const COMPLETE_LAYERS: &[&str] = &["Root", "Core", "Kernel"];
 
 const INVENTORY: &str = include_str!("../derived.json");
 const FUNCTIONS: &[&str] = &[
     include_str!("../src/derived/root.rs"),
     include_str!("../src/derived/types.rs"),
     include_str!("../src/derived/kernel.rs"),
+    include_str!("../src/derived/evaluate.rs"),
 ];
 const TESTS: &[&str] = &[
     include_str!("derived.rs"),
     include_str!("derived_core.rs"),
     include_str!("derived_kernel.rs"),
+    include_str!("derived_evaluate.rs"),
 ];
 
 fn key(r: &Rule) -> String {

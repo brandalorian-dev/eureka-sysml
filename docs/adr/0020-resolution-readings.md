@@ -84,7 +84,7 @@ The queries that iterate to a fixpoint are not all monotone: a lookup takes the 
 
 In `import all A::*[@Approved];` the grammar (8.2.3.4.2) puts `isImportAll` on the outer import, whose imported namespace is the FilterPackage. The FilterPackage's own import is an `ImportDeclaration`, which cannot be `all`.
 
-**Reading:** `all` governs the FilterPackage, whose memberships are those its own import brings, once filtered. That import brings the visible memberships of `A`, so `all` does not reach `A`'s private members. The FilterPackage's own import has the default visibility of an Import, which is private. Its memberships are still what the outer import imports: otherwise an import with a filter and without `all` would import nothing, which 7.2.5.4 contradicts. Filter conditions are not evaluated yet (step 1a.10).
+**Reading:** `all` governs the FilterPackage, whose memberships are those its own import brings, once filtered. That import brings the visible memberships of `A`, so `all` does not reach `A`'s private members. The FilterPackage's own import has the default visibility of an Import, which is private. Its memberships are still what the outer import imports: otherwise an import with a filter and without `all` would import nothing, which 7.2.5.4 contradicts. Since step 1a.8, the filter conditions are evaluated (`Package::importedMemberships`, ADR 0021): of those memberships, only the ones whose element the conditions include are imported. A package's own `filter` conditions apply to all its imports in the same way.
 
 Recursive imports follow `visibleMemberships(excluded, isRecursive, includeAll)` (8.3.2.4.5). They descend only into the namespaces a namespace owns, through a public owning membership unless `all`, and pass `all` to every level. For a type, they bring what it inherits through its written specializations only, because `Type::visibleMemberships` passes `isRecursive` as `excludeImplied` (8.3.3.1.10; ADR 0021).
 
@@ -112,5 +112,5 @@ As ADR 0019 foresaw, a lowered fragment has spans and no equality, so every quer
 
 - Step 1a.9 starts from these queries. It materializes the implied relationships, adds the deferred ones, and tests every table row. It must keep the pilot oracle passing.
 - `supertypes` memoizes the transitive closure of every type, which costs memory in proportion to the depth of the library's hierarchies. It is measured at scale with the library snapshot (D5, step 1a.11).
-- Step 1a.10 evaluates filter conditions, on the FilterPackage of decision 7.
+- Step 1a.8 evaluates filter conditions, on the FilterPackage of decision 7 and on a package's own (ADR 0021).
 - A name that resolves only through decision 2, 3 or 4 (its fallback) is a candidate for a validation warning in step 1a.10: the spec text alone would leave it unresolved.

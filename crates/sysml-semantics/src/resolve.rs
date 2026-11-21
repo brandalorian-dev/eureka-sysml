@@ -337,7 +337,7 @@ fn imports(db: &dyn salsa::Database, file: SourceFile, ns: u32) -> Vec<ImportDec
             continue;
         }
         // A FilterPackage (KerML 8.2.3.4.2): the import's target is an owned package whose own
-        // import says what is imported; its filter conditions are not evaluated yet. `all` is on
+        // import says what is imported, and its filter conditions select (`decl_memberships`). `all` is on
         // the outer import, where it governs the FilterPackage; the inner import, which the
         // grammar gives no `all`, imports the visible memberships of its namespace (ADR 0020).
         let filtered = match g.target(*r).first() {
@@ -371,8 +371,22 @@ pub fn imported_memberships(
     ns: u32,
 ) -> Vec<Entry> {
     let mut out: Vec<Entry> = Vec::new();
+    // KerML 8.3.4.13.4 Package::importedMemberships: a package's filter conditions apply to all
+    // its imports (ADR 0021).
+    let here = Global { file, index: ns };
+    let filtered_package = structure(db, file)
+        .graph()
+        .metaclass(here.ix())
+        .specializes(M::Package)
+        && !crate::derived::filter_condition(db, project, here).is_empty();
     for decl in imports(db, file, ns) {
-        let found = decl_memberships(db, project, file, decl);
+        let mut found = decl_memberships(db, project, file, decl);
+        if filtered_package {
+            found.retain(|e| {
+                member_element(db, project, e)
+                    .is_some_and(|x| crate::derived::include_as_member(db, project, here, x))
+            });
+        }
         for mut e in found {
             e.visibility = decl.visibility;
             if !out
@@ -465,6 +479,23 @@ fn decl_memberships(
         return Vec::new();
     };
     let mut found: Vec<Entry> = Vec::new();
+    // With filter conditions, the FilterPackage's conditions select what its import brings
+    // (KerML 8.2.3.4.2, 8.3.4.13.4 Package::importedMemberships).
+    let filter_package = decl.filtered.and_then(|_| {
+        match structure(db, file).graph().target(ix(decl.import)).first() {
+            Some(Endpoint::Element(p)) => Some(Global {
+                file,
+                index: p.index() as u32,
+            }),
+            _ => None,
+        }
+    });
+    let keep = |e: &Entry| {
+        filter_package.is_none_or(|p| {
+            member_element(db, project, e)
+                .is_some_and(|x| crate::derived::include_as_member(db, project, p, x))
+        })
+    };
     if decl.namespace {
         // NamespaceImport (KerML 8.3.2.4.6): the namespace's visible memberships, with
         // `isRecursive` and `isImportAll` passed on to `visibleMemberships`.
@@ -491,6 +522,7 @@ fn decl_memberships(
             }
         }
     }
+    found.retain(keep);
     found
 }
 

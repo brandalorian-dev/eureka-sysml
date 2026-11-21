@@ -1,6 +1,6 @@
 # Eureka SysML: Phase 1 execution plan
 
-Status: Draft v1.12 · 2026-11-21 · Covers PROJECT_PLAN v0.7 §6, Phases 1a and 1b (Release 0.1 "Language")
+Status: Draft v1.13 · 2026-11-21 · Covers PROJECT_PLAN v0.7 §6, Phases 1a and 1b (Release 0.1 "Language")
 
 This plan breaks Phase 1 into ordered steps, each small enough for one or a few pull requests. PROJECT_PLAN.md remains the source of truth for scope, architecture and budgets. Where this plan finds something the project plan does not settle, it is listed under [decisions](#24-decisions-and-their-recommended-defaults), and settled by the [decision methodology](#25-decision-methodology): each recommended default is evaluated during the step that first depends on it.
 
@@ -18,6 +18,7 @@ Change history:
 - v1.10: step 1a.6 done: the element graph and the lowering. All 36 KerML library files lower to the abstract syntax the pilot implementation built, element by element (ADR 0018).
 - v1.11: D2 adopted (ADR 0019), from the step 1a.7 incremental query spike.
 - v1.12: step 1a.7 done, with the owner-approved scope change: the implied specializations and redefinitions that name resolution needs are pulled forward from 1a.9. All 4003 names of the KerML libraries resolve to the element the pilot implementation resolved them to. ADR 0020 records the readings.
+- v1.13: step 1a.8 done, in four PRs: one per layer, and model-level evaluation in a fourth, as the owner chose. All 90 derive rules and 84 operations are implemented and tested, except `memberElementId`, which no constraint needs. ADR 0021 records the readings.
 
 ## 1. Executive summary
 
@@ -291,11 +292,13 @@ Each step below gives its goal, the spec clauses, what it delivers, the tests to
 - **Effort:** 1.5–2
 
 #### 1a.8 Derived properties and operations
-- **Status:** in progress. The Root (KerML 8.3.2) and Core (8.3.3) layers are done, and the Kernel layer (8.3.4) except model-level evaluation. That is three of four PRs: one per layer, and, as the owner chose on 2026-11-21, model-level evaluation (8.4.4.9.8) in a fourth (ADR 0021).
+- **Status:** done 2026-11-21, in four PRs: one per layer, and, as the owner chose, model-level evaluation (8.4.4.9.8) in a fourth (ADR 0021).
   - **The inventory:** `crates/sysml-semantics/derived.json` lists all 90 derive rules and 84 operations of `KerML.xmi`, each `done`, `open` or `deferred`. A test keeps it equal to the XMI. It also follows the OCL of the 168 `check…` and `validate…` constraints, and of `path()`, to the rules and operations they need: 56 of the 82 derived properties and 48 of the 58 operation names. A needed entry may not be deferred, and a complete layer has no open entry.
   - **Root:** 49 functions in `sysml_semantics::derived`, each with a test from its OCL. `memberElementId` is deferred to the UUID mapping of 1a.11.
   - **Core:** 67 functions (types, classifiers, features), each with a test. They see the implied specializations and redefinitions of 1a.7, and the type featuring a feature membership implies. A recursive import of a type follows its written specializations only (`excludeImplied`), in resolution too.
-  - **Kernel:** 34 rules and operations, by 30 functions (connectors, associations, flows, expressions, multiplicities, metadata, packages), each with a test. Model-level evaluation, about 22 entries, is the fourth PR, which marks Kernel complete.
+  - **Kernel:** 34 rules and operations, by 30 functions (connectors, associations, flows, expressions, multiplicities, metadata, packages), each with a test.
+  - **Evaluation:** `evaluate` and `modelLevelEvaluable` for every kind of expression, with the evaluable functions of Tables 5 and 7, reflective metadata, `checkCondition`, multiplicity bounds, semantic metadata and filters. Filter conditions now apply in resolution too.
+  - **The criterion is a test:** the inventory test marks all three layers complete, so no entry is open, and no needed entry is deferred. Model-level evaluation (23 entries) was the fourth PR.
   - **The oracle:** for all 24,859 elements of the KerML libraries inside a library package, `path()` gives the pilot's `elementId` by KerML 9.1.
 - **Goal:** compute the derived properties and operations the semantics and the UUIDs need.
 - **Clauses:**
