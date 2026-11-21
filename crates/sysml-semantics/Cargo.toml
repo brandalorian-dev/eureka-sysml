@@ -16,10 +16,12 @@ workspace = true
 sysml-model.workspace = true
 sysml-syntax.workspace = true
 uuid.workspace = true
+salsa.workspace = true
 
 [dev-dependencies]
 sysml-corpus.workspace = true
 expect-test.workspace = true
+salsa.workspace = true
 
 [target.'cfg(target_arch = "wasm32")'.dev-dependencies]
 # Runs the tests as WebAssembly under Node (step 1a.1).

@@ -26,6 +26,12 @@ impl ElementIx {
     pub fn index(self) -> usize {
         self.0 as usize
     }
+
+    /// The element at a position, as [`index`](Self::index) gives it (ADR 0019 addresses an
+    /// element in the query graph by its file and this position).
+    pub fn from_index(index: usize) -> ElementIx {
+        ElementIx(index as u32)
+    }
 }
 
 /// The index of an unresolved name in its [`Graph`].
@@ -202,6 +208,32 @@ impl Graph {
     /// The element with an id.
     pub fn by_id(&self, id: Uuid) -> Option<ElementIx> {
         self.by_id.get(&id).copied()
+    }
+
+    /// Whether two graphs are the same apart from where things are written: the same elements,
+    /// ids, ownership, ends, values and names, ignoring every span. An edit of layout alone
+    /// gives the same structure, which lets the queries that read only the structure stop there
+    /// (early cutoff, ADR 0019).
+    pub fn same_structure(&self, other: &Graph) -> bool {
+        self.ids == other.ids
+            && self.elements.len() == other.elements.len()
+            && self.elements.iter().zip(&other.elements).all(|(a, b)| {
+                a.metaclass == b.metaclass
+                    && a.owning_relationship == b.owning_relationship
+                    && a.owned_relationships == b.owned_relationships
+                    && a.implied_relationships == b.implied_relationships
+                    && a.owning_related_element == b.owning_related_element
+                    && a.owned_related_elements == b.owned_related_elements
+                    && a.source == b.source
+                    && a.target == b.target
+                    && a.values == b.values
+            })
+            && self.names.len() == other.names.len()
+            && self
+                .names
+                .iter()
+                .zip(&other.names)
+                .all(|(a, b)| a.global == b.global && a.segments == b.segments)
     }
 
     /// Where an element is written, if it comes from text.
@@ -502,6 +534,23 @@ mod tests {
         g.set(c, Attr::DeclaredName, Value::String("C".into()));
         g.set(f, Attr::DeclaredName, Value::String("f".into()));
         (g, [ns, m1, c, m2, f, t])
+    }
+
+    #[test]
+    fn the_structure_ignores_spans_only() {
+        let (a, [_, _, c, ..]) = sample();
+        let mut b = a.clone();
+        b.set_span(
+            c,
+            Span {
+                file: FileId(0),
+                start: 4,
+                end: 9,
+            },
+        );
+        assert!(a.same_structure(&b));
+        b.set(c, Attr::DeclaredName, Value::String("D".into()));
+        assert!(!a.same_structure(&b));
     }
 
     #[test]

@@ -1,6 +1,6 @@
 # Eureka SysML: Phase 1 execution plan
 
-Status: Draft v1.11 · 2026-11-20 · Covers PROJECT_PLAN v0.7 §6, Phases 1a and 1b (Release 0.1 "Language")
+Status: Draft v1.12 · 2026-11-21 · Covers PROJECT_PLAN v0.7 §6, Phases 1a and 1b (Release 0.1 "Language")
 
 This plan breaks Phase 1 into ordered steps, each small enough for one or a few pull requests. PROJECT_PLAN.md remains the source of truth for scope, architecture and budgets. Where this plan finds something the project plan does not settle, it is listed under [decisions](#24-decisions-and-their-recommended-defaults), and settled by the [decision methodology](#25-decision-methodology): each recommended default is evaluated during the step that first depends on it.
 
@@ -17,6 +17,7 @@ Change history:
 - v1.9: D3 adopted (ADR 0017), from the step 1a.6 element graph spike.
 - v1.10: step 1a.6 done: the element graph and the lowering. All 36 KerML library files lower to the abstract syntax the pilot implementation built, element by element (ADR 0018).
 - v1.11: D2 adopted (ADR 0019), from the step 1a.7 incremental query spike.
+- v1.12: step 1a.7 done, with the owner-approved scope change: the implied specializations and redefinitions that name resolution needs are pulled forward from 1a.9. All 4003 names of the KerML libraries resolve to the element the pilot implementation resolved them to. ADR 0020 records the readings.
 
 ## 1. Executive summary
 
@@ -267,6 +268,12 @@ Each step below gives its goal, the spec clauses, what it delivers, the tests to
 - **Effort:** 1–1.5
 
 #### 1a.7 Name resolution, imports and incremental queries
+- **Status:** done 2026-11-21, with the scope change the owner approved on 2026-11-21: the implied relationships resolution needs (step 1a.9) are computed here.
+  - **The queries:** `sysml-semantics` resolves on `salsa` (ADR 0019). Files are inputs; parsing, lowering, a span-free `structure`, the owned, imported, inherited and visible memberships, effective names, and the resolution of each name are queries. Imports, specializations and naming features may be circular, and converge by fixpoint iteration.
+  - **Implied relationships:** `implied_generals` gives each type the specializations of the KerML specialization constraints, with the redundancy rules of 8.4.2, and the end, parameter, result, flow-end and payload redefinitions. Type featurings, binding connectors and the constraints on implied elements stay in 1a.9 (ADR 0020).
+  - **The oracle:** every one of the 4003 names in the three KerML libraries resolves to the element the pilot resolved it to, in its XMI (`tests/resolve_oracle.rs`). Three readings of the spec text were needed (ADR 0020).
+  - **Tests:** the clause examples of KerML 7.2.5 and 7.3 (visibility, aliases, imports including recursive ones, inheritance, redefinition with effective names, implied relationships), and incrementality from the event log: a layout edit stops at `structure`, and an edit of names reruns only that file's resolution. All of them pass natively and on WASM.
+  - **Speed:** the KerML libraries parse, lower and resolve in about 100–110 ms from nothing. They re-resolve in about 13 ms after a layout edit (`cargo bench -p sysml-bench --bench semantics`).
 - **Goal:** resolve every qualified name, incrementally.
 - **Evaluates:** D2 (`salsa` and the query graph). *Adopted (ADR 0019; evidence in `docs/proj-mgmt/evidence/1a.7-incremental-query-spike.md`).*
 - **Clauses:**
@@ -299,7 +306,7 @@ Each step below gives its goal, the spec clauses, what it delivers, the tests to
   - KerML 8.4.2 (the four kinds and the two redundancy rules)
   - the tables in 8.4.3.1 (Core) and 8.4.4.1 (Kernel)
   - the per-construct semantics in 8.4.3.2–8.4.3.4 and 8.4.4.2–8.4.4.14
-- **Work:** implement table by table: specialization constraints (59), then redefinition (8), type-featuring (6), and binding-connector (7) constraints. Implied relationships are kept apart from owned ones (D3).
+- **Work:** implement table by table: specialization constraints (59), then redefinition (8), type-featuring (6), and binding-connector (7) constraints. Implied relationships are kept apart from owned ones (D3). Step 1a.7 already computes the specializations and redefinitions that resolution needs, as queries (ADR 0020). This step materializes them, adds the rest, and keeps the 1a.7 pilot oracle passing.
 - **Tests first:**
   - One golden test per table row: a minimal model, and the implied relationships expected.
   - The redundancy rules: the clause's Structure/Class/Classifier example, and same-general duplicates.
