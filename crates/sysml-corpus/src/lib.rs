@@ -143,20 +143,49 @@ pub fn snippets() -> Result<Vec<Snippet>, CorpusError> {
             "{e}. Run `python scripts/extract_spec_snippets.py` to extract the spec snippets."
         ))
     })?;
-    let index: Value = serde_json::from_slice(&index)
-        .map_err(|e| CorpusError(format!("snippets/index.json: {e}")))?;
+    snippets_from(&index, read_spec)
+}
+
+/// The snippets of an `index.json` (version 1), reading each file with `read`. Anything the
+/// index does not state exactly (its version, a field, the language) is an error rather than a
+/// guess, so that a newer extraction cannot be misread.
+fn snippets_from(
+    index: &[u8],
+    read: impl Fn(&str) -> Result<Vec<u8>, CorpusError>,
+) -> Result<Vec<Snippet>, CorpusError> {
+    let bad = |what: String| CorpusError(format!("snippets/index.json: {what}"));
+    let index: Value = serde_json::from_slice(index).map_err(|e| bad(e.to_string()))?;
+    if index["version"].as_u64() != Some(1) {
+        return Err(bad(format!(
+            "version {} is not 1: re-extract with `python scripts/extract_spec_snippets.py`",
+            index["version"]
+        )));
+    }
+    let entries = index["snippets"]
+        .as_array()
+        .ok_or_else(|| bad("no `snippets` list".to_owned()))?;
     let expectations = snippet_expectations()?;
     let mut out = Vec::new();
-    for entry in index["snippets"].as_array().into_iter().flatten() {
-        let field = |name: &str| entry[name].as_str().unwrap_or_default().to_owned();
-        let id = field("id");
-        let path = format!("snippets/{}", field("path"));
-        let text = String::from_utf8(read_spec(&path)?)
-            .map_err(|e| CorpusError(format!("{path}: {e}")))?;
-        let language = match field("language").as_str() {
-            "kerml" => Language::KerML,
-            _ => Language::SysML,
+    for (n, entry) in entries.iter().enumerate() {
+        let field = |name: &str| {
+            entry[name]
+                .as_str()
+                .map(str::to_owned)
+                .ok_or_else(|| bad(format!("entry {n} has no string `{name}`")))
         };
+        let id = field("id")?;
+        let path = format!("snippets/{}", field("path")?);
+        let language = match field("language")?.as_str() {
+            "kerml" => Language::KerML,
+            "sysml" => Language::SysML,
+            other => return Err(bad(format!("{id}: unknown language `{other}`"))),
+        };
+        let page = entry["page"]
+            .as_u64()
+            .and_then(|p| u32::try_from(p).ok())
+            .ok_or_else(|| bad(format!("{id}: no numeric `page`")))?;
+        let text =
+            String::from_utf8(read(&path)?).map_err(|e| CorpusError(format!("{path}: {e}")))?;
         let (expect, reason) = match expectations.get(&id) {
             Some((expect, reason)) => (*expect, Some(reason.clone())),
             None => (Expectation::Valid, None),
@@ -169,9 +198,9 @@ pub fn snippets() -> Result<Vec<Snippet>, CorpusError> {
                 text,
                 expect,
             },
-            spec: field("spec"),
-            clause: field("clause"),
-            page: entry["page"].as_u64().unwrap_or_default() as u32,
+            spec: field("spec")?,
+            clause: field("clause")?,
+            page,
             reason,
         });
     }
@@ -690,5 +719,48 @@ impl Library {
             interchange_files,
             ignored,
         })
+    }
+}
+
+#[cfg(test)]
+mod snippet_index_tests {
+    use super::*;
+    #[cfg(target_arch = "wasm32")]
+    use wasm_bindgen_test::wasm_bindgen_test as test;
+
+    fn read(_: &str) -> Result<Vec<u8>, CorpusError> {
+        Ok(b"class C;\n".to_vec())
+    }
+
+    fn index(entry: &str) -> String {
+        format!(r#"{{"version": 1, "snippets": [{entry}]}}"#)
+    }
+
+    const GOOD: &str = r#"{"id": "kerml/7.2/1", "spec": "kerml", "clause": "7.2", "page": 3,
+        "language": "kerml", "path": "kerml/7.2-1.kerml"}"#;
+
+    #[test]
+    fn a_well_formed_index() {
+        let s = snippets_from(index(GOOD).as_bytes(), read).unwrap();
+        assert_eq!(s.len(), 1);
+        assert_eq!(s[0].source.id, "kerml/7.2/1");
+        assert_eq!(s[0].source.language, Language::KerML);
+        assert_eq!(s[0].page, 3);
+    }
+
+    #[test]
+    fn a_malformed_index_is_an_error() {
+        let bad = [
+            // An index this loader does not know.
+            r#"{"version": 2, "snippets": []}"#.to_owned(),
+            // A language that is neither `kerml` nor `sysml`.
+            index(&GOOD.replace(r#""language": "kerml""#, r#""language": "kerml-expr""#)),
+            // A missing or non-numeric page, and a missing id.
+            index(&GOOD.replace(r#""page": 3"#, r#""page": "3""#)),
+            index(&GOOD.replace(r#""id": "kerml/7.2/1", "#, "")),
+        ];
+        for text in bad {
+            assert!(snippets_from(text.as_bytes(), read).is_err(), "{text}");
+        }
     }
 }

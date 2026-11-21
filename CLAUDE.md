@@ -38,7 +38,7 @@ Commonly needed clauses:
 
 ## Environment
 
-Development happens in WSL2 (Ubuntu); CI runs on `ubuntu-latest`.
+Development happens in WSL2 (Ubuntu 24.04); CI runs on `ubuntu-24.04`, pinned for its poppler 24.02, which the snippet extraction checks (ADR 0016).
 - Keep the repo on the Linux filesystem (`~/code/eureka-sysml`), not under `/mnt/c`. Builds there are much faster, and file modes and case sensitivity behave correctly.
 - The git config must use Linux values: `core.filemode=true`, `core.symlinks=true`, `core.ignorecase=false`, `core.autocrlf=false`. `.gitattributes` enforces LF line endings, so never write CRLF.
 - `python` is Python 3 (via `python-is-python3`); `python3` also works.

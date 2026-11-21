@@ -12,15 +12,18 @@ The specifications may not be committed (ADR 0004), so neither may the snippets.
 
 ## Decision
 
-`scripts/extract_spec_snippets.py` extracts the snippets into `docs/specs/snippets/` (git-ignored): one file per snippet and an `index.json`. CI runs it after fetching the specs. It needs `pdftohtml` (poppler-utils, 24.02 on Ubuntu 24.04 both locally and on `ubuntu-latest`). The rules are these.
+`scripts/extract_spec_snippets.py` extracts the snippets into `docs/specs/snippets/` (git-ignored): one file per snippet and an `index.json`. CI runs it after fetching the specs. It needs `pdftohtml` from poppler 24.02, the release on Ubuntu 24.04. The script refuses any other release, because another one may group the text runs differently, and that would change the snippets and their ids. For the same reason the CI runners are pinned to `ubuntu-24.04` rather than `ubuntu-latest`. Moving to a new poppler release is a reviewed change: update `POPPLER`, re-extract, and check the per-clause counts. The rules are these.
 
 1. **Fonts.** `pdftohtml -xml` gives every run of text with its position and font. Both specifications set code in Courier New, prose in Times New Roman and headings in Arial.
 2. **Code lines.** A line whose runs are all Courier is a code line. A sentence with a keyword in Courier also has Times runs, so it is prose.
 3. **Blocks.** Consecutive code lines form a block. A prose line ends it, but the page header and footer (the top 7% and bottom 8% of a page) do not, so a block that continues on the next page stays whole.
-4. **Clause.** A block belongs to the last numbered Arial heading of at least 14 points before it.
+4. **Clause.** A block belongs to the last numbered Arial heading of at least 14 points before it. The heading is read from its leftmost run. A top-level heading such as `8 Semantics` ends the clause before it.
 5. **Scope.** The scope is KerML clauses 7 (language description) and 8.4 (semantics, whose examples show the implied relationships), and SysML Part 1 clause 7. The other clauses hold EBNF (8.2), OCL (8.3), JSON (KerML 10) and library listings, which are not models. Within the scope, a block is kept only if it has `;`, `{`, `}` or the end of a comment, and does not start like an EBNF production. That removes keyword tables and productions quoted in the text.
 6. **Wrapped words.** A line at the start or end of a block that is one bare identifier, in one run, is the last word of a wrapped sentence, set in Courier. It is dropped.
-7. **Layout.** The text keeps its indentation (from the runs' positions, in characters of the median Courier width) and its blank lines (a gap of more than 1.6 times the smallest line spacing).
+7. **Layout.** The text keeps its indentation and its blank lines:
+   - The indentation comes from the runs' positions, in characters of the median Courier width.
+   - Two runs are separate words when a gap of more than 0.3 characters lies between them in the PDF, even if the column rounds down to the end of the text. Runs that touch, as at a font change inside `Performances::Evaluation`, are one word.
+   - A blank line is a gap of more than 1.6 times the smallest line spacing.
 
 **Ids** are `<spec>/<clause>/<n>`, for example `kerml/7.2.5.4/1`, numbering the snippets of each clause from 1. They are stable while the PDFs and these rules are. `sysml-corpus` tests the count per clause, so any change shows up as a test failure.
 

@@ -98,3 +98,39 @@ class Extraction(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class ReviewCases(unittest.TestCase):
+    """Cases from the PR #14 review."""
+
+    def test_a_heading_is_read_from_its_leftmost_run(self):
+        # The title is 2 px above the number, so it comes first in the line; the number decides.
+        xml = doc([text(100, 180, 1, "Expressions"), text(102, 100, 3, "7.4.9"),
+                   text(220, 145, 2, "class C;")])
+        self.assertEqual([s["id"] for s in e.snippets("kerml", xml)], ["kerml/7.4.9/1"])
+
+    def test_a_top_level_heading_ends_the_clause(self):
+        # `8 Semantics` ends clause 7: a block after it is not in 7.x.
+        xml = doc([HEADING, text(200, 100, 3, "8 Semantics"), text(220, 145, 2, "class C;")])
+        self.assertEqual([s["id"] for s in e.snippets("kerml", xml)], [])
+
+    def test_a_gap_between_runs_is_a_space_even_when_the_column_rounds_down(self):
+        # 10 px a character: `feature` ends at 215 and `x` starts at 219, column 7.4, which
+        # rounds to 7, the length of `feature`. The 4 px gap still separates two words.
+        run = lambda left, width, s: (  # noqa: E731
+            f'<text top="220" left="{left}" width="{width}" height="16" font="2">{s}</text>')
+        xml = doc([HEADING, run(145, 70, "feature"), run(219, 60, "x : T;")])
+        [s] = e.snippets("kerml", xml)
+        self.assertEqual(s["text"], "feature x : T;\n")
+
+    def test_runs_that_touch_are_one_word(self):
+        # A run ends where the next begins, as at a font change inside `Performances::Evaluation`.
+        run = lambda left, width, s: (  # noqa: E731
+            f'<text top="220" left="{left}" width="{width}" height="16" font="2">{s}</text>')
+        xml = doc([HEADING, run(145, 120, "Performances"), run(265, 130, "::Evaluation;")])
+        [s] = e.snippets("kerml", xml)
+        self.assertEqual(s["text"], "Performances::Evaluation;\n")
+
+    def test_the_poppler_version_is_checked(self):
+        self.assertEqual(e.poppler_version("pdftohtml version 24.02.0\nCopyright"), "24.02")
+        self.assertIsNone(e.poppler_version("something else"))

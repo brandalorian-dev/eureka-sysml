@@ -12,7 +12,8 @@ The rules are ADR 0016:
      Courier are not, because they also have Times runs.
   3. Consecutive code lines form a block. A prose line ends the block; the page header and footer
      do not, so a block that continues on the next page stays one block.
-  4. The clause of a block is the last numbered Arial heading before it.
+  4. The clause of a block is the last numbered Arial heading before it, read from its leftmost
+     run. A top-level heading (`8 Semantics`) ends the clause before it.
   5. Only the clauses in SCOPE are kept (the language description and, for KerML, the semantics
      examples), and only blocks that look like models: with `;`, `{`, `}` or a comment, and not
      an EBNF production.
@@ -53,10 +54,15 @@ DOCS = {
 FONTSPEC_RE = re.compile(r'<fontspec id="(\d+)" size="(\d+)" family="([^"]+)"')
 PAGE_RE = re.compile(r'<page number="(\d+)"[^>]*height="(\d+)"[^>]*>(.*?)</page>', re.S)
 TEXT_RE = re.compile(r'<text top="(-?\d+)" left="(-?\d+)" width="(\d+)" height="(\d+)" font="(\d+)">(.*?)</text>', re.S)
-HEADING_RE = re.compile(r"^(\d+(?:\.\d+)+)\s+\S")
+HEADING_RE = re.compile(r"^(\d+(?:\.\d+)*)\s+\S")
 PRODUCTION_RE = re.compile(r"^[A-Z][A-Za-z]*\s*(?::\s*[A-Za-z]+\s*)?=")
 IDENTIFIER_RE = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*$")
 MODEL_RE = re.compile(r"[;{}]|\*/")
+
+# The poppler release the rules were checked with (Ubuntu 24.04, locally and in CI). Another
+# release may group runs differently, which would change the snippets and their ids.
+POPPLER = "24.02"
+POPPLER_RE = re.compile(r"pdftohtml version (\d+\.\d+)")
 
 # Lines in the top 7% or bottom 8% of a page are its header and footer.
 HEADER, FOOTER = 0.07, 0.92
@@ -122,10 +128,11 @@ def is_margin(line: Line) -> bool:
 
 
 def heading(line: Line) -> str | None:
-    runs = line.visible()
+    """The number of a clause heading, `7.2.5` or a top-level `8`, which ends the clause before."""
+    runs = sorted(line.visible(), key=lambda r: r.left)
     if not runs or "Arial" not in runs[0].family or runs[0].size < 14:
         return None
-    m = HEADING_RE.match(line.text().strip())
+    m = HEADING_RE.match(" ".join(r.text.strip() for r in runs))
     return m.group(1) if m else None
 
 
@@ -178,11 +185,22 @@ def render(block: Block) -> str:
         if previous and previous.page == line.page and line.top - previous.top > 1.6 * spacing:
             out.append("")
         text = ""
+        right = None  # where the previous run ends, in pixels
         for run in sorted(line.runs, key=lambda r: r.left):
             column = max(0, round((run.left - left) / char))
             if len(text) < column:
                 text += " " * (column - len(text))
+            elif (
+                right is not None
+                and run.left - right > 0.3 * char
+                and not text[-1:].isspace()
+                and not run.text[:1].isspace()
+            ):
+                # A gap in the PDF separates two words, even if the column rounds down to the
+                # end of the text; runs that touch (a font change in a word) stay one word.
+                text += " "
             text += run.text
+            right = run.left + run.width
         out.append(text.rstrip())
         previous = line
     return "\n".join(out).strip("\n") + "\n"
@@ -224,9 +242,22 @@ def snippets(spec: str, xml: str) -> list[dict]:
     return result
 
 
+def poppler_version(output: str) -> str | None:
+    """The `major.minor` release in the output of `pdftohtml -v`."""
+    m = POPPLER_RE.search(output)
+    return m.group(1) if m else None
+
+
 def write(out: Path) -> int:
     if shutil.which("pdftohtml") is None:
         sys.exit("pdftohtml not found: install poppler-utils")
+    probe = subprocess.run(["pdftohtml", "-v"], capture_output=True, text=True)
+    version = poppler_version(probe.stdout + probe.stderr)
+    if version != POPPLER:
+        sys.exit(
+            f"pdftohtml {version} found, the snippet rules are checked with poppler {POPPLER} "
+            "(ADR 0016): another release can change the snippets and their ids"
+        )
     if out.exists():
         shutil.rmtree(out)
     index = []
