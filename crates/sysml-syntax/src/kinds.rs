@@ -419,6 +419,106 @@ syntax_kinds! {
         LiteralInfinity,
         /// A feature named by a qualified name (KerML 8.2.5.8.3).
         FeatureReferenceExpression,
+
+        // Kernel (KerML 8.2.5): classifiers.
+        /// `datatype` (KerML 8.2.5.1).
+        DataType,
+        /// `class` (KerML 8.2.5.2).
+        Class,
+        /// `struct` (KerML 8.2.5.3).
+        Structure,
+        /// `assoc` (KerML 8.2.5.4).
+        Association,
+        /// `assoc struct` (KerML 8.2.5.4).
+        AssociationStructure,
+        /// `behavior` (KerML 8.2.5.6.1).
+        Behavior,
+        /// `function` (KerML 8.2.5.7.1).
+        Function,
+        /// `predicate` (KerML 8.2.5.7.3).
+        Predicate,
+        /// `interaction` (KerML 8.2.5.9.1).
+        Interaction,
+        /// `metaclass` (KerML 8.2.5.12).
+        Metaclass,
+
+        // Kernel: features.
+        /// `step` (KerML 8.2.5.6.2).
+        Step,
+        /// `expr` (KerML 8.2.5.7.2).
+        Expression,
+        /// `bool` (KerML 8.2.5.7.4).
+        BooleanExpression,
+        /// `inv` (KerML 8.2.5.7.4).
+        Invariant,
+        /// `connector` (KerML 8.2.5.5.1).
+        Connector,
+        /// `binding` (KerML 8.2.5.5.2).
+        BindingConnector,
+        /// `succession` (KerML 8.2.5.5.3).
+        Succession,
+        /// `flow` (KerML 8.2.5.9.2).
+        Flow,
+        /// `succession flow` (KerML 8.2.5.9.2).
+        SuccessionFlow,
+        /// A connector end: `[m] name references feature` (KerML 8.2.5.5.1).
+        ConnectorEnd,
+        /// A flow end: `feature.flowFeature` (KerML 8.2.5.9.2).
+        FlowEnd,
+        /// The payload of a flow, after `of` (KerML 8.2.5.9.2).
+        PayloadFeature,
+        /// The result expression at the end of a function body (KerML 8.2.5.7.1).
+        ResultExpressionMember,
+        /// `= …`, `:= …` or `default …` (KerML 8.2.5.10).
+        FeatureValue,
+        /// `@` or `metadata` (KerML 8.2.5.12).
+        MetadataFeature,
+        /// `filter …;` in a package (KerML 8.2.5.13).
+        ElementFilterMember,
+        /// `[ … ]` after an import declaration (KerML 8.2.3.4.2).
+        FilterPackageMember,
+
+        // Expressions (KerML 8.2.5.8).
+        /// `if … ? … else …` (KerML 8.2.5.8.1).
+        ConditionalExpression,
+        /// A binary operator expression, including the conditional `??`, `or`, `and`, `implies`
+        /// (KerML 8.2.5.8.1).
+        BinaryExpression,
+        /// A unary operator expression: `+ - ~ not` (KerML 8.2.5.8.1).
+        UnaryExpression,
+        /// `istype hastype @ as`, and the metaclassification operators `@@ meta`
+        /// (KerML 8.2.5.8.1).
+        ClassificationExpression,
+        /// `all T` (KerML 8.2.5.8.1).
+        ExtentExpression,
+        /// `a.b` (KerML 8.2.5.8.2).
+        FeatureChainExpression,
+        /// `a.{ … }` (KerML 8.2.5.8.2).
+        CollectExpression,
+        /// `a.?{ … }` (KerML 8.2.5.8.2).
+        SelectExpression,
+        /// `a->f(…)`, `a->f { … }`, `a->f g` (KerML 8.2.5.8.2).
+        FunctionOperationExpression,
+        /// `a[ … ]` (KerML 8.2.5.8.2).
+        BracketExpression,
+        /// `a#( … )` (KerML 8.2.5.8.2).
+        IndexExpression,
+        /// `( … )`: one expression in parentheses, or a sequence `(a, b)` (KerML 8.2.5.8.2).
+        SequenceExpression,
+        /// `null` or `()` (KerML 8.2.5.8.3).
+        NullExpression,
+        /// `a.metadata` (KerML 8.2.5.8.3).
+        MetadataAccessExpression,
+        /// `f(…)` (KerML 8.2.5.8.3).
+        InvocationExpression,
+        /// `new T(…)` (KerML 8.2.5.8.3, ADR 0015).
+        ConstructorExpression,
+        /// `( … )` of an invocation (KerML 8.2.5.8.3).
+        ArgumentList,
+        /// `name = value` in an argument list (KerML 8.2.5.8.3).
+        NamedArgument,
+        /// `{ … }` (KerML 8.2.5.8.3).
+        BodyExpression,
     }
 }
 

@@ -52,8 +52,7 @@ fn lex_synthetic_1m(bencher: Bencher) {
     });
 }
 
-/// Parsing the 36 KerML library files (KerML 8.2.3–8.2.5; the Kernel constructs that step 1a.3
-/// does not parse yet are skipped).
+/// Parsing the 36 KerML library files with the whole KerML grammar (KerML 8.2.3–8.2.5).
 #[divan::bench(sample_count = 20)]
 fn parse_kerml_library(bencher: Bencher) {
     let corpus = sysml_corpus::Corpus::load().unwrap();

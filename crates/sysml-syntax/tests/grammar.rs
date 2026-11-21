@@ -7,67 +7,13 @@
 //! its kind, its tokens follow it (inline if it has no child nodes), and trivia is left out; the
 //! diagnostics come last.
 
-use expect_test::{expect, Expect};
-use sysml_syntax::{parse, Language, SyntaxKind as K, SyntaxNode};
+mod common;
+
+use common::{check, codes};
+use expect_test::expect;
+use sysml_syntax::{parse, Language, SyntaxKind as K};
 #[cfg(target_arch = "wasm32")]
 use wasm_bindgen_test::wasm_bindgen_test as test;
-
-fn dump(node: &SyntaxNode, indent: usize, out: &mut String) {
-    let pad = "  ".repeat(indent);
-    let tokens = |n: &SyntaxNode| -> Vec<String> {
-        n.children_with_tokens()
-            .filter_map(|e| e.into_token())
-            .filter(|t| !t.kind().is_trivia())
-            .map(|t| format!("{:?}", t.text()))
-            .collect()
-    };
-    if node.children().next().is_none() {
-        let t = tokens(node);
-        out.push_str(&format!("{pad}{:?}", node.kind()));
-        if !t.is_empty() {
-            out.push(' ');
-            out.push_str(&t.join(" "));
-        }
-        out.push('\n');
-        return;
-    }
-    out.push_str(&format!("{pad}{:?}\n", node.kind()));
-    for e in node.children_with_tokens() {
-        match e {
-            rowan::NodeOrToken::Node(n) => dump(&n, indent + 1, out),
-            rowan::NodeOrToken::Token(t) if !t.kind().is_trivia() => {
-                out.push_str(&format!("{pad}  {:?}\n", t.text()));
-            }
-            rowan::NodeOrToken::Token(_) => {}
-        }
-    }
-}
-
-/// Parse `text` as KerML, check that the tree is lossless, and compare it with the snapshot.
-fn check(text: &str, expect: Expect) {
-    let p = parse(Language::KerML, text);
-    assert_eq!(p.syntax().text().to_string(), text, "lossless");
-    let mut out = String::new();
-    for child in p.syntax().children() {
-        dump(&child, 0, &mut out);
-    }
-    for d in p.diagnostics() {
-        out.push_str(&format!(
-            "{} at {:?} {:?}: {}\n",
-            d.code, d.range, &text[d.range], d.message
-        ));
-    }
-    expect.assert_eq(&out);
-}
-
-/// The diagnostic codes of `text`.
-fn codes(text: &str) -> Vec<&'static str> {
-    parse(Language::KerML, text)
-        .diagnostics()
-        .iter()
-        .map(|d| d.code)
-        .collect()
-}
 
 // KerML 8.2.3.1: Identification and RelationshipBody.
 
@@ -441,26 +387,6 @@ fn an_import_needs_a_visibility() {
           Body ";"
         syntax::import-without-visibility at 0..6 "import": an import needs a visibility: `public`, `private` or `protected`
     "#]],
-    );
-}
-
-#[test]
-fn filter_conditions_are_not_parsed_yet() {
-    check(
-        "private import NA::*[@Approved][true];",
-        expect![[r#"
-            Import
-              "private"
-              "import"
-              QualifiedName "NA"
-              "::"
-              "*"
-              Error "[" "@" "Approved" "]"
-              Error "[" "true" "]"
-              Body ";"
-            syntax::not-yet-supported at 20..21 "[": filter conditions are not parsed yet
-            syntax::not-yet-supported at 31..32 "[": filter conditions are not parsed yet
-        "#]],
     );
 }
 
@@ -1329,34 +1255,6 @@ fn type_featuring_forms() {
     );
 }
 
-#[test]
-fn feature_values_are_not_parsed_yet() {
-    // ValuePart (KerML 8.2.5.10) arrives in step 1a.4; the body after it still parses.
-    check(
-        "feature x : T = a->select { in i; i > 0 } { doc /* d */ } feature y default 1;",
-        expect![[r#"
-            Feature
-              "feature"
-              Identification "x"
-              ":"
-              OwnedFeatureTyping
-                QualifiedName "T"
-              Error "=" "a" "->" "select" "{" "in" "i" ";" "i" ">" "0" "}"
-              Body
-                "{"
-                Documentation "doc" "/* d */"
-                "}"
-            Feature
-              "feature"
-              Identification "y"
-              Error "default" "1"
-              Body ";"
-            syntax::not-yet-supported at 14..15 "=": feature values are not parsed yet
-            syntax::not-yet-supported at 68..75 "default": feature values are not parsed yet
-        "#]],
-    );
-}
-
 // KerML 8.2.5.11–8.2.5.13: the Kernel parts that step 1a.3 needs.
 
 #[test]
@@ -1506,59 +1404,6 @@ fn multiplicity_bounds_are_literals_or_feature_references() {
                 LiteralString "\"s\""
                 "]"
               Body ";"
-        "#]],
-    );
-}
-
-#[test]
-fn multiplicity_bound_expressions_are_not_parsed_yet() {
-    check(
-        "feature a [n + 1]; feature b [];",
-        expect![[r#"
-        Feature
-          "feature"
-          Identification "a"
-          MultiplicityBounds
-            "["
-            FeatureReferenceExpression
-              QualifiedName "n"
-            Error "+" "1"
-            "]"
-          Body ";"
-        Feature
-          "feature"
-          Identification "b"
-          MultiplicityBounds "[" "]"
-          Body ";"
-        syntax::not-yet-supported at 13..14 "+": expressions are not parsed yet, other than literals and feature references
-        syntax::expected-bound at 30..31 "]": expected a multiplicity bound: a number, `*` or a feature
-    "#]],
-    );
-}
-
-#[test]
-fn other_kernel_members_are_skipped_as_a_whole() {
-    check(
-        "package P { class C { feature x; } function f { in a; return : R; } classifier D; @M; datatype E; }",
-        expect![[r#"
-            Package
-              "package"
-              Identification "P"
-              Body
-                "{"
-                Error "class" "C" "{" "feature" "x" ";" "}"
-                Error "function" "f" "{" "in" "a" ";" "return" ":" "R" ";" "}"
-                Classifier
-                  "classifier"
-                  Identification "D"
-                  Body ";"
-                Error "@" "M" ";"
-                Error "datatype" "E" ";"
-                "}"
-            syntax::not-yet-supported at 12..17 "class": classes are not parsed yet
-            syntax::not-yet-supported at 35..43 "function": functions are not parsed yet
-            syntax::not-yet-supported at 82..83 "@": metadata features are not parsed yet
-            syntax::not-yet-supported at 86..94 "datatype": data types are not parsed yet
         "#]],
     );
 }
@@ -1754,9 +1599,9 @@ fn clause_7_examples_parse_without_diagnostics() {
 }
 
 #[test]
-fn the_kerml_library_has_only_kernel_constructs_left() {
-    // Every KerML library file parses losslessly, and every diagnostic is a Kernel construct
-    // that step 1a.4 parses. Nothing else is an error.
+fn the_kerml_library_parses_without_diagnostics() {
+    // Step 1a.4: all 36 KerML library files parse with zero diagnostics and round-trip byte for
+    // byte.
     let corpus = sysml_corpus::Corpus::load().unwrap();
     let mut files = 0;
     for s in corpus.sources() {
@@ -1766,11 +1611,14 @@ fn the_kerml_library_has_only_kernel_constructs_left() {
         files += 1;
         let p = parse(Language::KerML, &s.text);
         assert_eq!(p.syntax().text().to_string(), s.text, "{}", s.id);
-        for d in p.diagnostics() {
-            assert_eq!(
-                d.code, "syntax::not-yet-supported",
-                "{} at {:?}: {}",
-                s.id, d.range, d.message
+        if let Some(d) = p.diagnostics().first() {
+            let line = s.text[..usize::from(d.range.start())].matches('\n').count() + 1;
+            panic!(
+                "{}:{line}: {} {} ({} diagnostics)",
+                s.id,
+                d.code,
+                d.message,
+                p.diagnostics().len()
             );
         }
         // Every library file is one library package.
@@ -1795,7 +1643,8 @@ fn token_soup_never_sticks_and_stays_lossless() {
         .chain([
             "{", "}", "(", ")", "[", "]", ";", ",", "~", "@", "#", "*", "**", "->", "$", ".", "..",
             ":", "::", ":>", ":>>", "::>", "=>", "<", ">", "=", ":=", "a", "B", "'c d'", "1",
-            "2.5", "\"s\"", "/* c */", "// n\n",
+            "2.5", "\"s\"", "/* c */", "// n\n", "?", "??", ".?", "==", "!=", "===", "!==", "<=",
+            ">=", "+", "-", "/", "%", "^", "|", "&", "new",
         ])
         .collect();
     let mut seed: u64 = 0x2545_f491_4f6c_dd1d;
@@ -1884,14 +1733,11 @@ fn recovery_stops_at_every_member_keyword() {
 
 #[test]
 fn feature_values_with_body_expressions() {
-    // A `{` after an operator or a keyword such as `?` or `else` is a body expression (KerML
-    // 8.2.5.8), part of the value; only a `{` after a complete operand starts the feature's body.
+    // A `{` that starts an operand is a body expression (KerML 8.2.5.8.3), part of the value; a
+    // `{` after a complete value starts the feature's body.
     let text =
         "classifier C { feature x = if a ? {1} else {2}; feature y = 1 + {} { doc /* d */ } }";
-    assert_eq!(
-        codes(text),
-        ["syntax::not-yet-supported", "syntax::not-yet-supported"]
-    );
+    assert_eq!(codes(text), Vec::<&str>::new());
     let p = parse(Language::KerML, text);
     let body = p.syntax().first_child().unwrap().last_child().unwrap();
     let features: Vec<_> = body.children().filter(|n| n.kind() == K::Feature).collect();
