@@ -43,6 +43,10 @@ Step 1a.9 materializes all of them and tests them table by table.
 
 - **Already redefined.** A redefinition constraint implies a Redefinition unless the feature already redefines that target with an owned Redefinition. Other relationships to the target, such as a subsetting, do not count, since the OCL asks for `redefines`.
 
+### 1a. The generals a type declares
+
+A type's owned generals, which resolution inherits from, are the generals of its owned specializations whose `special` is the type, and those of its conjugation. Following `Type::supertypes` (KerML 8.3.3.1.10), a conjugated type has its original type alone, even if it also has specializations, which a `type` declaration allows (8.2.4.1.1). A specialization written as a member in a type's body, such as `specialization X subtype B specializes A`, specializes B, not the type that owns it.
+
 ### 2. A Redefinition, in the generals of its owning type
 
 KerML 8.2.3.5.1 repeats "the basic name resolution process" with each general of the owning type in turn as the local namespace. Read literally, the full resolution from the first general climbs to the namespaces that contain it before the next general is tried. In `classifier T specializes A, B { feature redefines x; }`, an `x` beside A in their package would then win over `B::x`, which T inherits.

@@ -915,3 +915,71 @@ fn feature_is_featuring_type() {
         "no owning type"
     );
 }
+
+// ---- regressions from review ----
+
+#[test]
+fn circular_conjugations_and_featurings_settle_without_a_stack_overflow() {
+    // Conjugations, chains and featurings may be circular in a model being edited.
+    let m = model(
+        "type A ~ B; type B ~ A; type X;
+        feature a chains b.x; feature b chains a.y;
+        classifier T { var feature f featured by g; var feature g featured by f; }",
+    );
+    let (db, p) = (&m.db, m.project);
+    assert!(!d::specializes(db, p, m.get("A"), m.get("X")));
+    let _ = d::featuring_type(db, p, m.get("a"));
+    let (f, g) = (m.get("T::f"), m.get("T::g"));
+    let _ = d::featuring_type(db, p, f);
+    let _ = d::is_featuring_type(db, p, f, g);
+    let _ = d::is_compatible_with(db, p, f, g);
+}
+
+#[test]
+fn a_type_does_not_inherit_its_own_memberships_around_a_cycle() {
+    // KerML 8.3.3.1.10 inheritableMemberships: `excludedTypes->including(self)`
+    let m = model("classifier A specializes B { feature x; } classifier B specializes A;");
+    let (db, p) = (&m.db, m.project);
+    assert!(d::inherited_membership(db, p, m.get("A")).is_empty());
+    assert_eq!(
+        names(&m, d::inherited_membership(db, p, m.get("B"))),
+        ["FeatureMembership(A::x)"]
+    );
+    assert_eq!(names(&m, d::feature(db, p, m.get("A"))), ["A::x"]);
+}
+
+#[test]
+fn a_conjugated_type_inherits_from_its_original_type_alone() {
+    // KerML 8.3.3.1.10 supertypes: `if isConjugated then Sequence{conjugator.originalType}`, in
+    // resolution as in the derived properties. A type, unlike a classifier, may be written with
+    // both (KerML 8.2.4.1.1).
+    let m = model(
+        "type D { feature d; } type E { feature e; }
+        type C specializes D conjugates E { feature z subsets d; feature w subsets e; }",
+    );
+    let (db, p) = (&m.db, m.project);
+    assert_eq!(names(&m, d::supertypes(db, p, m.get("C"), true)), ["E"]);
+    let typings = names(&m, d::inherited_feature(db, p, m.get("C")));
+    assert_eq!(typings, ["E::e"]);
+    let z = m.relationship("C::z", sysml_model::Metaclass::Subsetting, 1);
+    let w = m.relationship("C::w", sysml_model::Metaclass::Subsetting, 1);
+    assert_eq!(
+        names(&m, d::target(db, p, z)),
+        Vec::<String>::new(),
+        "d is not inherited"
+    );
+    assert_eq!(names(&m, d::target(db, p, w)), ["E::e"]);
+}
+
+#[test]
+fn a_specialization_written_in_a_type_does_not_make_the_type_specialize() {
+    // `specialization X subtype B specializes A` in T's body: its special is B, not T
+    let m = model(
+        "classifier A { feature a; } classifier B;
+        classifier T { specialization X subtype B specializes A; feature t subsets a; }",
+    );
+    let (db, p) = (&m.db, m.project);
+    assert!(d::supertypes(db, p, m.get("T"), true).is_empty());
+    let t = m.relationship("T::t", sysml_model::Metaclass::Subsetting, 1);
+    assert!(d::target(db, p, t).is_empty(), "a is not inherited by T");
+}
