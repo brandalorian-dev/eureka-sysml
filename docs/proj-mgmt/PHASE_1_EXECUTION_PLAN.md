@@ -196,7 +196,7 @@ Each step below gives its goal, the spec clauses, what it delivers, the tests to
   - Every KerML library file is a `standard library package` and uses Kernel multiplicities, so almost no part of the library uses only Root and Core. The original done criterion could not be met as worded.
   - Pulled forward from 1a.4: packages and library packages (8.2.5.13), multiplicities with literal and feature-reference bounds (8.2.5.11, 8.2.5.8.3–8.2.5.8.4) and prefix metadata (8.2.5.12).
   - The other Kernel constructs are reported as `syntax::not-yet-supported` and skipped as a whole: classes, functions, value parts and filters, for example. The rest of the file still parses.
-  - The library criterion is restated: every KerML library file parses losslessly, and every diagnostic is `not-yet-supported`. The count is 524 at the end of 1a.3, and 1a.4 takes it to zero.
+  - The library criterion is restated: every KerML library file parses losslessly, and every diagnostic is `not-yet-supported`. The count is 525 at the end of 1a.3, and 1a.4 takes it to zero.
 - **Goal:** parse the Root and Core concrete syntax into the tree.
 - **Clauses:**
   - KerML 8.2.3 (8.2.3.1 elements and relationships, 8.2.3.2 dependencies, 8.2.3.3 annotations, comments, documentation and textual representation, 8.2.3.4 namespaces, imports and namespace elements)
