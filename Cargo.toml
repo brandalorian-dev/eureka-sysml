@@ -26,6 +26,7 @@ divan = "0.1"
 wasm-bindgen = "0.2"
 rowan = "0.17"
 sysml-syntax = { path = "crates/sysml-syntax", version = "0.0.1" }
+sysml-semantics = { path = "crates/sysml-semantics", version = "0.0.1" }
 wasm-bindgen-test = "0.3"
 expect-test = "1"
 

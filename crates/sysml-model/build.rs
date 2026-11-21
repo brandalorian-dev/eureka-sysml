@@ -11,8 +11,16 @@
 //! - 7 enumerations (`{"type":"string","enum":[...]}`), and `Identified` (`{"@id"}` reference).
 //! - Property shapes: `Identified` refs (with the target metaclass IRI in `$comment`),
 //!   `oneOf [X, null]`, arrays, and primitive types (boolean, string, integer, number, uuid).
+//!
+//! It also reads the normative `KerML/normative/KerML.xmi` for the stored attributes of the 82
+//! KerML metaclasses (ADR 0017): which attributes are not derived, and which slot of the stored
+//! core each one is a view of, by following its redefinitions.
+
+#[path = "xmi.rs"]
+mod xmi;
 
 use serde_json::{Map, Value};
+use std::collections::{BTreeMap, BTreeSet, HashMap};
 use std::fmt::Write as _;
 use std::path::PathBuf;
 
@@ -173,6 +181,8 @@ fn main() {
     )
     .unwrap();
 
+    stored_attributes(&specs_dir, &metaclasses, &mut out);
+
     let dest = PathBuf::from(std::env::var("OUT_DIR").unwrap()).join("generated.rs");
     std::fs::write(&dest, out).expect("cannot write generated code");
 }
@@ -256,4 +266,301 @@ fn pascal(s: &str) -> String {
         Some(f) => f.to_uppercase().collect::<String>() + c.as_str(),
         None => String::new(),
     }
+}
+
+/// A stored (not derived) attribute of a KerML metaclass, as read from the XMI.
+struct Attribute {
+    name: String,
+    class: String,
+    kind: String,
+    many: bool,
+    redefines: Vec<String>,
+    default: Option<String>,
+}
+
+/// The six reference attributes that every stored reference attribute is a view of (ADR 0017).
+const REFERENCE_SLOTS: &[(&str, &str, &str)] = &[
+    ("Element", "owningRelationship", "Slot::OwningRelationship"),
+    ("Element", "ownedRelationship", "Slot::OwnedRelationship"),
+    (
+        "Relationship",
+        "owningRelatedElement",
+        "Slot::OwningRelatedElement",
+    ),
+    (
+        "Relationship",
+        "ownedRelatedElement",
+        "Slot::OwnedRelatedElement",
+    ),
+    ("Relationship", "source", "Slot::Source"),
+    ("Relationship", "target", "Slot::Target"),
+];
+
+/// Generate `Attr`, `Metaclass::is_kerml` and `Metaclass::stored_attributes` from `KerML.xmi`.
+fn stored_attributes(specs_dir: &std::path::Path, metaclasses: &[&str], out: &mut String) {
+    let path = specs_dir.join("KerML/normative/KerML.xmi");
+    println!("cargo:rerun-if-changed={}", path.display());
+    let text = std::fs::read_to_string(&path).unwrap_or_else(|e| {
+        panic!(
+            "cannot read {}: {e}\nRun `python scripts/fetch_specs.py fetch` first.",
+            path.display()
+        )
+    });
+    let root = xmi::parse(&text);
+    let mut all = Vec::new();
+    root.walk(&mut all);
+    let by_id: HashMap<&str, &xmi::Node> = all
+        .iter()
+        .filter_map(|n| n.attr("xmi:id").map(|id| (id, *n)))
+        .collect();
+
+    // The classes, their generalizations, and their stored attributes (by XMI id).
+    let mut generals: BTreeMap<String, Vec<String>> = BTreeMap::new();
+    let mut attributes: BTreeMap<String, Attribute> = BTreeMap::new();
+    let mut owned: BTreeMap<String, Vec<String>> = BTreeMap::new();
+    // What each class's derived attributes redefine: an attribute a derived one redefines is
+    // derived in that class and its descendants (KerML 8.3.3.3.9, `referencingFeature`).
+    let mut masks: BTreeMap<String, Vec<String>> = BTreeMap::new();
+    let mut derived_redefines: HashMap<String, Vec<String>> = HashMap::new();
+    for class in all
+        .iter()
+        .filter(|n| n.attr("xmi:type") == Some("uml:Class"))
+    {
+        let name = class.attr("name").expect("class without name").to_owned();
+        let gens = class
+            .children("generalization")
+            .flat_map(|g| g.children("general"))
+            .map(|g| {
+                by_id[g.attr("xmi:idref").unwrap()]
+                    .attr("name")
+                    .unwrap()
+                    .to_owned()
+            })
+            .collect();
+        generals.insert(name.clone(), gens);
+        let mut mine = Vec::new();
+        for a in class.children("ownedAttribute") {
+            if a.attr("isDerived") == Some("true") {
+                let redefined: Vec<String> = a
+                    .children("redefinedProperty")
+                    .map(|r| r.attr("xmi:idref").unwrap().to_owned())
+                    .collect();
+                masks
+                    .entry(name.clone())
+                    .or_default()
+                    .extend(redefined.iter().cloned());
+                derived_redefines.insert(a.attr("xmi:id").unwrap().to_owned(), redefined);
+                continue;
+            }
+            let id = a.attr("xmi:id").unwrap().to_owned();
+            let ty = a.children("type").next().expect("attribute without type");
+            let kind = match (ty.attr("xmi:idref"), ty.attr("href")) {
+                (Some(idref), _) => {
+                    let t = by_id[idref];
+                    let tname = t.attr("name").unwrap();
+                    match t.attr("xmi:type") {
+                        Some("uml:Enumeration") => {
+                            format!("PropertyKind::Enumeration {{ name: \"{tname}\" }}")
+                        }
+                        _ => format!("PropertyKind::Reference {{ target: \"{tname}\" }}"),
+                    }
+                }
+                (None, Some(href)) => match href.rsplit('#').next().unwrap() {
+                    "Boolean" => "PropertyKind::Boolean".to_owned(),
+                    "String" => "PropertyKind::String".to_owned(),
+                    "Integer" | "UnlimitedNatural" => "PropertyKind::Integer".to_owned(),
+                    "Real" => "PropertyKind::Real".to_owned(),
+                    other => panic!(
+                        "{name}::{}: unknown primitive type {other}",
+                        a.attr("name").unwrap()
+                    ),
+                },
+                _ => panic!("{name}: attribute type without a reference"),
+            };
+            let many = a
+                .children("upperValue")
+                .next()
+                .and_then(|u| u.attr("value"))
+                // Unlimited is `*` or, in this XMI, `-1`.
+                .is_some_and(|v| v == "*" || v == "-1" || v.parse::<u32>().is_ok_and(|n| n > 1));
+            let default = a
+                .children("defaultValue")
+                .next()
+                .map(|d| match d.attr("xmi:type") {
+                    Some("uml:LiteralBoolean") => d.attr("value").unwrap_or("false").to_owned(),
+                    Some("uml:LiteralInteger") => d.attr("value").unwrap_or("0").to_owned(),
+                    Some("uml:InstanceValue") => by_id[d.children("instance").next().map_or_else(
+                        || d.attr("instance").unwrap(),
+                        |i| i.attr("xmi:idref").unwrap(),
+                    )]
+                    .attr("name")
+                    .unwrap()
+                    .to_owned(),
+                    _ => d.attr("value").unwrap_or_default().to_owned(),
+                });
+            let redefines = a
+                .children("redefinedProperty")
+                .map(|r| r.attr("xmi:idref").unwrap().to_owned())
+                .collect();
+            attributes.insert(
+                id.clone(),
+                Attribute {
+                    name: a.attr("name").unwrap().to_owned(),
+                    class: name.clone(),
+                    kind,
+                    many,
+                    redefines,
+                    default,
+                },
+            );
+            mine.push(id);
+        }
+        owned.insert(name, mine);
+    }
+    assert_eq!(
+        generals.len(),
+        82,
+        "KerML.xmi: expected the 82 KerML metaclasses"
+    );
+
+    // The slot of each stored attribute: the root of its redefinitions.
+    let slot_of = |id: &str| -> (String, &Attribute) {
+        let mut a = &attributes[id];
+        while let Some(next) = a.redefines.first() {
+            a = attributes.get(next.as_str()).unwrap_or_else(|| {
+                panic!(
+                    "{}::{} redefines a derived attribute {next}",
+                    a.class, a.name
+                )
+            });
+        }
+        if let Some((_, _, slot)) = REFERENCE_SLOTS
+            .iter()
+            .find(|(c, n, _)| *c == a.class && *n == a.name)
+        {
+            return ((*slot).to_owned(), a);
+        }
+        if a.kind.starts_with("PropertyKind::Reference") {
+            // ADR 0017: a stored reference that is not a view of the core would be stored twice.
+            panic!(
+                "{}::{} is a stored reference outside the core slots",
+                a.class, a.name
+            );
+        }
+        (format!("Slot::Value(Attr::{})", pascal(&a.name)), a)
+    };
+    let mut attr_names: BTreeSet<String> = BTreeSet::new();
+    for id in attributes.keys() {
+        let (slot, root) = slot_of(id);
+        if slot.starts_with("Slot::Value") {
+            attr_names.insert(root.name.clone());
+        }
+    }
+
+    // ---- Attr ----
+    out.push_str("\n/// A stored attribute of the KerML abstract syntax that is not a reference (ADR 0017), by its\n/// name in the metamodel.\n");
+    out.push_str(
+        "#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, PartialOrd, Ord)]\npub enum Attr {\n",
+    );
+    for n in &attr_names {
+        writeln!(out, "    /// `{n}`\n    {},", pascal(n)).unwrap();
+    }
+    out.push_str("}\nimpl Attr {\n    /// Every stored attribute, sorted by name.\n    pub const ALL: &'static [Attr] = &[");
+    out.push_str(
+        &attr_names
+            .iter()
+            .map(|n| format!("Attr::{}", pascal(n)))
+            .collect::<Vec<_>>()
+            .join(", "),
+    );
+    out.push_str("];\n    /// The attribute name in the metamodel.\n    pub const fn name(self) -> &'static str {\n        match self {\n");
+    for n in &attr_names {
+        writeln!(out, "            Attr::{} => \"{n}\",", pascal(n)).unwrap();
+    }
+    out.push_str("        }\n    }\n}\n\n");
+
+    // ---- Metaclass::stored_attributes and is_kerml ----
+    let mut arms = String::new();
+    let mut kerml = Vec::new();
+    for class in generals.keys() {
+        assert!(
+            metaclasses.contains(&class.as_str()),
+            "{class} is in KerML.xmi but not SysML.json"
+        );
+        kerml.push(format!("Metaclass::{class}"));
+        // The class and its ancestors, nearest first; an attribute redefined under the same name
+        // is listed once, as its most specific redefinition.
+        let mut order = Vec::new();
+        let mut queue = vec![class.clone()];
+        while let Some(c) = queue.pop() {
+            if order.contains(&c) {
+                continue;
+            }
+            queue.extend(generals[&c].iter().rev().cloned());
+            order.push(c);
+        }
+        // The attributes that derived attributes of this class or its ancestors redefine,
+        // closed over the redefinitions: none of them is stored here.
+        let mut masked: BTreeSet<String> = BTreeSet::new();
+        let mut pending: Vec<String> = order
+            .iter()
+            .flat_map(|c| masks.get(c).into_iter().flatten().cloned())
+            .collect();
+        while let Some(id) = pending.pop() {
+            if masked.insert(id.clone()) {
+                let next = attributes
+                    .get(&id)
+                    .map(|a| a.redefines.clone())
+                    .or_else(|| derived_redefines.get(&id).cloned())
+                    .unwrap_or_default();
+                pending.extend(next);
+            }
+        }
+        let mut seen = BTreeSet::new();
+        let mut items = Vec::new();
+        for c in &order {
+            for id in &owned[c] {
+                let a = &attributes[id];
+                if masked.contains(id) || !seen.insert(a.name.clone()) {
+                    continue;
+                }
+                let (slot, _) = slot_of(id);
+                items.push(format!(
+                    "StoredAttribute {{ name: \"{}\", slot: {slot}, kind: {}, many: {}, default: {} }}",
+                    a.name,
+                    a.kind,
+                    a.many,
+                    a.default.as_ref().map_or("None".to_owned(), |d| format!("Some({d:?})"))
+                ));
+            }
+        }
+        writeln!(
+            arms,
+            "            Metaclass::{class} => &[\n                {}\n            ],",
+            items.join(",\n                ")
+        )
+        .unwrap();
+    }
+    write!(
+        out,
+        r#"impl Metaclass {{
+    /// Whether this is one of the 82 metaclasses of KerML (KerML 8.3), as opposed to one that
+    /// SysML adds.
+    pub const fn is_kerml(self) -> bool {{
+        matches!(self, {kerml})
+    }}
+
+    /// The stored attributes of a KerML metaclass, owned and inherited, nearest first: the ones
+    /// that are not derived, each with the slot of the stored core it is a view of (ADR 0017,
+    /// generated from `KerML.xmi`). Empty for the SysML metaclasses until Phase 1b.
+    pub fn stored_attributes(self) -> &'static [StoredAttribute] {{
+        match self {{
+{arms}            _ => &[],
+        }}
+    }}
+}}
+"#,
+        kerml = kerml.join(" | "),
+    )
+    .unwrap();
 }

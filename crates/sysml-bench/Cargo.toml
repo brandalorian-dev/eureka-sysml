@@ -20,6 +20,9 @@ sysml-api-types.workspace = true
 sysml-corpus.workspace = true
 sysml-synth.workspace = true
 sysml-syntax.workspace = true
+sysml-semantics.workspace = true
+sysml-model.workspace = true
+uuid.workspace = true
 
 [target.'cfg(target_arch = "wasm32")'.dev-dependencies]
 # Runs the tests as WebAssembly under Node (step 1a.1).
@@ -31,4 +34,8 @@ harness = false
 
 [[bench]]
 name = "syntax"
+harness = false
+
+[[bench]]
+name = "model"
 harness = false
