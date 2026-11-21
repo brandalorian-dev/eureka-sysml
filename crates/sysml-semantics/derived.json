@@ -1,0 +1,580 @@
+{
+  "version": 1,
+  "about": "Every derive rule and operation of the KerML metaclasses (KerML.xmi), with its status in sysml-semantics (step 1a.8, ADR 0021). Kept equal to KerML.xmi by tests/derived_inventory.rs. done: implemented by the function in sysml_semantics::derived and tested by the test named after the rule or operation in tests/derived.rs; open: not yet; deferred: with the reason.",
+  "derive": {
+    "AnnotatingElement::deriveAnnotatingElementAnnotatedElement": {
+      "status": "done",
+      "function": "annotated_element"
+    },
+    "AnnotatingElement::deriveAnnotatingElementAnnotation": {
+      "status": "done",
+      "function": "annotation"
+    },
+    "AnnotatingElement::deriveAnnotatingElementOwnedAnnotatingRelationship": {
+      "status": "done",
+      "function": "owned_annotating_relationship"
+    },
+    "Annotation::deriveAnnotationAnnotatingElement": {
+      "status": "done",
+      "function": "annotating_element"
+    },
+    "Annotation::deriveAnnotationOwnedAnnotatingElement": {
+      "status": "done",
+      "function": "owned_annotating_element"
+    },
+    "Association::deriveAssociationRelatedType": {
+      "status": "open"
+    },
+    "Association::deriveAssociationSourceType": {
+      "status": "open"
+    },
+    "Association::deriveAssociationTargetType": {
+      "status": "open"
+    },
+    "Behavior::deriveBehaviorStep": {
+      "status": "open"
+    },
+    "Classifier::deriveClassifierOwnedSubclassification": {
+      "status": "open"
+    },
+    "Connector::deriveConnectorDefaultFeaturingType": {
+      "status": "open"
+    },
+    "Connector::deriveConnectorRelatedFeature": {
+      "status": "open"
+    },
+    "Connector::deriveConnectorSourceFeature": {
+      "status": "open"
+    },
+    "Connector::deriveConnectorTargetFeature": {
+      "status": "open"
+    },
+    "ConstructorExpression::deriveConstructorExpressionArgument": {
+      "status": "open"
+    },
+    "Element::deriveElementDocumentation": {
+      "status": "done",
+      "function": "documentation"
+    },
+    "Element::deriveElementIsLibraryElement": {
+      "status": "done",
+      "function": "is_library_element"
+    },
+    "Element::deriveElementName": {
+      "status": "done",
+      "function": "name"
+    },
+    "Element::deriveElementOwnedAnnotation": {
+      "status": "done",
+      "function": "owned_annotation"
+    },
+    "Element::deriveElementOwnedElement": {
+      "status": "done",
+      "function": "owned_element"
+    },
+    "Element::deriveElementOwner": {
+      "status": "done",
+      "function": "owner"
+    },
+    "Element::deriveElementQualifiedName": {
+      "status": "done",
+      "function": "qualified_name"
+    },
+    "Element::deriveElementShortName": {
+      "status": "done",
+      "function": "short_name"
+    },
+    "Element::deriveElementTextualRepresentation": {
+      "status": "done",
+      "function": "textual_representation"
+    },
+    "Element::deriveOwningNamespace": {
+      "status": "done",
+      "function": "owning_namespace"
+    },
+    "Expression::deriveExpressionIsModelLevelEvaluable": {
+      "status": "open"
+    },
+    "Expression::deriveExpressionResult": {
+      "status": "open"
+    },
+    "Feature::deriveFeatureChainingFeature": {
+      "status": "open"
+    },
+    "Feature::deriveFeatureCrossFeature": {
+      "status": "open"
+    },
+    "Feature::deriveFeatureFeatureTarget": {
+      "status": "open"
+    },
+    "Feature::deriveFeatureFeaturingType": {
+      "status": "open"
+    },
+    "Feature::deriveFeatureOwnedCrossSubsetting": {
+      "status": "open"
+    },
+    "Feature::deriveFeatureOwnedFeatureChaining": {
+      "status": "open"
+    },
+    "Feature::deriveFeatureOwnedFeatureInverting": {
+      "status": "open"
+    },
+    "Feature::deriveFeatureOwnedRedefinition": {
+      "status": "open"
+    },
+    "Feature::deriveFeatureOwnedReferenceSubsetting": {
+      "status": "open"
+    },
+    "Feature::deriveFeatureOwnedSubsetting": {
+      "status": "open"
+    },
+    "Feature::deriveFeatureOwnedTypeFeaturing": {
+      "status": "open"
+    },
+    "Feature::deriveFeatureOwnedTyping": {
+      "status": "open"
+    },
+    "Feature::deriveFeatureType": {
+      "status": "open"
+    },
+    "FeatureChainExpression::deriveFeatureChainExpressionTargetFeature": {
+      "status": "open"
+    },
+    "FeatureReferenceExpression::deriveFeatureReferenceExpressionReferent": {
+      "status": "open"
+    },
+    "Flow::deriveFlowFlowEnd": {
+      "status": "open"
+    },
+    "Flow::deriveFlowPayloadFeature": {
+      "status": "open"
+    },
+    "Flow::deriveFlowPayloadType": {
+      "status": "open"
+    },
+    "Flow::deriveFlowSourceOutputFeature": {
+      "status": "open"
+    },
+    "Flow::deriveFlowTargetInputFeature": {
+      "status": "open"
+    },
+    "Function::deriveFunctionResult": {
+      "status": "open"
+    },
+    "InstantiationExpression::deriveInstantiationExpressionInstantiatedType": {
+      "status": "open"
+    },
+    "InvocationExpression::deriveInvocationExpressionArgument": {
+      "status": "open"
+    },
+    "LiteralExpression::deriveLiteralExpressionIsModelLevelEvaluable": {
+      "status": "open"
+    },
+    "Membership::deriveMembershipMemberElementId": {
+      "status": "deferred",
+      "reason": "An elementId is a DataIdentity id, which the mapping layer outside the query graph assigns (ADR 0019); with the library UUIDs in step 1a.11."
+    },
+    "MembershipImport::deriveMembershipImportImportedElement": {
+      "status": "done",
+      "function": "imported_element"
+    },
+    "MetadataAccessExpression::deriveMetadataAccessExpressionReferencdElement": {
+      "status": "open"
+    },
+    "MetadataFeature::deriveMetadataFeatureMetaclass": {
+      "status": "open"
+    },
+    "MultiplicityRange::deriveMultiplicityRangeBound": {
+      "status": "open"
+    },
+    "MultiplicityRange::deriveMultiplicityRangeLowerBound": {
+      "status": "open"
+    },
+    "MultiplicityRange::deriveMultiplicityRangeUpperBound": {
+      "status": "open"
+    },
+    "Namespace::deriveNamespaceImportedMembership": {
+      "status": "done",
+      "function": "imported_membership"
+    },
+    "Namespace::deriveNamespaceMembers": {
+      "status": "done",
+      "function": "member"
+    },
+    "Namespace::deriveNamespaceOwnedImport": {
+      "status": "done",
+      "function": "owned_import"
+    },
+    "Namespace::deriveNamespaceOwnedMember": {
+      "status": "done",
+      "function": "owned_member"
+    },
+    "Namespace::deriveNamespaceOwnedMembership": {
+      "status": "done",
+      "function": "owned_membership"
+    },
+    "NamespaceImport::deriveNamespaceImportImportedElement": {
+      "status": "done",
+      "function": "imported_element"
+    },
+    "OwningMembership::deriveOwningMembershipOwnedMemberName": {
+      "status": "done",
+      "function": "owned_member_name"
+    },
+    "OwningMembership::deriveOwningMembershipOwnedMemberShortName": {
+      "status": "done",
+      "function": "owned_member_short_name"
+    },
+    "Package::derivePackageFilterCondition": {
+      "status": "open"
+    },
+    "Relationship::deriveRelationshipRelatedElement": {
+      "status": "done",
+      "function": "related_element"
+    },
+    "Step::deriveStepBehavior": {
+      "status": "open"
+    },
+    "Type::deriveTypeDifferencingType": {
+      "status": "open"
+    },
+    "Type::deriveTypeDirectedFeature": {
+      "status": "open"
+    },
+    "Type::deriveTypeEndFeature": {
+      "status": "open"
+    },
+    "Type::deriveTypeFeature": {
+      "status": "open"
+    },
+    "Type::deriveTypeFeatureMembership": {
+      "status": "open"
+    },
+    "Type::deriveTypeInheritedFeature": {
+      "status": "open"
+    },
+    "Type::deriveTypeInheritedMembership": {
+      "status": "open"
+    },
+    "Type::deriveTypeInput": {
+      "status": "open"
+    },
+    "Type::deriveTypeIntersectingType": {
+      "status": "open"
+    },
+    "Type::deriveTypeMultiplicity": {
+      "status": "open"
+    },
+    "Type::deriveTypeOutput": {
+      "status": "open"
+    },
+    "Type::deriveTypeOwnedConjugator": {
+      "status": "open"
+    },
+    "Type::deriveTypeOwnedDifferencing": {
+      "status": "open"
+    },
+    "Type::deriveTypeOwnedDisjoining": {
+      "status": "open"
+    },
+    "Type::deriveTypeOwnedEndFeature": {
+      "status": "open"
+    },
+    "Type::deriveTypeOwnedFeature": {
+      "status": "open"
+    },
+    "Type::deriveTypeOwnedFeatureMembership": {
+      "status": "open"
+    },
+    "Type::deriveTypeOwnedIntersecting": {
+      "status": "open"
+    },
+    "Type::deriveTypeOwnedSpecialization": {
+      "status": "open"
+    },
+    "Type::deriveTypeOwnedUnioning": {
+      "status": "open"
+    },
+    "Type::deriveTypeUnioningType": {
+      "status": "open"
+    }
+  },
+  "operations": {
+    "ConstructorExpression::modelLevelEvaluable": {
+      "status": "open"
+    },
+    "Element::effectiveName": {
+      "status": "done",
+      "function": "effective_name"
+    },
+    "Element::effectiveShortName": {
+      "status": "done",
+      "function": "effective_short_name"
+    },
+    "Element::escapedName": {
+      "status": "done",
+      "function": "escaped_name"
+    },
+    "Element::libraryNamespace": {
+      "status": "done",
+      "function": "library_namespace"
+    },
+    "Element::path": {
+      "status": "done",
+      "function": "path"
+    },
+    "Expression::checkCondition": {
+      "status": "open"
+    },
+    "Expression::evaluate": {
+      "status": "open"
+    },
+    "Expression::modelLevelEvaluable": {
+      "status": "open"
+    },
+    "Feature::allRedefinedFeatures": {
+      "status": "open"
+    },
+    "Feature::asCartesianProduct": {
+      "status": "open"
+    },
+    "Feature::canAccess": {
+      "status": "open"
+    },
+    "Feature::directionFor": {
+      "status": "open"
+    },
+    "Feature::effectiveName": {
+      "status": "open"
+    },
+    "Feature::effectiveShortName": {
+      "status": "open"
+    },
+    "Feature::isCartesianProduct": {
+      "status": "open"
+    },
+    "Feature::isCompatibleWith": {
+      "status": "open"
+    },
+    "Feature::isFeaturedWithin": {
+      "status": "open"
+    },
+    "Feature::isFeaturingType": {
+      "status": "open"
+    },
+    "Feature::isOwnedCrossFeature": {
+      "status": "open"
+    },
+    "Feature::namingFeature": {
+      "status": "open"
+    },
+    "Feature::ownedCrossFeature": {
+      "status": "open"
+    },
+    "Feature::redefines": {
+      "status": "open"
+    },
+    "Feature::redefinesFromLibrary": {
+      "status": "open"
+    },
+    "Feature::subsetsChain": {
+      "status": "open"
+    },
+    "Feature::supertypes": {
+      "status": "open"
+    },
+    "Feature::typingFeatures": {
+      "status": "open"
+    },
+    "FeatureChainExpression::sourceTargetFeature": {
+      "status": "open"
+    },
+    "FeatureReferenceExpression::evaluate": {
+      "status": "open"
+    },
+    "FeatureReferenceExpression::modelLevelEvaluable": {
+      "status": "open"
+    },
+    "Import::importedMemberships": {
+      "status": "done",
+      "function": "import_imported_memberships"
+    },
+    "InstantiationExpression::instantiatedType": {
+      "status": "open"
+    },
+    "InvocationExpression::evaluate": {
+      "status": "open"
+    },
+    "InvocationExpression::modelLevelEvaluable": {
+      "status": "open"
+    },
+    "LibraryPackage::libraryNamespace": {
+      "status": "done",
+      "function": "library_namespace"
+    },
+    "LiteralExpression::evaluate": {
+      "status": "open"
+    },
+    "LiteralExpression::modelLevelEvaluable": {
+      "status": "open"
+    },
+    "Membership::isDistinguishableFrom": {
+      "status": "done",
+      "function": "is_distinguishable_from"
+    },
+    "MembershipImport::importedMemberships": {
+      "status": "done",
+      "function": "import_imported_memberships"
+    },
+    "MetadataAccessExpression::evaluate": {
+      "status": "open"
+    },
+    "MetadataAccessExpression::metaclassFeature": {
+      "status": "open"
+    },
+    "MetadataAccessExpression::modelLevelEvaluable": {
+      "status": "open"
+    },
+    "MetadataFeature::evaluateFeature": {
+      "status": "open"
+    },
+    "MetadataFeature::isSemantic": {
+      "status": "open"
+    },
+    "MetadataFeature::isSyntactic": {
+      "status": "open"
+    },
+    "MetadataFeature::syntaxElement": {
+      "status": "open"
+    },
+    "MultiplicityRange::hasBounds": {
+      "status": "open"
+    },
+    "MultiplicityRange::valueOf": {
+      "status": "open"
+    },
+    "Namespace::importedMemberships": {
+      "status": "done",
+      "function": "namespace_imported_memberships"
+    },
+    "Namespace::membershipsOfVisibility": {
+      "status": "done",
+      "function": "memberships_of_visibility"
+    },
+    "Namespace::namesOf": {
+      "status": "done",
+      "function": "names_of"
+    },
+    "Namespace::qualificationOf": {
+      "status": "done",
+      "function": "qualification_of"
+    },
+    "Namespace::resolve": {
+      "status": "done",
+      "function": "resolve"
+    },
+    "Namespace::resolveGlobal": {
+      "status": "done",
+      "function": "resolve_global"
+    },
+    "Namespace::resolveLocal": {
+      "status": "done",
+      "function": "resolve_local"
+    },
+    "Namespace::resolveVisible": {
+      "status": "done",
+      "function": "resolve_visible"
+    },
+    "Namespace::unqualifiedNameOf": {
+      "status": "done",
+      "function": "unqualified_name_of"
+    },
+    "Namespace::visibilityOf": {
+      "status": "done",
+      "function": "visibility_of"
+    },
+    "Namespace::visibleMemberships": {
+      "status": "done",
+      "function": "visible_memberships"
+    },
+    "NamespaceImport::importedMemberships": {
+      "status": "done",
+      "function": "import_imported_memberships"
+    },
+    "NullExpression::evaluate": {
+      "status": "open"
+    },
+    "NullExpression::modelLevelEvaluable": {
+      "status": "open"
+    },
+    "OperatorExpression::instantiatedType": {
+      "status": "open"
+    },
+    "OwningMembership::path": {
+      "status": "done",
+      "function": "path"
+    },
+    "Package::importedMemberships": {
+      "status": "open"
+    },
+    "Package::includeAsMember": {
+      "status": "open"
+    },
+    "ParameterMembership::parameterDirection": {
+      "status": "open"
+    },
+    "Relationship::libraryNamespace": {
+      "status": "done",
+      "function": "library_namespace"
+    },
+    "Relationship::path": {
+      "status": "done",
+      "function": "path"
+    },
+    "ReturnParameterMembership::parameterDirection": {
+      "status": "open"
+    },
+    "Type::allRedefinedFeaturesOf": {
+      "status": "open"
+    },
+    "Type::allSupertypes": {
+      "status": "open"
+    },
+    "Type::directionOf": {
+      "status": "open"
+    },
+    "Type::directionOfExcluding": {
+      "status": "open"
+    },
+    "Type::inheritableMemberships": {
+      "status": "open"
+    },
+    "Type::inheritedMemberships": {
+      "status": "open"
+    },
+    "Type::isCompatibleWith": {
+      "status": "open"
+    },
+    "Type::multiplicities": {
+      "status": "open"
+    },
+    "Type::nonPrivateMemberships": {
+      "status": "open"
+    },
+    "Type::removeRedefinedFeatures": {
+      "status": "open"
+    },
+    "Type::specializes": {
+      "status": "open"
+    },
+    "Type::specializesFromLibrary": {
+      "status": "open"
+    },
+    "Type::supertypes": {
+      "status": "open"
+    },
+    "Type::visibleMemberships": {
+      "status": "open"
+    }
+  }
+}

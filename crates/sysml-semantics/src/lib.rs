@@ -3,6 +3,8 @@
 //!
 //! Since step 1a.6 it holds the lowering from syntax trees to the element graph ([`lower`]).
 //! Since step 1a.7 it resolves names (KerML 8.2.3.5) as incremental `salsa` queries (ADR 0019).
+//! Since step 1a.8, [`derived`] computes the derived properties and operations of KerML 8.3
+//! (ADR 0021).
 
 /// The iterations after which a cycle head keeps its last value (ADR 0020). The queries that
 /// iterate to a fixpoint are not all monotone (a lookup takes the first match, and imported
@@ -13,12 +15,12 @@ const SETTLE_AFTER: u32 = 100;
 /// A `cycle_fn` (ADR 0020), whose signature `salsa` sets: the value just computed, or, after [`SETTLE_AFTER`] iterations, the
 /// last one (`last`) or a given one, which ends the iteration on the next comparison.
 macro_rules! settle {
-    ($name:ident, $out:ty, ($($arg:ty),*)) => {
-        settle!($name, $out, ($($arg),*), |last: &$out| last.clone());
+    ($vis:vis $name:ident, $out:ty, ($($arg:ty),*)) => {
+        settle!($vis $name, $out, ($($arg),*), |last: &$out| last.clone());
     };
-    ($name:ident, $out:ty, ($($arg:ty),*), $settled:expr) => {
+    ($vis:vis $name:ident, $out:ty, ($($arg:ty),*), $settled:expr) => {
         #[allow(clippy::redundant_closure_call, clippy::too_many_arguments)]
-        fn $name(
+        $vis fn $name(
             _db: &dyn salsa::Database,
             cycle: &salsa::Cycle,
             last: &$out,
@@ -34,6 +36,7 @@ macro_rules! settle {
     };
 }
 
+pub mod derived;
 mod implied;
 mod lower;
 mod resolve;

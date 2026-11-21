@@ -182,6 +182,7 @@ fn main() {
     .unwrap();
 
     stored_attributes(&specs_dir, &metaclasses, &mut out);
+    rules(&specs_dir, &mut out);
 
     let dest = PathBuf::from(std::env::var("OUT_DIR").unwrap()).join("generated.rs");
     std::fs::write(&dest, out).expect("cannot write generated code");
@@ -563,4 +564,88 @@ fn stored_attributes(specs_dir: &std::path::Path, metaclasses: &[&str], out: &mu
         kerml = kerml.join(" | "),
     )
     .unwrap();
+}
+
+/// Generate `DERIVE_RULES`, `OPERATIONS` and `CONSTRAINTS` from `KerML.xmi`: every `derive…`
+/// rule, operation, and `check…`/`validate…` constraint of the KerML metaclasses, with its OCL
+/// body (step 1a.8). The inventory of derived properties and operations is kept equal to these.
+fn rules(specs_dir: &std::path::Path, out: &mut String) {
+    let path = specs_dir.join("KerML/normative/KerML.xmi");
+    let text = std::fs::read_to_string(&path).expect("cannot read KerML.xmi");
+    let root = xmi::parse(&text);
+    let mut all = Vec::new();
+    root.walk(&mut all);
+    let body = |n: &xmi::Node| -> String {
+        n.children("specification")
+            .next()
+            .and_then(|s| s.attr("body"))
+            .unwrap_or_default()
+            .to_owned()
+    };
+    let (mut derives, mut operations, mut constraints) = (Vec::new(), Vec::new(), Vec::new());
+    for class in all
+        .iter()
+        .filter(|n| n.attr("xmi:type") == Some("uml:Class"))
+    {
+        let c = class.attr("name").expect("class without name");
+        // The layer is the first segment of the XMI id: `Root`, `Core` or `Kernel`.
+        let layer = class
+            .attr("xmi:id")
+            .and_then(|i| i.split('-').next())
+            .unwrap_or_default();
+        for r in class.children("ownedRule") {
+            let name = r.attr("name").unwrap_or_default();
+            let entry = (layer.to_owned(), c.to_owned(), name.to_owned(), body(r));
+            if name.starts_with("derive") {
+                derives.push(entry);
+            } else if name.starts_with("check") || name.starts_with("validate") {
+                constraints.push(entry);
+            }
+        }
+        for o in class.children("ownedOperation") {
+            let b = o
+                .children("bodyCondition")
+                .next()
+                .map(&body)
+                .unwrap_or_default();
+            operations.push((
+                layer.to_owned(),
+                c.to_owned(),
+                o.attr("name").unwrap_or_default().to_owned(),
+                b,
+            ));
+        }
+    }
+    assert_eq!(
+        (derives.len(), operations.len()),
+        (90, 84),
+        "KerML.xmi: expected 90 derive rules and 84 operations (KerML 8.3)"
+    );
+    for (name, doc, list) in [
+        (
+            "DERIVE_RULES",
+            "The `derive…` rules of the KerML metaclasses (KerML 8.3).",
+            &derives,
+        ),
+        (
+            "OPERATIONS",
+            "The operations of the KerML metaclasses (KerML 8.3).",
+            &operations,
+        ),
+        (
+            "CONSTRAINTS",
+            "The `check…` and `validate…` constraints of the KerML metaclasses (KerML 8.3).",
+            &constraints,
+        ),
+    ] {
+        writeln!(out, "/// {doc}\npub const {name}: &[Rule] = &[").unwrap();
+        for (l, c, n, b) in list {
+            writeln!(
+                out,
+                "    Rule {{ layer: {l:?}, metaclass: {c:?}, name: {n:?}, body: {b:?} }},"
+            )
+            .unwrap();
+        }
+        out.push_str("];\n\n");
+    }
 }

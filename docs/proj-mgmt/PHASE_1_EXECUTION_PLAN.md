@@ -291,6 +291,10 @@ Each step below gives its goal, the spec clauses, what it delivers, the tests to
 - **Effort:** 1.5–2
 
 #### 1a.8 Derived properties and operations
+- **Status:** in progress. The Root layer (KerML 8.3.2) is done, in the first of three PRs, one per layer (ADR 0021).
+  - **The inventory:** `crates/sysml-semantics/derived.json` lists all 90 derive rules and 84 operations of `KerML.xmi`, each `done`, `open` or `deferred`. A test keeps it equal to the XMI. It also follows the OCL of the 168 `check…` and `validate…` constraints, and of `path()`, to the rules and operations they need: 56 of the 82 derived properties and 48 of the 58 operation names. A needed entry may not be deferred, and a complete layer has no open entry.
+  - **Root:** 49 functions in `sysml_semantics::derived`, each with a test from its OCL. `memberElementId` is deferred to the UUID mapping of 1a.11.
+  - **The oracle:** for all 24,859 elements of the KerML libraries inside a library package, `path()` gives the pilot's `elementId` by KerML 9.1.
 - **Goal:** compute the derived properties and operations the semantics and the UUIDs need.
 - **Clauses:**
   - KerML 8.3.2–8.3.4: the `derive…` rules (90) and the operations (84) of the KerML metaclasses
