@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 //! The Root layer (KerML 8.2.3), and the namespace members, which every body shares.
 
-use super::expressions::{at_expression, expression};
+use super::expressions::{at_expression, expression, qualified_name_len};
 use super::names::{body, identification, qualified_name};
 use super::{at_qualified_name, core, is_name, kernel, Context, PREFIX, VISIBILITY};
 use crate::kinds::SyntaxKind as K;
@@ -99,20 +99,63 @@ fn continues_feature(kind: K) -> bool {
     )
 }
 
-/// Whether the current token, in a function body, starts its result expression rather than a
-/// member. Both can start with a name: `x : T;` is a feature, `x > 0` an expression. A name
-/// followed by what can only continue a feature declaration is a feature (`x;`, `x[1]`), and so
-/// is `all x …` followed by one.
-fn at_result_expression(p: &Parser) -> bool {
-    if p.at_any(VISIBILITY) {
-        return false;
+/// Whether a feature declaration goes on at the `n`-th token ahead, after the start of a feature
+/// (a name, `~ T`): what follows can only continue a declaration. For `[`, it is what follows the
+/// matching `]` that decides, since `x[1]` is also a bracket expression (8.2.5.8.2): `x[1];` and
+/// `x[1] : T` are features, `x[1]` at the end of the body and `x[1] + 2` are expressions.
+fn feature_follows(p: &Parser, n: usize) -> bool {
+    if p.peek(n) != K::LBracket {
+        return continues_feature(p.peek(n));
     }
-    match p.current() {
-        k if is_name(k) => !continues_feature(p.nth(1)),
-        K::AllKw if is_name(p.nth(1)) => !continues_feature(p.nth(2)),
+    let mut depth = 0u32;
+    let mut i = n;
+    loop {
+        match p.peek(i) {
+            K::LBracket => depth += 1,
+            K::RBracket => {
+                depth -= 1;
+                if depth == 0 {
+                    let after = p.peek(i + 1);
+                    return continues_feature(after) && after != K::LBracket;
+                }
+            }
+            // Unclosed: a broken multiplicity, best recovered as a feature.
+            K::Eof | K::Semicolon | K::LBrace | K::RBrace => return true,
+            _ => {}
+        }
+        i += 1;
+    }
+}
+
+/// The number of tokens of the qualified name or feature chain at the `n`-th token, or 0.
+fn chain_len(p: &Parser, n: usize) -> usize {
+    let mut len = qualified_name_len(p, n);
+    while len > 0 && p.peek(n + len) == K::Dot && qualified_name_len(p, n + len + 1) > 0 {
+        len += 1 + qualified_name_len(p, n + len + 1);
+    }
+    len
+}
+
+/// Whether the current token, in a function body, starts its result expression
+/// (ResultExpressionMember, `MemberPrefix OwnedExpression`, KerML 8.2.5.7.1) rather than a member.
+/// Both can start with a name, `~` or `all`: `x : T;`, `~ T;` and `all : T;` are features
+/// (FeatureDeclaration, 8.2.4.3.1), `x > 0`, `~ x` and `all T` expressions. A start followed by
+/// what can only continue a declaration is a feature.
+fn at_result_expression(p: &Parser) -> bool {
+    let n = usize::from(p.at_any(VISIBILITY));
+    match p.peek(n) {
+        k if is_name(k) => !feature_follows(p, n + 1),
+        K::AllKw if at_qualified_name(p, n + 1) => {
+            !feature_follows(p, n + 1 + qualified_name_len(p, n + 1))
+        }
+        K::AllKw => !core::at_feature_declaration(p.peek(n + 1)),
+        K::Tilde => match chain_len(p, n + 1) {
+            0 => true,
+            len => !feature_follows(p, n + 1 + len),
+        },
         // `@` starts a metadata feature (8.2.5.12) here, not a classification.
         K::At => false,
-        _ => at_expression(p),
+        _ => at_expression(p, n),
     }
 }
 
@@ -267,6 +310,17 @@ fn member(p: &mut Parser, context: Context) {
                 && (deciding == K::FeatureKw || core::at_feature_declaration(deciding)) =>
         {
             kernel::metadata_body_feature(p, m)
+        }
+        Some(P::Feature)
+            if context == Context::Metadata && kernel::KERNEL_FEATURES.contains(&deciding) =>
+        {
+            // MetadataBodyElement (8.2.5.12) has no kernel features: report, and parse it anyway.
+            p.error(
+                "syntax::misplaced-member",
+                "a metadata body cannot have steps, expressions, connectors or flows",
+                Some("KerML 8.2.5.12"),
+            );
+            core::feature(p, m, context)
         }
         Some(P::Feature | P::FeatureDeclaration) => core::feature(p, m, context),
         None => {

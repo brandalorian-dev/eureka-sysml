@@ -43,6 +43,9 @@ pub(crate) struct Parser {
     /// For each significant token, whether it is the name `new`, the contextual keyword of a
     /// ConstructorExpression (KerML 8.2.5.8.3, ADR 0015).
     new: Vec<bool>,
+    /// For each significant token, whether the next one follows it with no trivia between:
+    /// `@@` is two adjacent `@` tokens (ADR 0015).
+    adjacent: Vec<bool>,
     pos: usize,
     events: Vec<Event>,
     fuel: std::cell::Cell<u32>,
@@ -52,18 +55,26 @@ impl Parser {
     pub(crate) fn new(text: &str, tokens: &[Token]) -> Parser {
         let mut kinds = Vec::new();
         let mut new = Vec::new();
+        let mut adjacent = Vec::new();
         let mut offset = 0usize;
+        let mut previous_end = None;
         for t in tokens {
             let end = offset + t.len as usize;
             if !t.kind.is_trivia() {
+                if let Some(previous_end) = previous_end {
+                    adjacent.push(previous_end == offset);
+                }
                 kinds.push(t.kind);
                 new.push(t.kind == SyntaxKind::BasicName && &text[offset..end] == "new");
+                previous_end = Some(end);
             }
             offset = end;
         }
+        adjacent.push(false);
         Parser {
             kinds,
             new,
+            adjacent,
             pos: 0,
             events: Vec::new(),
             fuel: std::cell::Cell::new(FUEL),
@@ -101,6 +112,12 @@ impl Parser {
     /// progress.
     pub(crate) fn position(&self) -> usize {
         self.pos
+    }
+
+    /// Whether the `n`-th significant token ahead and the one after it are adjacent, with no
+    /// trivia between them.
+    pub(crate) fn nth_adjacent(&self, n: usize) -> bool {
+        self.adjacent.get(self.pos + n).copied().unwrap_or(false)
     }
 
     /// Whether the `n`-th significant token ahead is the name `new` (ADR 0015).

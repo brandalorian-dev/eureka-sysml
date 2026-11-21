@@ -28,7 +28,7 @@ fn is_name(kind: SyntaxKind) -> bool {
 
 /// Whether a qualified name can start at the `n`-th token.
 fn at_qualified_name(p: &Parser, n: usize) -> bool {
-    is_name(p.nth(n)) || p.nth_at(n, SyntaxKind::Dollar)
+    is_name(p.peek(n)) || p.peek(n) == SyntaxKind::Dollar
 }
 
 /// The visibility indicators (KerML 8.2.3.4.1).
