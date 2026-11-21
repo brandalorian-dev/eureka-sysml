@@ -498,3 +498,98 @@ fn value_in(m: &Model, f: Global) -> Global {
         index: g.owned_related_elements(*r)[0].index() as u32,
     }
 }
+
+#[test]
+fn a_package_filter_filters_the_names_its_conditions_use() {
+    // KerML 7.4.14: "a filter condition in a package will filter all imports of that Package.
+    // That is why full qualification is used …, since imported elements … would be filtered out
+    // by the very filter condition in which the elements are intended to be used". Unqualified,
+    // `Approved` comes through P's own import, which its filter removes; qualified, it resolves.
+    let m = model_with_library(
+        "package Lib { metaclass Approved; } package D { class A { @Lib::Approved; } class B; }
+        package P { private import Lib::*; private import D::*; filter @Approved; feature x : A; }
+        package Q { private import D::*; filter @Lib::Approved; feature x : A; feature y : B; }",
+    );
+    let (db, p) = (&m.db, m.project);
+    let typing = |f: &str| {
+        let t = m.relationship(f, sysml_model::Metaclass::FeatureTyping, 1);
+        m.labels(d::target(db, p, t))
+    };
+    assert!(typing("P::x").is_empty(), "as 7.4.14 warns");
+    assert_eq!(typing("Q::x"), ["D::A"]);
+    assert!(typing("Q::y").is_empty());
+}
+
+#[test]
+fn a_package_filter_selects_after_the_exclusion_of_collisions() {
+    // KerML 8.3.4.13.4: the filter selects from Namespace::importedMemberships, which has already
+    // excluded the two colliding X, the one with the metadata too.
+    let m = model_with_library(
+        "package Lib { metaclass Approved; }
+        package A1 { class X { @Lib::Approved; } } package B1 { class X; }
+        package P { private import A1::*; private import B1::*; filter @Lib::Approved; feature x : X; }",
+    );
+    let (db, p) = (&m.db, m.project);
+    let t = m.relationship("P::x", sysml_model::Metaclass::FeatureTyping, 1);
+    assert!(d::target(db, p, t).is_empty());
+}
+
+#[test]
+fn evaluation_has_a_step_budget() {
+    // Nested ranges and doubling sequences exceed MAX_STEPS and have no value, quickly.
+    let m = model_with_library(
+        "feature a = 1..99999; feature b = a->collect{in i : ScalarValues::Integer; 1..99999};
+        feature c1 = (a, a); feature c2 = (c1, c1); feature c3 = (c2, c2); feature c4 = (c3, c3);
+        feature c5 = (c4, c4); feature c6 = (c5, c5); feature c7 = (c6, c6); feature c8 = (c7, c7);",
+    );
+    assert!(eval(&m, "b").is_empty());
+    assert!(eval(&m, "c8").is_empty());
+    assert_eq!(eval(&m, "a").len(), 99_999);
+}
+
+#[test]
+fn integers_beyond_two_to_the_fifty_third_compare_as_integers() {
+    let m = model_with_library(
+        "feature e = 9007199254740993 == 9007199254740992; feature g = 9007199254740993 > 9007199254740992;
+        feature r = 2 == 2.0;",
+    );
+    assert_eq!(eval(&m, "e"), [Item::Boolean(false)]);
+    assert_eq!(eval(&m, "g"), [Item::Boolean(true)]);
+    assert_eq!(eval(&m, "r"), [Item::Boolean(true)]);
+}
+
+#[test]
+fn a_users_metadata_feature_is_not_a_mof_property() {
+    // `Tag::name` is a feature of the user's metaclass Tag, not KerML's `name`: on the reflective
+    // metadata of an element without Tag, it has no value.
+    let m = model_with_library(
+        "metaclass Tag { feature name : ScalarValues::String; }
+        package D { class A; } package P { private import D::*; filter Tag::name == \"A\"; }
+        feature probe = Tag::name;",
+    );
+    let (db, p) = (&m.db, m.project);
+    let on_a = d::evaluate(
+        db,
+        p,
+        value(&m, "probe"),
+        Some(Item::Reflective(m.get("D::A"))),
+    );
+    assert!(on_a.is_empty());
+    assert!(d::package_imported_memberships(db, p, m.get("P")).is_empty());
+}
+
+#[test]
+fn operands_keep_their_positions_and_types_are_the_written_ones() {
+    // A type operand is the type its TypeReference names; an unresolved one keeps its place and
+    // gives no value; a reference without a referent is not evaluable; NaN is no value.
+    let m = model_with_library(
+        r#"feature s = "x" istype ScalarValues::String; feature n = 3 istype ScalarValues::String;
+        feature u = 3 istype Undefined; feature w = undefinedName; feature v = (-8.0) ^ 0.5;"#,
+    );
+    let (db, p) = (&m.db, m.project);
+    assert_eq!(eval(&m, "s"), [Item::Boolean(true)]);
+    assert_eq!(eval(&m, "n"), [Item::Boolean(false)]);
+    assert!(eval(&m, "u").is_empty());
+    assert!(!d::is_model_level_evaluable(db, p, value(&m, "w")));
+    assert!(eval(&m, "v").is_empty());
+}
