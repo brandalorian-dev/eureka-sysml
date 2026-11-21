@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
-//! The event-based parser framework (ADR 0011) on the root namespace. The KerML productions
-//! arrive in steps 1a.3–1a.4.
+//! The event-based parser framework (ADR 0011) on the root namespace. The productions are tested
+//! in `grammar.rs`.
 
 use sysml_syntax::{parse, Language, Severity, SyntaxKind as K};
 #[cfg(target_arch = "wasm32")]
@@ -31,8 +31,8 @@ fn a_root_namespace_of_trivia_only() {
 
 #[test]
 fn unexpected_tokens_are_wrapped_in_an_error_node_and_reported_once() {
-    // Until the namespace members are parsed (step 1a.3), every member is unexpected.
-    let text = "// note\npackage P { }\n";
+    // Tokens that cannot start a member (KerML 8.2.3.4.1).
+    let text = "// note\n+ - 42\n";
     let p = parse(Language::KerML, text);
     assert_eq!(p.syntax().text().to_string(), text, "lossless");
     let errors: Vec<_> = p
@@ -41,7 +41,7 @@ fn unexpected_tokens_are_wrapped_in_an_error_node_and_reported_once() {
         .filter(|n| n.kind() == K::Error)
         .collect();
     assert_eq!(errors.len(), 1);
-    assert_eq!(errors[0].text().to_string().trim_end(), "package P { }");
+    assert_eq!(errors[0].text().to_string().trim_end(), "+ - 42");
     assert_eq!(p.diagnostics().len(), 1);
     let d = &p.diagnostics()[0];
     assert_eq!(d.code, "syntax::expected-member");

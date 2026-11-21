@@ -304,8 +304,121 @@ syntax_kinds! {
     nodes {
         /// The root namespace of a file (KerML 8.2.3.4.1).
         RootNamespace,
-        /// Tokens the parser could not place; always comes with a diagnostic.
+        /// Tokens the parser could not place, or a construct it does not parse yet; always comes
+        /// with a diagnostic.
         Error,
+
+        // Names and bodies (KerML 8.2.3.1, 8.2.3.4.1, 8.2.4.3.5).
+        /// `<short> name`: the declared short name and name of an element (KerML 8.2.3.1).
+        Identification,
+        /// `<short>` (KerML 8.2.3.1).
+        ShortName,
+        /// `$::A::B` (KerML 8.2.3.4.1).
+        QualifiedName,
+        /// `a.b.c`: a feature chain, each qualified name a feature chaining (KerML 8.2.4.3.5).
+        FeatureChain,
+        /// `;` or `{ … }`: a relationship, namespace, type or package body.
+        Body,
+
+        // Root (KerML 8.2.3).
+        /// KerML 8.2.3.2.
+        Dependency,
+        /// An annotated element after `about` (KerML 8.2.3.3.1).
+        Annotation,
+        /// KerML 8.2.3.3.2.
+        Comment,
+        /// `doc` (KerML 8.2.3.3.2).
+        Documentation,
+        /// `rep … language "…"` (KerML 8.2.3.3.3).
+        TextualRepresentation,
+        /// `namespace` (KerML 8.2.3.4.1).
+        Namespace,
+        /// `alias … for …` (KerML 8.2.3.4.1).
+        AliasMember,
+        /// KerML 8.2.3.4.2.
+        Import,
+
+        // Core (KerML 8.2.4).
+        /// `type` (KerML 8.2.4.1.1).
+        Type,
+        /// `classifier` (KerML 8.2.4.2.1).
+        Classifier,
+        /// KerML 8.2.4.3.1.
+        Feature,
+        /// The cross feature of an end feature (KerML 8.2.4.3.1).
+        CrossFeature,
+        /// `specialization … subtype` (KerML 8.2.4.1.2).
+        Specialization,
+        /// `conjugation … conjugate` (KerML 8.2.4.1.3).
+        Conjugation,
+        /// `disjoining … disjoint` (KerML 8.2.4.1.4).
+        Disjoining,
+        /// `specialization … subclassifier` (KerML 8.2.4.2.2).
+        Subclassification,
+        /// `specialization … typing` (KerML 8.2.4.3.2).
+        FeatureTyping,
+        /// `specialization … subset` (KerML 8.2.4.3.3).
+        Subsetting,
+        /// `specialization … redefinition` (KerML 8.2.4.3.4).
+        Redefinition,
+        /// `inverting … inverse` (KerML 8.2.4.3.6).
+        FeatureInverting,
+        /// `featuring … by` (KerML 8.2.4.3.7).
+        TypeFeaturing,
+        /// After `specializes` in a type (KerML 8.2.4.1.2).
+        OwnedSpecialization,
+        /// After `conjugates` (KerML 8.2.4.1.3).
+        OwnedConjugation,
+        /// After `disjoint from` (KerML 8.2.4.1.4).
+        OwnedDisjoining,
+        /// After `unions` (KerML 8.2.4.1.5).
+        Unioning,
+        /// After `intersects` (KerML 8.2.4.1.5).
+        Intersecting,
+        /// After `differences` (KerML 8.2.4.1.5).
+        Differencing,
+        /// After `specializes` in a classifier (KerML 8.2.4.2.2).
+        OwnedSubclassification,
+        /// After `typed by` (KerML 8.2.4.3.2).
+        OwnedFeatureTyping,
+        /// After `subsets` (KerML 8.2.4.3.3).
+        OwnedSubsetting,
+        /// After `references` (KerML 8.2.4.3.3).
+        OwnedReferenceSubsetting,
+        /// After `crosses` (KerML 8.2.4.3.3).
+        OwnedCrossSubsetting,
+        /// After `redefines` (KerML 8.2.4.3.4).
+        OwnedRedefinition,
+        /// After `inverse of` (KerML 8.2.4.3.6).
+        OwnedFeatureInverting,
+        /// After `featured by` (KerML 8.2.4.3.7).
+        OwnedTypeFeaturing,
+
+        // Kernel, the parts the Root and Core layers need first (step 1a.3).
+        /// `package` (KerML 8.2.5.13).
+        Package,
+        /// `standard library package` (KerML 8.2.5.13, ADR 0014).
+        LibraryPackage,
+        /// `#Name`: prefix metadata (KerML 8.2.5.12).
+        PrefixMetadata,
+        /// `multiplicity … subsets …` (KerML 8.2.5.11).
+        MultiplicitySubset,
+        /// `multiplicity … [ … ]` (KerML 8.2.5.11).
+        MultiplicityRange,
+        /// `[lower..upper]` (KerML 8.2.5.11).
+        MultiplicityBounds,
+        /// `true`, `false` (KerML 8.2.5.8.4).
+        LiteralBoolean,
+        /// `"…"` (KerML 8.2.5.8.4).
+        LiteralString,
+        /// `42` (KerML 8.2.5.8.4).
+        LiteralInteger,
+        /// `4.2`, `.5`, `1e3` (KerML 8.2.5.8.4).
+        LiteralReal,
+        /// `*` (KerML 8.2.5.8.4).
+        LiteralInfinity,
+        /// A feature named by a qualified name (KerML 8.2.5.8.3).
+        FeatureReferenceExpression,
     }
 }
 

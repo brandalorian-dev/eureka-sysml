@@ -1,12 +1,14 @@
 // SPDX-License-Identifier: Apache-2.0
-//! Benchmarks of `sysml-syntax` (ADR 0011): lexing the corpus and the 1M-element synthetic model.
+//! Benchmarks of `sysml-syntax` (ADR 0011): lexing the corpus and the 1M-element synthetic model,
+//! and parsing the KerML library. The synthetic model is SysML, whose productions arrive in
+//! Phase 1b, so it is only lexed for now.
 //!
 //! `cargo bench -p sysml-bench --bench syntax` measures; `cargo test --workspace --bench '*'` runs
 //! each once.
 
 use divan::counter::BytesCount;
 use divan::{black_box, Bencher};
-use sysml_syntax::{lex, Language};
+use sysml_syntax::{lex, parse, Language};
 use sysml_synth::{generate, Config};
 
 fn main() {
@@ -46,6 +48,25 @@ fn lex_synthetic_1m(bencher: Bencher) {
             .files
             .iter()
             .map(|f| lex(Language::SysML, black_box(&f.text)).tokens.len())
+            .sum::<usize>()
+    });
+}
+
+/// Parsing the 36 KerML library files (KerML 8.2.3–8.2.5; the Kernel constructs that step 1a.3
+/// does not parse yet are skipped).
+#[divan::bench(sample_count = 20)]
+fn parse_kerml_library(bencher: Bencher) {
+    let corpus = sysml_corpus::Corpus::load().unwrap();
+    let sources: Vec<String> = corpus
+        .sources()
+        .filter(|s| s.language == sysml_corpus::Language::KerML)
+        .map(|s| s.text.clone())
+        .collect();
+    let bytes: usize = sources.iter().map(String::len).sum();
+    bencher.counter(BytesCount::new(bytes)).bench(|| {
+        sources
+            .iter()
+            .map(|t| parse(Language::KerML, black_box(t)).diagnostics().len())
             .sum::<usize>()
     });
 }

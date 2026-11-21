@@ -74,7 +74,7 @@ cargo deny check                                     # licenses, advisories, sou
 ## Architecture in one paragraph
 
 A Rust core in `crates/` compiles natively (for the server) and to WASM (for the browser):
-- `sysml-syntax`: lossless, error-tolerant lexer and parser (ADR 0011; a leading byte-order mark is trivia, ADR 0013) and the `Diagnostic` type (ADR 0012). Since step 1a.2: the KerML 8.2.2 lexer and the event-based framework; the productions arrive in steps 1a.3–1a.4
+- `sysml-syntax`: lossless, error-tolerant lexer and parser (ADR 0011; a leading byte-order mark is trivia, ADR 0013) and the `Diagnostic` type (ADR 0012). Since step 1a.3: the KerML Root and Core grammar (8.2.3–8.2.4) and the Kernel parts it needs; the other Kernel constructs are `syntax::not-yet-supported` until step 1a.4 (ADR 0014). Grammar tests use inline `expect-test` snapshots: `UPDATE_EXPECT=1 cargo test -p sysml-syntax`, then review the diff
 - `sysml-model`: generated metaclasses plus an arena element graph
 - `sysml-api-types`: API records (Project, Commit, DataVersion, Query, …) generated from the API `Schema.json`; spec corrections in ADR 0005
 - `sysml-synth` (test infrastructure): deterministic synthetic SysML models at any size (`Config::with_target_elements`), for benchmarks and scale tests
