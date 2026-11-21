@@ -22,13 +22,14 @@ The owner chose to pull the implied relationships that resolution needs forward 
 
 - **Specializations:** all the specialization constraints of 8.3.3 and 8.3.4 whose general is a library element or the `instantiatedType` of an InvocationExpression. Among them are the Classifier, DataType, Class, Structure, Association, Behavior, Function, Predicate and Metaclass bases, `Base::things`, the feature constraints on data values, occurrences, objects, suboccurrences, subobjects, portions and participants, the Step, Expression, literal, Connector, Flow, MetadataFeature and Multiplicity constraints.
 - **The redundancy rules of 8.4.2:** an implied specialization is dropped when its general is the type itself, a general of an owned specialization, or a strict supertype of an owned general, of another implied general or of the target of an implied redefinition. Duplicates are dropped too. This needs `supertypes`, the transitive closure, as a query.
-- **Redefinitions:** ends (`checkFeatureEndRedefinition`), parameters by position (`checkFeatureParameterRedefinition`), results (`checkFeatureResultRedefinition`), flow end features (`checkFeatureFlowFeatureRedefinition`) and payloads (`checkPayloadFeatureRedefinition`). Each applies unless the feature already redefines that target. The redundancy rules do not apply to them, as 8.4.2 says.
+- **Redefinitions** (`implied_redefinitions`, a query of its own so that following redefinitions does not compute the implied specializations): ends (`checkFeatureEndRedefinition`), parameters by position (`checkFeatureParameterRedefinition`), results (`checkFeatureResultRedefinition`), flow end features (`checkFeatureFlowFeatureRedefinition`) and payloads (`checkPayloadFeatureRedefinition`). Each applies unless the feature already redefines that target. The redundancy rules do not apply to them, as 8.4.2 says.
 - **Effective names:** a feature without a declared name and without an owned redefinition is named by its first implied redefinition (8.3.3.3.4 `namingFeature`, reading `ownedRedefinition` as including the implied ones, as 8.4.2 intends).
 
 Readings of the constraint text:
 - **Names of library features.** The OCL names `Performance::enclosedPerformance`, `subperformance` and `Object::ownedPerformance`, but the library declares them in the plural: `enclosedPerformances`, `subperformances` and `ownedPerformances`. The library names are used.
 - **`checkFeatureSubobjectSpecialization`.** Its OCL names `Occurrence::Occurrence::suboccurrences`; Table 9 names `Objects::Object::subobjects`. Table 9 is used, since a subobject constraint that only repeats the suboccurrence one would be pointless.
 - **`checkFeatureFlowFeatureRedefinition`.** Its second target is written `Transfers::Transfer::source::targetInput`. It is read as `Transfers::Transfer::target::targetInput`, where the library declares `targetInput`. Its OCL takes the FlowEnd's position among all the owned features of the flow, but the grammar puts a payload feature (`flow of P …`) first. The position is therefore counted among the flow's FlowEnds.
+- **The owning type's kind.** The subobject, suboccurrence, portion and owned-performance constraints ask whether the owning type is a Structure (or a Class), or a Feature whose `type` is one. That is the owner's own metaclass or, for a feature, the types of its typings and of the features it subsets, redefines or chains. A classifier that only specializes a structure is not a Structure.
 - **`endFeature`.** For the binary-association and binary-connector constraints (`connectorEnd` is the connector's `endFeature`) and the positions of end redefinitions, a type's end features are its owned ends or, with none, those of its first owned general that has ends. Implied generals are not consulted, which keeps this query out of a cycle with them. Every library type these constraints name owns its ends.
 - **Library lookup.** A library element is found by its qualified name (`specializesFromLibrary` resolves it globally): the first segment in the global namespace and each later one among the owned memberships of the one before. Every element the constraints name is declared there. Every root namespace with the first segment's name is tried, in project order, until the whole name resolves, so a user package named `Links` does not hide the library's `Links`. Operators are found in the same way (8.3.4.8.17).
 
@@ -46,7 +47,7 @@ Step 1a.9 materializes all of them and tests them table by table.
 
 KerML 8.2.3.5.1 repeats "the basic name resolution process" with each general of the owning type in turn as the local namespace. Read literally, the full resolution from the first general climbs to the namespaces that contain it before the next general is tried. In `classifier T specializes A, B { feature redefines x; }`, an `x` beside A in their package would then win over `B::x`, which T inherits.
 
-**Reading:** the memberships of every general are looked up first, in order, and only then full resolution from each general in turn.
+**Reading:** the memberships of every general are looked up first, in order, and only then full resolution from each general in turn. A qualified name, such as `redefines A::b`, is resolved whole with each general in turn, so a general whose `A` has no `b` does not stop the next one. The owning type is never one of these generals, even when it specializes itself.
 
 KerML 8.2.3.5.1 also resolves the `redefinedFeature` of a Redefinition owned by a feature with an owning type in the general types of that owning type, and says resolution fails if none of them has the name. The normative libraries need more than that. One example is `FeatureReferencingPerformances`, with `feature beforeTimeSlice : Occurrence [1] subsets timeSlices { feature redefines monitoredFeature; }`, where `monitoredFeature` belongs to the enclosing `monitoredOccurrence`. The pilot resolves it there.
 
@@ -56,7 +57,9 @@ KerML 8.2.3.5.1 also resolves the `redefinedFeature` of a Redefinition owned by 
 
 `removeRedefinedFeatures` (8.3.3.1.10) removes the inherited memberships of redefined features. SpaceLink's ends redefine `BinaryLink::source` and `target`, so these two are not inherited by SpaceLink, nor by its subtypes. Yet the library writes `assoc all InsideOf specializes SpaceLink { end feature smallerSpace … redefines source …; }`, and the pilot resolves `source` to `BinaryLink::source`.
 
-**Reading:** a hidden membership stays in the inherited memberships, marked `hidden`. Resolution ignores hidden memberships, and only if the name then resolves nowhere is the whole resolution repeated with them. A hidden membership therefore never wins over a visible one, wherever that one is, and inheritance is as 8.3.3.1.10 defines it.
+`removeRedefinedFeatures` removes a membership on two conditions: (1) its feature is among the features another inheritable membership's feature redefines, directly or indirectly; (2) it, or a feature it redefines, is directly redefined by an owned feature of the type. Both are applied, and a membership that arrives through several generals is removed only if it is removed on every path. For condition 1, each type keeps the set of features its non-private features redefine, together with its generals' sets (`redefined_in`), so each feature's redefinitions are followed once.
+
+**Reading:** a removed membership stays in the inherited memberships, marked `hidden`. Resolution ignores hidden memberships, and only if the name then resolves nowhere is the whole resolution repeated with them. A hidden membership therefore never wins over a visible one, wherever that one is, and inheritance is as 8.3.3.1.10 defines it.
 
 ### 4. The scope of a chained name
 
@@ -81,9 +84,13 @@ In `import all A::*[@Approved];` the grammar (8.2.3.4.2) puts `isImportAll` on t
 
 Recursive imports follow `visibleMemberships(excluded, isRecursive, includeAll)` (8.3.2.4.5). They descend only into the namespaces a namespace owns, through a public owning membership unless `all`, and pass `all` to every level.
 
-### 8. Resolution reads a span-free structure
+### 8. The proper type of a resolution
 
-As ADR 0019 foresaw, a lowered fragment has spans and no equality, so every query that read it reran after any edit. Re-resolving the KerML libraries after a layout edit to `Occurrences.kerml` took 54 ms, about half of resolving them from nothing. The `structure` query wraps the fragment with an equality that ignores spans (`Graph::same_structure`), and every resolution query reads that. It gives access only to the graph and the root: a fragment's diagnostics, whose spans it does not compare, are read through `lowered`. An edit of layout now stops at `structure`, and the same re-resolution takes about 12 ms. The test `an_edit_reruns_only_the_queries_that_depend_on_it` asserts this from the event log.
+KerML 8.2.3.5.1 says that "if the resulting Element does not have the proper type for its context, then the qualified name has no resolution". The proper type is read as the metaclass of the stored attribute that the end is a view of. That is Type for `FeatureTyping::type`, Classifier for `Subclassification::superclassifier`, Feature for `Subsetting::subsettedFeature`, Namespace for an import's namespace, and Element for `Membership::memberElement`. For a MembershipImport the resolution is the membership itself (8.2.3.4.2 Note 1), so its metaclass is checked against Membership. The search does not go on to another element of the same name: the name has no resolution. An alias whose target is not resolved yet is not rejected here; its own name is reported.
+
+### 9. Resolution reads a span-free structure
+
+As ADR 0019 foresaw, a lowered fragment has spans and no equality, so every query that read it reran after any edit. Re-resolving the KerML libraries after a layout edit to `Occurrences.kerml` took 54 ms, about half of resolving them from nothing. The `structure` query wraps the fragment with an equality that ignores spans (`Graph::same_structure`), and every resolution query reads that. It gives access only to the graph and the root: a fragment's diagnostics, whose spans it does not compare, are read through `lowered`. An edit of layout now stops at `structure`, and the same re-resolution takes about 7 ms. The test `an_edit_reruns_only_the_queries_that_depend_on_it` asserts this from the event log.
 
 ## Evidence
 
@@ -92,10 +99,10 @@ As ADR 0019 foresaw, a lowered fragment has spans and no equality, so every quer
   - with decision 2: 3937 the same;
   - with decision 1: 4001;
   - with decision 3: all 4003.
-- **Clause examples** (`tests/resolve.rs`), from the snippets of KerML 7.2.5.2, 7.2.5.4, 7.3.2.3 and 7.3.4.5: visibility, aliases, imports (including the recursive ones, and `all` with and without filters), inheritance, redefinition with effective names, and implied specializations and redefinitions (positions of parameters and flow ends, binary connectors, the redundancy of `Base::things` beside an implied redefinition). Also: a redefinition found in a later general before the namespace of an earlier one, a user package named like a library one, chained names, colliding imports, and circular aliases and imports.
+- **Clause examples** (`tests/resolve.rs`), from the snippets of KerML 7.2.5.2, 7.2.5.4, 7.3.2.3 and 7.3.4.5: visibility, aliases, imports (including the recursive ones, and `all` with and without filters), inheritance, redefinition with effective names, and implied specializations and redefinitions (positions of parameters and flow ends, binary connectors, the redundancy of `Base::things` beside an implied redefinition). Also: a redefinition found in a later general before the namespace of an earlier one, a user package named like a library one, chained names, colliding imports, circular aliases and imports, `removeRedefinedFeatures` through several generals, a qualified redefined feature tried with each general, names of elements of the wrong metaclass, a type that specializes itself, and subobjects by the owner's kind.
 - **Speed** (`cargo bench -p sysml-bench --bench semantics`, native):
-  - parsing, lowering and resolving the 36 library files from nothing: about 83 ms (loading the corpus and creating the inputs are not counted);
-  - re-resolving after a layout edit to `Occurrences.kerml`: about 12 ms.
+  - parsing, lowering and resolving the 36 library files from nothing: about 55 ms (loading the corpus and creating the inputs are not counted);
+  - re-resolving after a layout edit to `Occurrences.kerml`: about 7 ms.
 
 ## Consequences
 

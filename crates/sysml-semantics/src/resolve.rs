@@ -13,7 +13,7 @@ use sysml_model::{Attr, ElementIx, Endpoint, FileId, Graph, Metaclass as M, Slot
 use sysml_syntax::{Language, Parse};
 use uuid::Uuid;
 
-use crate::implied::implied_generals;
+use crate::implied::{implied_generals, implied_redefinitions};
 use crate::lower::{lower, Lowered};
 
 /// A source file: an input of the query graph.
@@ -202,9 +202,8 @@ pub fn effective_names(
                 .as_ref()
                 .and_then(|x| member_element(db, project, x))
         }
-        None => implied_generals(db, project, file, element)
-            .iter()
-            .find(|i| i.kind == M::Redefinition)
+        None => implied_redefinitions(db, project, file, element)
+            .first()
             .map(|i| i.general),
     };
     match naming {
@@ -498,8 +497,9 @@ fn namespace_memberships(
                         index: e.index() as u32,
                     };
                     for x in namespace_memberships(db, project, nested, true, all) {
-                        if !out.iter().any(|o| o.membership == x.membership) {
-                            out.push(x);
+                        match out.iter_mut().find(|o| o.membership == x.membership) {
+                            Some(o) => o.hidden &= x.hidden,
+                            None => out.push(x),
                         }
                     }
                 }
@@ -582,7 +582,11 @@ fn no_generals(
 }
 
 /// The memberships a type inherits (KerML 8.3.3.1.10 `inheritedMemberships`): the non-private
-/// memberships of its general types, without those its own features redefine. Specializations
+/// memberships of its general types, with `removeRedefinedFeatures` applied. A membership that
+/// arrives through several generals is hidden only if it is hidden on every path. Then it is
+/// hidden if its feature is redefined by another inherited membership's feature, directly or
+/// indirectly, or if it or a feature it redefines is directly redefined by an owned feature of
+/// this type. Hidden memberships are kept, marked, for decision 3 of ADR 0020. Specializations
 /// may be circular: a fixpoint from the empty set.
 #[salsa::tracked(returns(ref), cycle_initial = no_entries, cycle_fn = settle_entries)]
 pub fn inherited_memberships(
@@ -593,33 +597,22 @@ pub fn inherited_memberships(
 ) -> Vec<Entry> {
     let here = Global { file, index: ty };
     let l = structure(db, file);
-    let g = &l.graph();
+    let g = l.graph();
     if !g.metaclass(here.ix()).specializes(M::Type) {
         return Vec::new();
     }
-    // The features this type's owned features redefine are hidden (KerML 8.3.3.1.10).
+    // The features this type's owned features directly redefine, as written or by implication
+    // (KerML 8.4.2; ADR 0020).
     let mut redefined: Vec<Global> = Vec::new();
     for f in g.owned_elements(here.ix()) {
-        for r in g.owned_relationships(f) {
-            if g.metaclass(*r) == M::Redefinition {
-                let at = Global {
-                    file,
-                    index: r.index() as u32,
-                };
-                if let Some(e) = resolve_end(db, project, at, Slot::Target, 0)
-                    .as_ref()
-                    .and_then(|e| member_element(db, project, e))
-                {
-                    redefined.push(e);
-                }
-            }
-        }
-        // And those they redefine by implication (KerML 8.4.2; ADR 0020).
-        for i in implied_generals(db, project, file, f.index() as u32) {
-            if i.kind == M::Redefinition {
-                redefined.push(i.general);
-            }
-        }
+        redefined.extend(direct_redefinitions(
+            db,
+            project,
+            Global {
+                file,
+                index: f.index() as u32,
+            },
+        ));
     }
     let mut out: Vec<Entry> = Vec::new();
     for general in generals(db, project, here).iter().copied() {
@@ -630,12 +623,135 @@ pub fn inherited_memberships(
             if e.visibility == Visibility::Private {
                 continue;
             }
-            let mut e = e;
-            if member_element(db, project, &e).is_some_and(|x| redefined.contains(&x)) {
-                e.hidden = true;
+            match out.iter_mut().find(|o| o.membership == e.membership) {
+                Some(o) => o.hidden &= e.hidden,
+                None => out.push(e),
             }
-            if !out.iter().any(|o| o.membership == e.membership) {
-                out.push(e);
+        }
+    }
+    // Condition 1: what the inherited features redefine, from each general's memoized set.
+    let generals = generals(db, project, here);
+    let redefined_by_members = |x: Global| {
+        generals
+            .iter()
+            .any(|general| *general != here && redefined_in(db, project, *general).contains(&x))
+    };
+    for e in out.iter_mut() {
+        let Some(x) = member_element(db, project, e) else {
+            continue;
+        };
+        // Condition 2 needs what `x` redefines only where owned features redefine something.
+        if redefined_by_members(x)
+            || redefined.contains(&x)
+            || (!redefined.is_empty()
+                && redefined_features(db, project, x)
+                    .iter()
+                    .any(|c| redefined.contains(c)))
+        {
+            e.hidden = true;
+        }
+    }
+    out
+}
+
+/// What the features a type passes on to its subtypes redefine, directly or indirectly: the
+/// features its non-private owned features redefine, and those in its generals' sets (KerML
+/// 8.3.3.1.10, condition 1 of `removeRedefinedFeatures` in a subtype). Memoized per type, so each
+/// feature's redefinitions are followed once. A fixpoint from the empty set.
+#[salsa::tracked(returns(ref), cycle_initial = no_redefined, cycle_fn = settle_redefined)]
+pub fn redefined_in(
+    db: &dyn salsa::Database,
+    project: Project,
+    ty: Global,
+) -> std::collections::HashSet<Global> {
+    let l = structure(db, ty.file);
+    let g = l.graph();
+    let mut out = std::collections::HashSet::new();
+    if !g.metaclass(ty.ix()).specializes(M::Type) {
+        return out;
+    }
+    for r in g.owned_relationships(ty.ix()) {
+        if !g.metaclass(*r).specializes(M::FeatureMembership)
+            || visibility(g, *r) == Visibility::Private
+        {
+            continue;
+        }
+        for f in g.owned_related_elements(*r) {
+            let f = Global {
+                file: ty.file,
+                index: f.index() as u32,
+            };
+            out.extend(redefined_features(db, project, f).iter().copied());
+        }
+    }
+    for general in generals(db, project, ty) {
+        if *general != ty {
+            out.extend(redefined_in(db, project, *general).iter().copied());
+        }
+    }
+    out
+}
+
+fn no_redefined(
+    _db: &dyn salsa::Database,
+    _id: salsa::Id,
+    _project: Project,
+    _ty: Global,
+) -> std::collections::HashSet<Global> {
+    std::collections::HashSet::new()
+}
+
+settle!(
+    settle_redefined,
+    std::collections::HashSet<Global>,
+    (Project, Global)
+);
+
+/// The features a feature redefines directly: its owned Redefinitions' targets and its implied
+/// redefinitions (KerML 8.4.2).
+fn direct_redefinitions(db: &dyn salsa::Database, project: Project, f: Global) -> Vec<Global> {
+    let l = structure(db, f.file);
+    let g = l.graph();
+    if !g.metaclass(f.ix()).specializes(M::Feature) {
+        return Vec::new();
+    }
+    let mut out: Vec<Global> = g
+        .owned_relationships(f.ix())
+        .iter()
+        .filter(|r| g.metaclass(**r) == M::Redefinition)
+        .filter_map(|r| {
+            let at = Global {
+                file: f.file,
+                index: r.index() as u32,
+            };
+            resolve_end(db, project, at, Slot::Target, 0)
+                .as_ref()
+                .and_then(|e| member_element(db, project, e))
+        })
+        .collect();
+    for i in implied_redefinitions(db, project, f.file, f.index) {
+        if !out.contains(&i.general) {
+            out.push(i.general);
+        }
+    }
+    out
+}
+
+/// The features a feature redefines, directly or indirectly (KerML 8.3.3.1.10
+/// `allRedefinedFeaturesOf`, without the feature itself). A fixpoint from none.
+#[salsa::tracked(returns(ref), cycle_initial = no_generals, cycle_fn = settle_generals)]
+pub fn redefined_features(db: &dyn salsa::Database, project: Project, f: Global) -> Vec<Global> {
+    let mut out: Vec<Global> = Vec::new();
+    for r in direct_redefinitions(db, project, f) {
+        if r == f {
+            continue;
+        }
+        if !out.contains(&r) {
+            out.push(r);
+        }
+        for x in redefined_features(db, project, r) {
+            if *x != f && !out.contains(x) {
+                out.push(*x);
             }
         }
     }
@@ -834,7 +950,7 @@ fn context(g: &Graph, file: SourceFile, rel: ElementIx) -> Option<Context> {
     // Other relationships (Annotation, Dependency, TypeFeaturing, Disjoining …): their owner's
     // namespace, or the relationship's own.
     let base = owner.unwrap_or(rel);
-    if g.metaclass(base).specializes(M::Namespace) && !m.specializes(M::Membership) {
+    if g.metaclass(base).specializes(M::Namespace) {
         return owning_namespace(g, base)
             .or(Some(base))
             .map(|n| Context::Namespace(at(n)));
@@ -879,7 +995,39 @@ pub fn resolve_end(
     };
     let ctx = context(g, rel.file, rel.ix())?;
     let segments: Vec<&str> = name.segments.iter().map(|s| &**s).collect();
-    resolve_qualified(db, project, ctx, name.global, &segments)
+    let entry = resolve_qualified(db, project, ctx, name.global, &segments)?;
+    // KerML 8.2.3.5.1: "if the resulting Element does not have the proper type for its context,
+    // then the qualified name has no resolution". The proper type is the metaclass of the
+    // stored attribute the end is a view of: a Membership for a MembershipImport, whose
+    // resolution is the membership itself (8.2.3.4.2 Note 1), else the member element's.
+    let expected = g
+        .metaclass(rel.ix())
+        .stored_attributes()
+        .iter()
+        .find(|a| a.slot == slot)
+        .and_then(|a| match a.kind {
+            sysml_model::PropertyKind::Reference { target } => {
+                M::ALL.iter().copied().find(|m| m.name() == target)
+            }
+            _ => None,
+        });
+    let Some(expected) = expected else {
+        return Some(entry);
+    };
+    let actual = if expected.specializes(M::Membership) {
+        Some(
+            structure(db, entry.membership.file)
+                .graph()
+                .metaclass(entry.membership.ix()),
+        )
+    } else {
+        member_element(db, project, &entry).map(|x| structure(db, x.file).graph().metaclass(x.ix()))
+    };
+    // An alias whose own target is not resolved yet is not rejected here: that name is reported.
+    match actual {
+        Some(m) if !m.specializes(expected) => None,
+        _ => Some(entry),
+    }
 }
 
 fn no_resolution(
@@ -903,6 +1051,24 @@ fn resolve_qualified(
     global: bool,
     segments: &[&str],
 ) -> Option<Entry> {
+    // KerML 8.2.3.5.1: a qualified redefined feature is resolved whole with each general of the
+    // owning type in turn as the local namespace, then from the owning type's namespace (ADR 0020
+    // decision 2).
+    if let (Context::Generals(ty), false, true) = (ctx, global, segments.len() > 1) {
+        let generals = generals(db, project, ty);
+        let outer = owning_namespace(structure(db, ty.file).graph(), ty.ix()).map(|o| Global {
+            file: ty.file,
+            index: o.index() as u32,
+        });
+        return generals
+            .iter()
+            .copied()
+            .filter(|general| *general != ty)
+            .chain(outer)
+            .find_map(|ns| {
+                resolve_qualified(db, project, Context::Namespace(ns), false, segments)
+            });
+    }
     match segments {
         [] => None,
         [one] if global => lookup(global_namespace(db, project), one, false),
@@ -948,7 +1114,11 @@ fn resolve_simple(
         // itself is skipped: its member named by this very redefinition would otherwise resolve to
         // itself.
         Context::Generals(ty) => {
-            let generals = generals(db, project, ty);
+            let generals: Vec<Global> = generals(db, project, ty)
+                .iter()
+                .copied()
+                .filter(|general| *general != ty)
+                .collect();
             generals
                 .iter()
                 .find_map(|general| lookup(&memberships(db, project, *general), name, hidden))
