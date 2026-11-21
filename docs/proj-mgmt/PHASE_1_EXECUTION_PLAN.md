@@ -271,9 +271,9 @@ Each step below gives its goal, the spec clauses, what it delivers, the tests to
 - **Status:** done 2026-11-21, with the scope change the owner approved on 2026-11-21: the implied relationships resolution needs (step 1a.9) are computed here.
   - **The queries:** `sysml-semantics` resolves on `salsa` (ADR 0019). Files are inputs; parsing, lowering, a span-free `structure`, the owned, imported, inherited and visible memberships, effective names, and the resolution of each name are queries. Imports, specializations and naming features may be circular, and converge by fixpoint iteration.
   - **Implied relationships:** `implied_generals` gives each type the specializations of the KerML specialization constraints, with the redundancy rules of 8.4.2, and the end, parameter, result, flow-end and payload redefinitions. Type featurings, binding connectors and the constraints on implied elements stay in 1a.9 (ADR 0020).
-  - **The oracle:** every one of the 4003 names in the three KerML libraries resolves to the element the pilot resolved it to, in its XMI (`tests/resolve_oracle.rs`). Three readings of the spec text were needed (ADR 0020).
+  - **The oracle:** every one of the 4003 names in the three KerML libraries resolves to the element the pilot resolved it to, in its XMI (`tests/resolve_oracle.rs`). ADR 0020 records the readings of the spec text.
   - **Tests:** the clause examples of KerML 7.2.5 and 7.3 (visibility, aliases, imports including recursive ones, inheritance, redefinition with effective names, implied relationships), and incrementality from the event log: a layout edit stops at `structure`, and an edit of names reruns only that file's resolution. All of them pass natively and on WASM.
-  - **Speed:** the KerML libraries parse, lower and resolve in about 100–110 ms from nothing. They re-resolve in about 13 ms after a layout edit (`cargo bench -p sysml-bench --bench semantics`).
+  - **Speed:** the KerML libraries parse, lower and resolve in about 78 ms from nothing. They re-resolve in about 11 ms after a layout edit (`cargo bench -p sysml-bench --bench semantics`).
 - **Goal:** resolve every qualified name, incrementally.
 - **Evaluates:** D2 (`salsa` and the query graph). *Adopted (ADR 0019; evidence in `docs/proj-mgmt/evidence/1a.7-incremental-query-spike.md`).*
 - **Clauses:**

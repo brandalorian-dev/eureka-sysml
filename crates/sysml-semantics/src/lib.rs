@@ -8,6 +8,7 @@ mod implied;
 mod lower;
 mod resolve;
 
+pub use implied::{implied_generals, Implied};
 pub use lower::{lower, Lowered};
 pub use resolve::{
     effective_names, global_namespace, imported_memberships, inherited_memberships, lowered,

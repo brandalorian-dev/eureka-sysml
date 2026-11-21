@@ -81,10 +81,24 @@ pub fn lowered(db: &dyn salsa::Database, file: SourceFile) -> Arc<Lowered> {
     ))
 }
 
-/// A file's lowered fragment, as resolution reads it: equal to the last one when only spans
-/// changed (`Graph::same_structure`), so an edit of layout stops here (early cutoff, ADR 0019).
+/// A file's lowered fragment, as resolution reads it: its graph and root, equal to the last ones
+/// when only spans changed (`Graph::same_structure`), so an edit of layout stops here (early
+/// cutoff, ADR 0019). It has no diagnostics, whose spans it does not compare: those are read
+/// through [`lowered`].
 #[derive(Clone)]
-pub struct Structure(pub Arc<Lowered>);
+pub struct Structure(Arc<Lowered>);
+
+impl Structure {
+    /// The fragment's graph. Its spans may be those of an earlier edit of layout.
+    pub fn graph(&self) -> &Graph {
+        &self.0.graph
+    }
+
+    /// The root namespace.
+    pub fn root(&self) -> ElementIx {
+        self.0.root
+    }
+}
 
 impl PartialEq for Structure {
     fn eq(&self, other: &Structure) -> bool {
@@ -95,13 +109,6 @@ impl PartialEq for Structure {
 
 // The values compared are never NaN: a KerML literal cannot denote one (KerML 8.2.2.3).
 impl Eq for Structure {}
-
-impl std::ops::Deref for Structure {
-    type Target = Lowered;
-    fn deref(&self) -> &Lowered {
-        &self.0
-    }
-}
 
 /// The structure of a file's fragment, without its spans.
 #[salsa::tracked(returns(ref))]
@@ -172,7 +179,7 @@ pub fn effective_names(
     element: u32,
 ) -> (Option<Arc<str>>, Option<Arc<str>>) {
     let l = structure(db, file);
-    let g = &l.graph;
+    let g = &l.graph();
     let e = ix(element);
     let name = g.string(e, Attr::DeclaredName).map(Arc::from);
     let short = g.string(e, Attr::DeclaredShortName).map(Arc::from);
@@ -235,7 +242,7 @@ pub fn owned_memberships(
     ns: u32,
 ) -> Vec<Entry> {
     let l = structure(db, file);
-    let g = &l.graph;
+    let g = &l.graph();
     let mut out = Vec::new();
     for r in g.owned_relationships(ix(ns)) {
         let m = g.metaclass(*r);
@@ -290,7 +297,7 @@ struct ImportDecl {
 #[salsa::tracked(returns(ref))]
 fn imports(db: &dyn salsa::Database, file: SourceFile, ns: u32) -> Vec<ImportDecl> {
     let l = structure(db, file);
-    let g = &l.graph;
+    let g = &l.graph();
     let mut out = Vec::new();
     for r in g.owned_relationships(ix(ns)) {
         let m = g.metaclass(*r);
@@ -298,7 +305,9 @@ fn imports(db: &dyn salsa::Database, file: SourceFile, ns: u32) -> Vec<ImportDec
             continue;
         }
         // A FilterPackage (KerML 8.2.3.4.2): the import's target is an owned package whose own
-        // import says what is imported; its filter conditions are not evaluated yet.
+        // import says what is imported; its filter conditions are not evaluated yet. `all` is on
+        // the outer import, where it governs the FilterPackage; the inner import, which the
+        // grammar gives no `all`, imports the visible memberships of its namespace (ADR 0020).
         let filtered = match g.target(*r).first() {
             Some(Endpoint::Element(p)) => g
                 .owned_relationships(*p)
@@ -312,7 +321,7 @@ fn imports(db: &dyn salsa::Database, file: SourceFile, ns: u32) -> Vec<ImportDec
             import: r.index() as u32,
             namespace: g.metaclass(decl) == M::NamespaceImport,
             recursive: g.flag(decl, Attr::IsRecursive),
-            all: g.flag(*r, Attr::IsImportAll),
+            all: g.flag(decl, Attr::IsImportAll),
             visibility: visibility(g, *r),
             filtered,
         });
@@ -340,34 +349,29 @@ pub fn imported_memberships(
         };
         let mut found: Vec<Entry> = Vec::new();
         if decl.namespace {
-            // NamespaceImport: the visible memberships of the namespace, or all with `all`.
+            // NamespaceImport (KerML 8.3.2.4.6): the namespace's visible memberships, with
+            // `isRecursive` and `isImportAll` passed on to `visibleMemberships`.
             let Some(target) = member_element(db, project, &target) else {
                 continue;
             };
-            found.extend(if decl.all {
-                memberships(db, project, target)
-            } else {
-                visible_memberships(db, project, target.file, target.index).clone()
-            });
+            found = namespace_memberships(db, project, target, decl.recursive, decl.all);
         } else {
-            // MembershipImport: the membership itself (KerML 8.2.3.4.2, Note 1).
+            // MembershipImport (KerML 8.3.2.4.4): the membership itself (8.2.3.4.2, Note 1) and,
+            // if recursive and its element is a namespace, that namespace's memberships.
+            let element = member_element(db, project, &target);
             found.push(target);
-        }
-        if decl.recursive {
-            // `::**`: and the visible memberships of every imported namespace, recursively.
-            let mut i = 0;
-            while i < found.len() {
-                if let Some(e) = member_element(db, project, &found[i]) {
-                    let l = structure(db, e.file);
-                    if l.graph.metaclass(e.ix()).specializes(M::Namespace) {
-                        for x in visible_memberships(db, project, e.file, e.index) {
-                            if !found.iter().any(|f| f.membership == x.membership) {
-                                found.push(x.clone());
-                            }
+            if let Some(e) = element.filter(|_| decl.recursive) {
+                if structure(db, e.file)
+                    .graph()
+                    .metaclass(e.ix())
+                    .specializes(M::Namespace)
+                {
+                    for x in namespace_memberships(db, project, e, true, decl.all) {
+                        if !found.iter().any(|f| f.membership == x.membership) {
+                            found.push(x);
                         }
                     }
                 }
-                i += 1;
             }
         }
         for mut e in found {
@@ -377,6 +381,50 @@ pub fn imported_memberships(
                 .any(|o| o.membership == e.membership && o.visibility == e.visibility)
             {
                 out.push(e);
+            }
+        }
+    }
+    out
+}
+
+/// `visibleMemberships(excluded, isRecursive, includeAll)` (KerML 8.3.2.4.5, and 8.3.3.1.10 for
+/// a type): all the memberships with `all`, else the public ones; if recursive, also those of
+/// each owned namespace, through a public owning membership unless `all`. The excluded set is
+/// not needed: recursion follows ownership, which has no cycles, and the memberships of each
+/// namespace come from queries that iterate to a fixpoint.
+fn namespace_memberships(
+    db: &dyn salsa::Database,
+    project: Project,
+    ns: Global,
+    recursive: bool,
+    all: bool,
+) -> Vec<Entry> {
+    let mut out = if all {
+        memberships(db, project, ns)
+    } else {
+        visible_memberships(db, project, ns.file, ns.index).clone()
+    };
+    if recursive {
+        let l = structure(db, ns.file);
+        let g = &l.graph();
+        for r in g.owned_relationships(ns.ix()) {
+            if !g.metaclass(*r).specializes(M::OwningMembership)
+                || !(all || visibility(g, *r) == Visibility::Public)
+            {
+                continue;
+            }
+            for e in g.owned_related_elements(*r) {
+                if g.metaclass(*e).specializes(M::Namespace) {
+                    let nested = Global {
+                        file: ns.file,
+                        index: e.index() as u32,
+                    };
+                    for x in namespace_memberships(db, project, nested, true, all) {
+                        if !out.iter().any(|o| o.membership == x.membership) {
+                            out.push(x);
+                        }
+                    }
+                }
             }
         }
     }
@@ -403,7 +451,7 @@ pub(crate) fn owned_generals(
     ty: Global,
 ) -> Vec<Global> {
     let l = structure(db, ty.file);
-    let g = &l.graph;
+    let g = &l.graph();
     let mut out = Vec::new();
     let mut last_chaining = None;
     for r in g.owned_relationships(ty.ix()) {
@@ -467,7 +515,7 @@ pub fn inherited_memberships(
 ) -> Vec<Entry> {
     let here = Global { file, index: ty };
     let l = structure(db, file);
-    let g = &l.graph;
+    let g = &l.graph();
     if !g.metaclass(here.ix()).specializes(M::Type) {
         return Vec::new();
     }
@@ -553,7 +601,7 @@ pub fn visible_memberships(
 pub fn global_namespace(db: &dyn salsa::Database, project: Project) -> Vec<Entry> {
     let mut out = Vec::new();
     for f in project.files(db) {
-        let root = structure(db, *f).root.index() as u32;
+        let root = structure(db, *f).root().index() as u32;
         out.extend(visible_memberships(db, project, *f, root).iter().cloned());
     }
     out
@@ -721,7 +769,7 @@ pub fn resolve_end(
     position: u32,
 ) -> Option<Entry> {
     let l = structure(db, rel.file);
-    let g = &l.graph;
+    let g = &l.graph();
     let ends = match slot {
         Slot::Source => g.source(rel.ix()),
         _ => g.target(rel.ix()),
@@ -779,7 +827,7 @@ fn resolve_qualified(
             let q = resolve_qualified(db, project, ctx, global, qualification)?;
             let ns = member_element(db, project, &q)?;
             let l = structure(db, ns.file);
-            if !l.graph.metaclass(ns.ix()).specializes(M::Namespace) {
+            if !l.graph().metaclass(ns.ix()).specializes(M::Namespace) {
                 return None;
             }
             let visible = visible_memberships(db, project, ns.file, ns.index);
@@ -816,7 +864,7 @@ fn resolve_simple(
             .find_map(|general| full_resolution(db, project, general, name, hidden))
             .or_else(|| {
                 let l = structure(db, ty.file);
-                let outer = owning_namespace(&l.graph, ty.ix())?;
+                let outer = owning_namespace(l.graph(), ty.ix())?;
                 full_resolution(
                     db,
                     project,
@@ -836,7 +884,7 @@ fn resolve_simple(
         }
         Context::ChainArgument(expression) => {
             let l = structure(db, expression.file);
-            let fallback = non_invocation(&l.graph, expression.ix()).map(|n| Global {
+            let fallback = non_invocation(l.graph(), expression.ix()).map(|n| Global {
                 file: expression.file,
                 index: n.index() as u32,
             });
@@ -852,7 +900,7 @@ fn resolve_simple(
 /// function (KerML 8.4.4.9).
 fn result_scope(db: &dyn salsa::Database, project: Project, chain: Global) -> Option<Global> {
     let l = structure(db, chain.file);
-    let g = &l.graph;
+    let g = &l.graph();
     let at = |i: ElementIx| Global {
         file: chain.file,
         index: i.index() as u32,
@@ -873,7 +921,7 @@ fn result_scope(db: &dyn salsa::Database, project: Project, chain: Global) -> Op
 
 fn expression_target(db: &dyn salsa::Database, project: Project, x: Global) -> Option<Global> {
     let l = structure(db, x.file);
-    let g = &l.graph;
+    let g = &l.graph();
     let at = |i: ElementIx| Global {
         file: x.file,
         index: i.index() as u32,
@@ -913,7 +961,7 @@ fn expression_target(db: &dyn salsa::Database, project: Project, x: Global) -> O
                 .as_ref()
                 .and_then(|e| member_element(db, project, e))?;
             let fl = structure(db, function.file);
-            let fg = &fl.graph;
+            let fg = &fl.graph();
             fg.owned_relationships(function.ix())
                 .iter()
                 .find(|r| fg.metaclass(**r) == M::ReturnParameterMembership)
@@ -941,10 +989,10 @@ fn full_resolution(
             return Some(e);
         }
         let l = structure(db, ns.file);
-        if ns.ix() == l.root {
+        if ns.ix() == l.root() {
             return lookup(global_namespace(db, project), name, false);
         }
-        match owning_namespace(&l.graph, ns.ix()) {
+        match owning_namespace(l.graph(), ns.ix()) {
             Some(parent) => {
                 ns = Global {
                     file: ns.file,
@@ -961,7 +1009,7 @@ fn full_resolution(
 #[salsa::tracked(returns(ref))]
 pub fn resolved_names(db: &dyn salsa::Database, project: Project, file: SourceFile) -> Vec<Name> {
     let l = structure(db, file);
-    let g = &l.graph;
+    let g = &l.graph();
     let mut out = Vec::new();
     for x in g.elements() {
         for (slot, ends) in [(Slot::Source, g.source(x)), (Slot::Target, g.target(x))] {

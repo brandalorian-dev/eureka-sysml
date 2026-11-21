@@ -16,19 +16,27 @@ fn main() {
     divan::main();
 }
 
-fn library(db: &Database) -> (Project, Vec<SourceFile>) {
-    let corpus = sysml_corpus::Corpus::load().unwrap();
-    let files: Vec<SourceFile> = corpus
+/// The KerML library sources: (path, text).
+fn sources() -> Vec<(String, String)> {
+    sysml_corpus::Corpus::load()
+        .unwrap()
         .sources()
         .filter(|s| s.language == sysml_corpus::Language::KerML)
+        .map(|s| (s.id.clone(), s.text.clone()))
+        .collect()
+}
+
+fn library(db: &Database, sources: &[(String, String)]) -> (Project, Vec<SourceFile>) {
+    let files: Vec<SourceFile> = sources
+        .iter()
         .enumerate()
-        .map(|(i, s)| {
+        .map(|(i, (path, text))| {
             SourceFile::new(
                 db,
                 FileId(i as u32),
-                s.id.clone(),
+                path.clone(),
                 Language::KerML,
-                s.text.clone(),
+                text.clone(),
             )
         })
         .collect();
@@ -43,18 +51,27 @@ fn resolve_all(db: &Database, project: Project, files: &[SourceFile]) -> usize {
 }
 
 /// Parsing, lowering and resolving every name of the 36 KerML library files in a new database.
+/// Loading the corpus, and creating the database and its inputs, are outside the measurement;
+/// so is dropping the database.
 #[divan::bench(sample_count = 10)]
 fn resolve_kerml_library(bencher: Bencher) {
+    let sources = sources();
     let names = {
         let db = Database::default();
-        let (project, files) = library(&db);
+        let (project, files) = library(&db, &sources);
         resolve_all(&db, project, &files)
     };
-    bencher.counter(ItemsCount::new(names)).bench(|| {
-        let db = Database::default();
-        let (project, files) = library(&db);
-        resolve_all(&db, project, &files)
-    });
+    bencher
+        .counter(ItemsCount::new(names))
+        .with_inputs(|| {
+            let db = Database::default();
+            let (project, files) = library(&db, &sources);
+            (db, project, files)
+        })
+        .bench_local_values(|(db, project, files)| {
+            let n = resolve_all(&db, project, &files);
+            (db, n)
+        });
 }
 
 /// Re-resolving the KerML libraries after a change of layout in `Occurrences.kerml`, which most
@@ -62,7 +79,7 @@ fn resolve_kerml_library(bencher: Bencher) {
 #[divan::bench(sample_count = 20)]
 fn re_resolve_after_an_edit(bencher: Bencher) {
     let mut db = Database::default();
-    let (project, files) = library(&db);
+    let (project, files) = library(&db, &sources());
     resolve_all(&db, project, &files);
     let edited = *files
         .iter()
