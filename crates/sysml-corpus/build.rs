@@ -3,8 +3,9 @@
 //!
 //! WebAssembly has no file system, so `read_spec` cannot read `docs/specs/` there. For a wasm32
 //! target this script lists the corpus files (`.kpar` archives and `.kerml`/`.sysml` models) and
-//! the few other files in `EXTRA` from `specs.lock.json`, and generates `include_bytes!` entries
-//! for them into `OUT_DIR`. The files come from the local, never-committed `docs/specs/` (or
+//! the few other files in `EXTRA` from `specs.lock.json`, and the spec snippets listed in
+//! `snippets/index.json` (step 1a.5, ADR 0016) if they have been extracted, and generates
+//! `include_bytes!` entries for them into `OUT_DIR`. The files come from the local, never-committed `docs/specs/` (or
 //! `EUREKA_SPECS_DIR`). Nothing is generated into the source tree, and native builds embed nothing.
 
 use serde_json::Value;
@@ -61,6 +62,32 @@ fn main() {
                 full.to_str().unwrap()
             )
             .unwrap();
+        }
+    }
+    if std::env::var("CARGO_CFG_TARGET_ARCH").as_deref() == Ok("wasm32") {
+        let specs = std::env::var_os("EUREKA_SPECS_DIR")
+            .map(PathBuf::from)
+            .unwrap_or_else(|| manifest.join("../../docs/specs"));
+        let index_path = specs.join("snippets/index.json");
+        println!("cargo:rerun-if-changed={}", index_path.display());
+        // Without the extracted snippets, `snippets()` reports how to extract them.
+        if let Ok(index) = std::fs::read_to_string(&index_path) {
+            let index: Value = serde_json::from_str(&index).expect("snippets/index.json");
+            let mut paths = vec!["index.json".to_owned()];
+            for entry in index["snippets"].as_array().into_iter().flatten() {
+                paths.push(entry["path"].as_str().unwrap_or_default().to_owned());
+            }
+            for path in paths {
+                let full = specs.join("snippets").join(&path);
+                println!("cargo:rerun-if-changed={}", full.display());
+                writeln!(
+                    code,
+                    "    ({:?}, include_bytes!({:?})),",
+                    format!("snippets/{path}"),
+                    full.canonicalize().unwrap().to_str().unwrap()
+                )
+                .unwrap();
+            }
         }
     }
     code.push_str("];\n");

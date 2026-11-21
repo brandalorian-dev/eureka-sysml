@@ -37,6 +37,12 @@ jobs:
       - name: Fetch and verify specs
         run: python scripts/fetch_specs.py fetch
 
+      # The spec snippets (ADR 0016) are extracted from the pinned PDFs, never committed.
+      - name: Extract the spec snippets
+        run: |
+          sudo apt-get update -q && sudo apt-get install -y -q --no-install-recommends poppler-utils
+          python scripts/extract_spec_snippets.py
+
       - name: Check codegen schema assumptions
         run: python scripts/check_schema_assumptions.py
 
@@ -91,6 +97,12 @@ jobs:
 
       - name: Fetch and verify specs
         run: python scripts/fetch_specs.py fetch
+
+      # The spec snippets (ADR 0016) are extracted from the pinned PDFs, never committed.
+      - name: Extract the spec snippets
+        run: |
+          sudo apt-get update -q && sudo apt-get install -y -q --no-install-recommends poppler-utils
+          python scripts/extract_spec_snippets.py
 
       - uses: dtolnay/rust-toolchain@stable
         with:
@@ -156,6 +168,12 @@ jobs:
 
       - name: Fetch and verify specs
         run: python scripts/fetch_specs.py fetch
+
+      # The spec snippets (ADR 0016) are extracted from the pinned PDFs, never committed.
+      - name: Extract the spec snippets
+        run: |
+          sudo apt-get update -q && sudo apt-get install -y -q --no-install-recommends poppler-utils
+          python scripts/extract_spec_snippets.py
 
       - name: Read rust-version from Cargo.toml
         id: msrv

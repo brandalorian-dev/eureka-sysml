@@ -10,7 +10,7 @@ Change history:
 - v0.5: aligned with the formal OMG Systems Modeling API & Services v1.0 (PIM, PSMs, versioning rules, conformance suite)
 - v0.6: owner decisions applied: a solo developer with Claude Code, free and open-source software, all diagram views and document generation in 1.0, ITAR/FedRAMP-ready self-hosting, staged releases
 - v0.7: review after the Phase 0 work (PRs #1–#5). Facts corrected against the normative files, Phase 0 status recorded, its remaining items moved to the phases that need them, and the lessons on spec-artifact defects and code review added to the risks.
-- v0.8: Phase 1 detailed in `PHASE_1_EXECUTION_PLAN.md`, with its decision methodology. Step 1a.0 done: the library UUID oracle (ADR 0009) and the dependency spike. Step 1a.1 done: every test also runs as WebAssembly, with a parity check, and `sysml-wasm` is packaged with `wasm-pack` (ADR 0010). Step 1a.2 done: D1 and D4 adopted (ADRs 0011, 0012), and `sysml-syntax` lexes the whole corpus losslessly. Step 1a.3 done: the KerML Root and Core grammar, with the Kernel parts it needs first (ADR 0014). Step 1a.4 done: the whole KerML grammar; the 36 KerML library files parse with zero diagnostics (ADR 0015).
+- v0.8: Phase 1 detailed in `PHASE_1_EXECUTION_PLAN.md`, with its decision methodology. Step 1a.0 done: the library UUID oracle (ADR 0009) and the dependency spike. Step 1a.1 done: every test also runs as WebAssembly, with a parity check, and `sysml-wasm` is packaged with `wasm-pack` (ADR 0010). Step 1a.2 done: D1 and D4 adopted (ADRs 0011, 0012), and `sysml-syntax` lexes the whole corpus losslessly. Step 1a.3 done: the KerML Root and Core grammar, with the Kernel parts it needs first (ADR 0014). Step 1a.4 done: the whole KerML grammar; the 36 KerML library files parse with zero diagnostics (ADR 0015). Step 1a.5 done: the spec snippets are in the corpus, extracted from the PDFs by font (ADR 0016).
 
 ## 1. Goal
 
@@ -433,7 +433,7 @@ Delivered in PRs #1–#5 (ADRs 0004–0008):
 | Item | Moved to | Why |
 |---|---|---|
 | The `wasm-pack` build, and running the test suite (the corpus included) on WASM | Phase 1a | It needs the `sysml-wasm` crate, and Phase 1a's exit already requires the WASM build to pass the same tests. CI already builds every crate for wasm32. |
-| Spec text snippets in the corpus | Phase 1a | The extracted text does not reliably separate code from prose. This needs a font-aware extraction, or the parser to tell them apart. |
+| Spec text snippets in the corpus | Phase 1a, **done in step 1a.5** | The extracted text does not reliably separate code from prose. Solved by a font-aware extraction from the PDFs (ADR 0016). |
 | PostgreSQL integration tests (service container) | Phase 2 | They need `sysml-store`. |
 | The pnpm workspace (`apps/web`, `packages/*`), TypeScript types from `SysML.json`, the TypeScript API client from `OpenAPI.json`, Vitest and Playwright in CI, `pnpm audit`, an npm SBOM | Phase 3 | They depend on the UI framework (decision 27, needed by Phase 3), and before then there is nothing to test. |
 
@@ -543,7 +543,7 @@ Steps 1b.1–1b.10 of the execution plan. Its bottom-up estimate is 9–13 weeks
 
 ## 8. Quality strategy
 
-- **Conformance corpus as the acceptance gate.** The KerML and SysML libraries, SimpleVehicleModel (the SysML Annex A example model) and the spec snippets run in CI, on both native and WASM builds. Today `sysml-corpus` checks that the corpus is complete and intact and that the archives follow KerML 10.3 (ADR 0006). Since step 1a.1 every test, the corpus tests included, also runs as WebAssembly under Node, and CI requires the same tests to pass on both (ADR 0010). Parsing and resolving every source and the spec snippets come in Phase 1a.
+- **Conformance corpus as the acceptance gate.** The KerML and SysML libraries, SimpleVehicleModel (the SysML Annex A example model) and the spec snippets run in CI, on both native and WASM builds. Today `sysml-corpus` checks that the corpus is complete and intact and that the archives follow KerML 10.3 (ADR 0006). Since step 1a.1 every test, the corpus tests included, also runs as WebAssembly under Node, and CI requires the same tests to pass on both (ADR 0010). Since step 1a.4 every KerML source parses with zero diagnostics, and since step 1a.5 so does every KerML spec snippet marked valid (ADR 0016). Resolving them comes later in Phase 1a.
 - **Implied-relationship golden tests** checked against the KerML 8.4.3/8.4.4 tables, plus **UUID conformance** tests for the library elements.
 - **Round-trip tests:** text → model → text, JSON, `.kpar`, and the database (commit, reload, compare).
 - **API conformance suite:** the about 37 OCL test cases in API spec Annex A, automated against the REST PSM in CI. An OCL postcondition becomes an assertion on the response.
@@ -637,7 +637,7 @@ Steps 1b.1–1b.10 of the execution plan. Its bottom-up estimate is 9–13 weeks
   2. Write failing tests: corpus cases, implied-relationship tables, Annex A API cases.
   3. Implement.
   4. Review.
-- **Small, reviewable increments.** One feature branch and PR per issue. CI must pass. Use `/code-review` before merging. Keep architecture decision records in `docs/adr/` (0001–0015 so far). In practice: signed-off commits, review findings fixed in a further commit on the same PR, and a rebase merge that keeps `main` linear.
+- **Small, reviewable increments.** One feature branch and PR per issue. CI must pass. Use `/code-review` before merging. Keep architecture decision records in `docs/adr/` (0001–0016 so far). In practice: signed-off commits, review findings fixed in a further commit on the same PR, and a rebase merge that keeps `main` linear.
 - **Decisions on evidence.** Each design decision starts as a recommended default and is evaluated in the step that first depends on it: against at least one alternative, with evidence from spikes, benchmarks or corpus tests, recorded in an ADR, and with owner approval where it changes scope, budgets, licensing, release obligations or the schedule (`PHASE_1_EXECUTION_PLAN.md` §2.5). Spike evidence is kept in `docs/proj-mgmt/evidence/`.
 - **Generated code where possible.** Metaclass types, API types and the API client come from the normative JSON and OpenAPI files, which reduces hand-written surface area.
 - **Parallel Claude Code sessions** for independent work (for example, grammar productions in one, API endpoints in another), using git worktrees, with the developer integrating.

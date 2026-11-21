@@ -1755,3 +1755,42 @@ fn different_errors_at_the_same_token_are_both_reported() {
         ["syntax::expected-body", "syntax::expected-specialization"]
     );
 }
+
+#[test]
+fn the_kerml_spec_snippets_parse_as_expected() {
+    // Step 1a.5 (ADR 0016): every KerML snippet marked valid parses with zero diagnostics, every
+    // one marked invalid has at least one, and every snippet parses losslessly. The SysML
+    // snippets must parse by step 1b.1.
+    use sysml_corpus::Expectation;
+    let mut valid = 0;
+    for s in sysml_corpus::snippets().unwrap() {
+        if s.source.language != sysml_corpus::Language::KerML {
+            continue;
+        }
+        let p = parse(Language::KerML, &s.source.text);
+        assert_eq!(
+            p.syntax().text().to_string(),
+            s.source.text,
+            "{}",
+            s.source.id
+        );
+        match s.source.expect {
+            Expectation::Valid => {
+                valid += 1;
+                if let Some(d) = p.diagnostics().first() {
+                    panic!(
+                        "{} (page {}): {} {}\n{}",
+                        s.source.id, s.page, d.code, d.message, s.source.text
+                    );
+                }
+            }
+            Expectation::Invalid => assert!(
+                !p.diagnostics().is_empty(),
+                "{} is marked invalid but parses: update crates/sysml-corpus/snippets.json",
+                s.source.id
+            ),
+            Expectation::Fragment => {}
+        }
+    }
+    assert_eq!(valid, 191);
+}
