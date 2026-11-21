@@ -35,7 +35,8 @@
       "status": "open"
     },
     "Classifier::deriveClassifierOwnedSubclassification": {
-      "status": "open"
+      "status": "done",
+      "function": "owned_subclassification"
     },
     "Connector::deriveConnectorDefaultFeaturingType": {
       "status": "open"
@@ -99,43 +100,56 @@
       "status": "open"
     },
     "Feature::deriveFeatureChainingFeature": {
-      "status": "open"
+      "status": "done",
+      "function": "chaining_feature"
     },
     "Feature::deriveFeatureCrossFeature": {
-      "status": "open"
+      "status": "done",
+      "function": "cross_feature"
     },
     "Feature::deriveFeatureFeatureTarget": {
-      "status": "open"
+      "status": "done",
+      "function": "feature_target"
     },
     "Feature::deriveFeatureFeaturingType": {
-      "status": "open"
+      "status": "done",
+      "function": "featuring_type"
     },
     "Feature::deriveFeatureOwnedCrossSubsetting": {
-      "status": "open"
+      "status": "done",
+      "function": "owned_cross_subsetting"
     },
     "Feature::deriveFeatureOwnedFeatureChaining": {
-      "status": "open"
+      "status": "done",
+      "function": "owned_feature_chaining"
     },
     "Feature::deriveFeatureOwnedFeatureInverting": {
-      "status": "open"
+      "status": "done",
+      "function": "owned_feature_inverting"
     },
     "Feature::deriveFeatureOwnedRedefinition": {
-      "status": "open"
+      "status": "done",
+      "function": "owned_redefinition"
     },
     "Feature::deriveFeatureOwnedReferenceSubsetting": {
-      "status": "open"
+      "status": "done",
+      "function": "owned_reference_subsetting"
     },
     "Feature::deriveFeatureOwnedSubsetting": {
-      "status": "open"
+      "status": "done",
+      "function": "owned_subsetting"
     },
     "Feature::deriveFeatureOwnedTypeFeaturing": {
-      "status": "open"
+      "status": "done",
+      "function": "owned_type_featuring"
     },
     "Feature::deriveFeatureOwnedTyping": {
-      "status": "open"
+      "status": "done",
+      "function": "owned_typing"
     },
     "Feature::deriveFeatureType": {
-      "status": "open"
+      "status": "done",
+      "function": "r#type"
     },
     "FeatureChainExpression::deriveFeatureChainExpressionTargetFeature": {
       "status": "open"
@@ -236,67 +250,88 @@
       "status": "open"
     },
     "Type::deriveTypeDifferencingType": {
-      "status": "open"
+      "status": "done",
+      "function": "differencing_type"
     },
     "Type::deriveTypeDirectedFeature": {
-      "status": "open"
+      "status": "done",
+      "function": "directed_feature"
     },
     "Type::deriveTypeEndFeature": {
-      "status": "open"
+      "status": "done",
+      "function": "end_feature"
     },
     "Type::deriveTypeFeature": {
-      "status": "open"
+      "status": "done",
+      "function": "feature"
     },
     "Type::deriveTypeFeatureMembership": {
-      "status": "open"
+      "status": "done",
+      "function": "feature_membership"
     },
     "Type::deriveTypeInheritedFeature": {
-      "status": "open"
+      "status": "done",
+      "function": "inherited_feature"
     },
     "Type::deriveTypeInheritedMembership": {
-      "status": "open"
+      "status": "done",
+      "function": "inherited_membership"
     },
     "Type::deriveTypeInput": {
-      "status": "open"
+      "status": "done",
+      "function": "input"
     },
     "Type::deriveTypeIntersectingType": {
-      "status": "open"
+      "status": "done",
+      "function": "intersecting_type"
     },
     "Type::deriveTypeMultiplicity": {
-      "status": "open"
+      "status": "done",
+      "function": "multiplicity"
     },
     "Type::deriveTypeOutput": {
-      "status": "open"
+      "status": "done",
+      "function": "output"
     },
     "Type::deriveTypeOwnedConjugator": {
-      "status": "open"
+      "status": "done",
+      "function": "owned_conjugator"
     },
     "Type::deriveTypeOwnedDifferencing": {
-      "status": "open"
+      "status": "done",
+      "function": "owned_differencing"
     },
     "Type::deriveTypeOwnedDisjoining": {
-      "status": "open"
+      "status": "done",
+      "function": "owned_disjoining"
     },
     "Type::deriveTypeOwnedEndFeature": {
-      "status": "open"
+      "status": "done",
+      "function": "owned_end_feature"
     },
     "Type::deriveTypeOwnedFeature": {
-      "status": "open"
+      "status": "done",
+      "function": "owned_feature"
     },
     "Type::deriveTypeOwnedFeatureMembership": {
-      "status": "open"
+      "status": "done",
+      "function": "owned_feature_membership"
     },
     "Type::deriveTypeOwnedIntersecting": {
-      "status": "open"
+      "status": "done",
+      "function": "owned_intersecting"
     },
     "Type::deriveTypeOwnedSpecialization": {
-      "status": "open"
+      "status": "done",
+      "function": "owned_specialization"
     },
     "Type::deriveTypeOwnedUnioning": {
-      "status": "open"
+      "status": "done",
+      "function": "owned_unioning"
     },
     "Type::deriveTypeUnioningType": {
-      "status": "open"
+      "status": "done",
+      "function": "unioning_type"
     }
   },
   "operations": {
@@ -333,58 +368,76 @@
       "status": "open"
     },
     "Feature::allRedefinedFeatures": {
-      "status": "open"
+      "status": "done",
+      "function": "all_redefined_features"
     },
     "Feature::asCartesianProduct": {
-      "status": "open"
+      "status": "done",
+      "function": "as_cartesian_product"
     },
     "Feature::canAccess": {
-      "status": "open"
+      "status": "done",
+      "function": "can_access"
     },
     "Feature::directionFor": {
-      "status": "open"
+      "status": "done",
+      "function": "direction_for"
     },
     "Feature::effectiveName": {
-      "status": "open"
+      "status": "done",
+      "function": "effective_name"
     },
     "Feature::effectiveShortName": {
-      "status": "open"
+      "status": "done",
+      "function": "effective_short_name"
     },
     "Feature::isCartesianProduct": {
-      "status": "open"
+      "status": "done",
+      "function": "is_cartesian_product"
     },
     "Feature::isCompatibleWith": {
-      "status": "open"
+      "status": "done",
+      "function": "is_compatible_with"
     },
     "Feature::isFeaturedWithin": {
-      "status": "open"
+      "status": "done",
+      "function": "is_featured_within"
     },
     "Feature::isFeaturingType": {
-      "status": "open"
+      "status": "done",
+      "function": "is_featuring_type"
     },
     "Feature::isOwnedCrossFeature": {
-      "status": "open"
+      "status": "done",
+      "function": "is_owned_cross_feature"
     },
     "Feature::namingFeature": {
-      "status": "open"
+      "status": "done",
+      "function": "naming_feature"
     },
     "Feature::ownedCrossFeature": {
-      "status": "open"
+      "status": "done",
+      "function": "owned_cross_feature"
     },
     "Feature::redefines": {
-      "status": "open"
+      "status": "done",
+      "function": "redefines"
     },
     "Feature::redefinesFromLibrary": {
-      "status": "open"
+      "status": "done",
+      "function": "redefines_from_library"
     },
     "Feature::subsetsChain": {
-      "status": "open"
+      "status": "done",
+      "function": "subsets_chain"
     },
     "Feature::supertypes": {
-      "status": "open"
+      "status": "done",
+      "function": "supertypes"
     },
     "Feature::typingFeatures": {
-      "status": "open"
+      "status": "done",
+      "function": "typing_features"
     },
     "FeatureChainExpression::sourceTargetFeature": {
       "status": "open"
@@ -535,46 +588,60 @@
       "status": "open"
     },
     "Type::allRedefinedFeaturesOf": {
-      "status": "open"
+      "status": "done",
+      "function": "all_redefined_features_of"
     },
     "Type::allSupertypes": {
-      "status": "open"
+      "status": "done",
+      "function": "all_supertypes"
     },
     "Type::directionOf": {
-      "status": "open"
+      "status": "done",
+      "function": "direction_of"
     },
     "Type::directionOfExcluding": {
-      "status": "open"
+      "status": "done",
+      "function": "direction_of_excluding"
     },
     "Type::inheritableMemberships": {
-      "status": "open"
+      "status": "done",
+      "function": "inheritable_memberships"
     },
     "Type::inheritedMemberships": {
-      "status": "open"
+      "status": "done",
+      "function": "type_inherited_memberships"
     },
     "Type::isCompatibleWith": {
-      "status": "open"
+      "status": "done",
+      "function": "is_compatible_with"
     },
     "Type::multiplicities": {
-      "status": "open"
+      "status": "done",
+      "function": "multiplicities"
     },
     "Type::nonPrivateMemberships": {
-      "status": "open"
+      "status": "done",
+      "function": "non_private_memberships"
     },
     "Type::removeRedefinedFeatures": {
-      "status": "open"
+      "status": "done",
+      "function": "remove_redefined_features"
     },
     "Type::specializes": {
-      "status": "open"
+      "status": "done",
+      "function": "specializes"
     },
     "Type::specializesFromLibrary": {
-      "status": "open"
+      "status": "done",
+      "function": "specializes_from_library"
     },
     "Type::supertypes": {
-      "status": "open"
+      "status": "done",
+      "function": "supertypes"
     },
     "Type::visibleMemberships": {
-      "status": "open"
+      "status": "done",
+      "function": "visible_memberships"
     }
   }
 }
