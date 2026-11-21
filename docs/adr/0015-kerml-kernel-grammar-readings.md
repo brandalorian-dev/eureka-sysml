@@ -36,7 +36,7 @@ ConstructorExpression (8.2.5.8.3) is `'new' InstantiatedTypeMember ConstructorRe
 
 MetaclassificationExpression (8.2.5.8.1) uses the terminal `'@@'`, but the symbols of KerML 8.2.2.7 have no `@@`. By the longest-match rule, `@@` is lexed as two `@` tokens.
 
-**Reading:** the lexer keeps to 8.2.2.7. The expression parser takes `@` followed by `@` as the metaclassification operator, at the precedence of the classification operators (Table 6). The tree keeps the two tokens.
+**Reading:** the lexer keeps to 8.2.2.7. The expression parser takes two *adjacent* `@` tokens as the metaclassification operator, at the precedence of the classification operators (Table 6). The tree keeps the two tokens. Adjacent means with nothing between them, which is what longest-match lexing makes of `@@`. With white space or a note between them (`a @ @M`), they are two classification operators, and the second is an error.
 
 ### 4. InvocationTypeMember is InstantiatedTypeMember
 
@@ -57,5 +57,5 @@ FunctionOperationExpression (8.2.5.8.2) uses `InvocationTypeMember`, which no pr
 
 ## Consequences
 
-- The four readings are implemented in `crates/sysml-syntax`, citing this ADR. They are pinned by `invariant_forms`, `new_is_a_name_unless_a_type_follows`, `classification_expressions` and `primary_expressions`, and by the KerML library test.
+- The four readings are implemented in `crates/sysml-syntax`, citing this ADR. They are pinned by `invariant_forms`, `new_is_a_name_unless_a_type_follows`, `classification_expressions`, `the_metaclassification_operator_is_two_adjacent_at_signs` and `primary_expressions`, and by the KerML library test.
 - If the OMG corrects a production, its test changes and this ADR is superseded in part.

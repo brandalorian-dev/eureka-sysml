@@ -45,7 +45,8 @@ fn infix(p: &Parser) -> Option<(u8, u8, K, Right, usize)> {
         K::Caret | K::StarStar => return Some((24, 24, K::BinaryExpression, Right::Expression, 1)),
         _ => return None,
     };
-    let tokens = if p.at(K::At) && p.nth_at(1, K::At) {
+    // `@@`: two `@` tokens with nothing between them (ADR 0015).
+    let tokens = if p.at(K::At) && p.nth_at(1, K::At) && p.nth_adjacent(0) {
         2
     } else {
         1
@@ -53,11 +54,11 @@ fn infix(p: &Parser) -> Option<(u8, u8, K, Right, usize)> {
     Some((level * 2, level * 2 + 1, kind, right, tokens))
 }
 
-/// Whether an expression can start at the current token.
-pub(super) fn at_expression(p: &Parser) -> bool {
-    at_qualified_name(p, 0)
+/// Whether an expression can start at the `n`-th token ahead.
+pub(super) fn at_expression(p: &Parser, n: usize) -> bool {
+    at_qualified_name(p, n)
         || matches!(
-            p.current(),
+            p.peek(n),
             K::Plus
                 | K::Minus
                 | K::Tilde
@@ -79,7 +80,7 @@ pub(super) fn at_expression(p: &Parser) -> bool {
                 | K::LBrace
         )
         // `.5`: a real literal (8.2.5.8.4).
-        || (p.at(K::Dot) && matches!(p.peek(1), K::DecimalValue | K::ExponentialValue))
+        || (p.peek(n) == K::Dot && matches!(p.peek(n + 1), K::DecimalValue | K::ExponentialValue))
 }
 
 /// OwnedExpression (KerML 8.2.5.8.1), or an error if there is none.
@@ -246,7 +247,7 @@ fn expression_list(p: &mut Parser, close: K) {
 }
 
 /// The number of tokens of the qualified name at the `n`-th token, or 0.
-fn qualified_name_len(p: &Parser, n: usize) -> usize {
+pub(super) fn qualified_name_len(p: &Parser, n: usize) -> usize {
     let mut i = n;
     if p.peek(i) == K::Dollar {
         i += 2;

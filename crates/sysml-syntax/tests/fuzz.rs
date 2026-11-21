@@ -5,7 +5,8 @@
 //! The inputs are mutants of the KerML library: spans of tokens deleted, duplicated or replaced
 //! by other tokens, which is how text looks while it is being edited. The regular run is short; a
 //! longer run is `cargo test -p sysml-syntax --test fuzz -- --ignored`, with `FUZZ_SECONDS` (the
-//! default is 300) for the agreed run time and `FUZZ_SEED` to replay a run.
+//! default is 300) for the agreed run time. A failure reports the mutant's seed; `FUZZ_SEED` with
+//! that seed replays exactly that mutant.
 
 use sysml_syntax::{lex, parse, Language};
 #[cfg(target_arch = "wasm32")]
@@ -15,6 +16,15 @@ use wasm_bindgen_test::wasm_bindgen_test as test;
 struct Rng(u64);
 
 impl Rng {
+    /// A generator from `seed`; 0, the fixed point of xorshift, is replaced.
+    fn new(seed: u64) -> Rng {
+        Rng(if seed == 0 {
+            0x9e37_79b9_7f4a_7c15
+        } else {
+            seed
+        })
+    }
+
     fn next(&mut self) -> u64 {
         self.0 ^= self.0 << 13;
         self.0 ^= self.0 >> 7;
@@ -103,23 +113,38 @@ fn check(text: &str, seed: u64) {
     }
 }
 
-fn run(iterations: impl Fn(usize) -> bool, seed: u64) -> usize {
-    let lib = library();
-    let pool: Vec<String> = lib
-        .iter()
+/// The distinct non-blank tokens of the library: what a replacement edit puts in.
+fn pool(lib: &[Vec<String>]) -> Vec<String> {
+    lib.iter()
         .flatten()
         .filter(|t| !t.trim().is_empty())
         .cloned()
         .collect::<std::collections::BTreeSet<_>>()
         .into_iter()
-        .collect();
-    let mut rng = Rng(seed);
+        .collect()
+}
+
+/// The seed of the next mutant.
+fn mutant_seed(outer: &mut Rng) -> u64 {
+    outer.next() | 1
+}
+
+/// The mutant of `seed`: which source, and which edits, depend on the seed alone.
+fn mutant_for(lib: &[Vec<String>], pool: &[String], seed: u64) -> String {
+    let mut rng = Rng::new(seed);
+    let source = &lib[rng.below(lib.len())];
+    mutant(&mut rng, source, pool)
+}
+
+/// Check mutants while `iterations` allows, from the outer `seed`; returns how many.
+fn run(iterations: impl Fn(usize) -> bool, seed: u64) -> usize {
+    let lib = library();
+    let pool = pool(&lib);
+    let mut outer = Rng::new(seed);
     let mut i = 0;
     while iterations(i) {
-        let s = rng.next();
-        let mut local = Rng(s | 1);
-        let source = &lib[local.below(lib.len())];
-        check(&mutant(&mut local, source, &pool), s | 1);
+        let seed = mutant_seed(&mut outer);
+        check(&mutant_for(&lib, &pool, seed), seed);
         i += 1;
     }
     i
@@ -137,17 +162,18 @@ fn library_mutants_for_the_agreed_run_time() {
         .ok()
         .and_then(|s| s.parse().ok())
         .unwrap_or(300);
+    if let Some(seed) = std::env::var("FUZZ_SEED").ok().and_then(|s| s.parse().ok()) {
+        // Replay one mutant, from the seed a failure reported.
+        let lib = library();
+        check(&mutant_for(&lib, &pool(&lib), seed), seed);
+        return;
+    }
     let start = std::time::Instant::now();
-    let seed = std::env::var("FUZZ_SEED")
-        .ok()
-        .and_then(|s| s.parse().ok())
-        .unwrap_or_else(|| {
-            std::time::SystemTime::now()
-                .duration_since(std::time::UNIX_EPOCH)
-                .map_or(1, |d| d.as_nanos() as u64)
-        });
+    let seed = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map_or(1, |d| d.as_nanos() as u64);
     let n = run(|_| start.elapsed().as_secs() < seconds, seed);
-    println!("{n} mutants in {seconds} s, seed {seed}");
+    println!("{n} mutants in {seconds} s, from seed {seed}");
 }
 
 #[test]
@@ -163,4 +189,26 @@ fn found_by_fuzzing() {
         "package P { inv { a implies (b.binding [0..1] c = [1] d; } feature e; }",
         2,
     );
+}
+
+#[test]
+fn a_zero_seed_does_not_stick() {
+    // xorshift has a fixed point at 0: a zero seed is replaced, so that a run varies.
+    let mut rng = Rng::new(0);
+    let a = rng.next();
+    assert_ne!(a, 0);
+    assert_ne!(rng.next(), a);
+}
+
+#[test]
+fn a_reported_seed_replays_its_mutant() {
+    // The seed in a failure message is the mutant's own seed: `FUZZ_SEED` with it rebuilds the
+    // same text.
+    let lib = library();
+    let pool = pool(&lib);
+    let mut outer = Rng::new(7);
+    for _ in 0..5 {
+        let seed = mutant_seed(&mut outer);
+        assert_eq!(mutant_for(&lib, &pool, seed), mutant_for(&lib, &pool, seed));
+    }
 }

@@ -1322,3 +1322,119 @@ fn clause_7_4_examples_parse_without_diagnostics() {
         assert_eq!(p.syntax().text().to_string(), text);
     }
 }
+
+// Cases from the PR #13 review.
+
+/// The kinds of the nodes below the first top-level node, recursively, that are `kind`.
+fn count(text: &str, kind: sysml_syntax::SyntaxKind) -> usize {
+    parse(Language::KerML, text)
+        .syntax()
+        .descendants()
+        .filter(|n| n.kind() == kind)
+        .count()
+}
+
+#[test]
+fn a_stray_token_before_a_connector_keyword_is_reported() {
+    use sysml_syntax::SyntaxKind as K;
+    // The stray token is the error, at its place; the ends around it still parse.
+    for (text, ends) in [
+        ("connector c x from a to b;", 2),
+        ("connector a b to c;", 2),
+        ("connector c from a x to b;", 2),
+        ("binding b x of a = c;", 2),
+        ("succession s x first a then b;", 2),
+    ] {
+        let p = parse(Language::KerML, text);
+        let d: Vec<_> = p
+            .diagnostics()
+            .iter()
+            .map(|d| (d.code, &text[d.range]))
+            .collect();
+        assert_eq!(d.len(), 1, "{text}: {d:?}");
+        assert_eq!(d[0].0, "syntax::expected-token", "{text}");
+        assert_eq!(
+            d[0].1,
+            if text.contains(" x ") { "x" } else { "b" },
+            "{text}"
+        );
+        assert_eq!(count(text, K::ConnectorEnd), ends, "{text}");
+    }
+    let text = "flow a b to c;";
+    assert_eq!(codes(text), ["syntax::expected-token"]);
+    assert_eq!(count(text, K::FlowEnd), 2);
+}
+
+#[test]
+fn a_result_expression_can_have_a_visibility() {
+    // ResultExpressionMember: `MemberPrefix OwnedExpression` (KerML 8.2.5.7.1).
+    check(
+        "function f { private x > 0 }",
+        expect![[r#"
+        Function
+          "function"
+          Identification "f"
+          Body
+            "{"
+            ResultExpressionMember
+              "private"
+              BinaryExpression
+                FeatureReferenceExpression
+                  QualifiedName "x"
+                ">"
+                LiteralInteger "0"
+            "}"
+    "#]],
+    );
+}
+
+#[test]
+fn a_bracket_expression_can_be_the_result() {
+    // `x[1]` is a BracketExpression (KerML 8.2.5.8.2) when nothing that continues a feature
+    // follows the `]`; `x[1];` and `x[1] : T;` are features.
+    use sysml_syntax::SyntaxKind as K;
+    assert_eq!(codes("function f { x[1] }"), Vec::<&str>::new());
+    assert_eq!(count("function f { x[1] }", K::BracketExpression), 1);
+    assert_eq!(count("function f { x[1] + 2 }", K::BracketExpression), 1);
+    assert_eq!(count("function f { x[1]; y[0..*] : T; }", K::Feature), 2);
+    assert_eq!(
+        codes("function f { x[1]; y[0..*] : T; }"),
+        Vec::<&str>::new()
+    );
+}
+
+#[test]
+fn features_that_start_with_conjugation_or_all_in_a_function_body() {
+    // FeatureDeclaration can start with a ConjugationPart or `all` (KerML 8.2.4.3.1).
+    use sysml_syntax::SyntaxKind as K;
+    for text in [
+        "function f { ~ T; }",
+        "function f { all : T; }",
+        "function f { ~ a.b { } }",
+    ] {
+        assert_eq!(codes(text), Vec::<&str>::new(), "{text}");
+        assert_eq!(count(text, K::Feature), 1, "{text}");
+    }
+    // The same tokens before the end of the body are the result expression.
+    assert_eq!(count("function f { ~ x }", K::UnaryExpression), 1);
+    assert_eq!(count("function f { all T }", K::ExtentExpression), 1);
+}
+
+#[test]
+fn a_metadata_body_has_no_kernel_features() {
+    // MetadataBodyElement (KerML 8.2.5.12): NonFeatureMember, MetadataBodyFeatureMember,
+    // AliasMember or Import.
+    assert_eq!(
+        codes("metadata M { step s; }"),
+        ["syntax::misplaced-member"]
+    );
+    assert_eq!(codes("@M { connector c; }"), ["syntax::misplaced-member"]);
+}
+
+#[test]
+fn the_metaclassification_operator_is_two_adjacent_at_signs() {
+    // `@@` lexes as two `@` tokens (ADR 0015); with anything between them it is not `@@`.
+    assert_eq!(codes("feature x = a @@ M;"), Vec::<&str>::new());
+    assert!(!codes("feature x = a @ @M;").is_empty());
+    assert!(!codes("feature x = a @ /* c */ @ M;").is_empty());
+}

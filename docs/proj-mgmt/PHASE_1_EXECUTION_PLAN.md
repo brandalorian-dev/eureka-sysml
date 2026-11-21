@@ -212,7 +212,7 @@ Each step below gives its goal, the spec clauses, what it delivers, the tests to
 - **Status:** done 2026-11-20.
   - **The grammar:** `sysml-syntax` parses the whole KerML grammar. Expressions are a Pratt parser over Table 6. `syntax::not-yet-supported` is gone.
   - **The library:** all 36 KerML library files parse with **zero diagnostics** and round-trip byte for byte, in about 3.6 ms (`parse_kerml_library`).
-  - **Tests:** 27 Kernel production tests with tree snapshots, and a Table 6 precedence and associativity table of 39 cases. Also 16 quoted KerML 7.4 examples, and the 1a.3 tests, updated.
+  - **Tests:** 33 Kernel production and recovery tests with tree snapshots, and a Table 6 precedence and associativity table of 39 cases. Also 16 quoted KerML 7.4 examples, and the 1a.3 tests, updated.
   - **ADR 0015:** four readings of the grammar. The declaration of `inv`, `step`, `expr` and `bool` is optional, as the library's 42 `inv { … }` show. `new` is a contextual keyword. `@@` is two `@` tokens. `InvocationTypeMember` is `InstantiatedTypeMember`.
 - **Fuzzing (agreed run time: 5 minutes):**
   - `tests/fuzz.rs` mutates the library: it deletes, duplicates and replaces token spans, and checks that the parser never panics, never stops early and stays lossless.

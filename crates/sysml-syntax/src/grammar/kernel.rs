@@ -392,20 +392,21 @@ fn connector_declaration(p: &mut Parser) {
             } else {
                 feature_declaration(p, false);
             }
-            p.bump(); // `from`
+            keyword(p, K::FromKw, clause);
             connector_end(p);
-            p.expect(K::ToKw, "syntax::expected-token", clause);
-            connector_end(p);
+            if keyword(p, K::ToKw, clause) {
+                connector_end(p);
+            }
         }
         Some(K::ToKw) => {
             p.eat(K::AllKw);
             connector_end(p);
-            p.bump(); // `to`
+            keyword(p, K::ToKw, clause);
             connector_end(p);
         }
         Some(K::LParen) => {
             feature_declaration(p, false);
-            p.bump(); // `(`
+            keyword(p, K::LParen, clause);
             connector_end(p);
             p.expect(K::Comma, "syntax::expected-token", clause);
             connector_end(p);
@@ -436,19 +437,43 @@ fn ends_declaration(p: &mut Parser, opener: K, separator: K, clause: &'static st
             } else {
                 feature_declaration(p, false);
             }
-            p.bump(); // the opener
+            keyword(p, opener, clause);
             connector_end(p);
-            p.expect(separator, "syntax::expected-token", clause);
-            connector_end(p);
+            if keyword(p, separator, clause) {
+                connector_end(p);
+            }
         }
         Some(_) => {
             p.eat(K::AllKw);
             connector_end(p);
-            p.bump(); // the separator
+            keyword(p, separator, clause);
             connector_end(p);
         }
         None => feature_declaration(p, false),
     }
+}
+
+/// The keyword that `first_ahead` found, or that separates two ends: bump it. Any tokens before
+/// it are reported, once, and kept in an `Error` node, so that the keyword is never taken for
+/// what precedes it. Stops without it at `;`, `{` or `}`; returns whether it was found.
+fn keyword(p: &mut Parser, kind: K, clause: &'static str) -> bool {
+    if p.eat(kind) {
+        return true;
+    }
+    p.error(
+        "syntax::expected-token",
+        format!("expected {}", kind.description()),
+        Some(clause),
+    );
+    if p.at_eof() || p.at(K::Semicolon) || p.at(K::LBrace) || p.at(K::RBrace) {
+        return false;
+    }
+    let m = p.start();
+    while !(p.at_eof() || p.at(kind) || p.at(K::Semicolon) || p.at(K::LBrace) || p.at(K::RBrace)) {
+        p.bump();
+    }
+    m.complete(p, K::Error);
+    p.eat(kind)
 }
 
 /// ConnectorEnd (KerML 8.2.5.5.1): `OwnedCrossMultiplicity? ( NAME REFERENCES )?
@@ -482,7 +507,7 @@ fn flow_declaration(p: &mut Parser) {
     {
         p.eat(K::AllKw);
         flow_end(p);
-        p.bump(); // `to`
+        keyword(p, K::ToKw, clause);
         flow_end(p);
         return;
     }
@@ -493,8 +518,9 @@ fn flow_declaration(p: &mut Parser) {
     }
     if p.eat(K::FromKw) {
         flow_end(p);
-        p.expect(K::ToKw, "syntax::expected-token", clause);
-        flow_end(p);
+        if keyword(p, K::ToKw, clause) {
+            flow_end(p);
+        }
     }
 }
 
