@@ -275,7 +275,11 @@ fn owned_types(db: &dyn salsa::Database, project: Project, f: Global) -> Vec<Glo
 /// `instantiatedType` (KerML 8.3.4.8.7, 8.3.4.8.17): the member element of the first owned
 /// membership that is not a FeatureMembership or, for an OperatorExpression, its operator in
 /// BaseFunctions, DataFunctions or ControlFunctions.
-fn instantiated_type(db: &dyn salsa::Database, project: Project, x: Global) -> Option<Global> {
+pub(crate) fn instantiated_type(
+    db: &dyn salsa::Database,
+    project: Project,
+    x: Global,
+) -> Option<Global> {
     let l = structure(db, x.file);
     let g = &l.graph();
     if g.metaclass(x.ix()).specializes(M::OperatorExpression) {
@@ -453,6 +457,25 @@ pub fn implied_generals(
         }
         if m.specializes(M::Expression) {
             push(subset, lib("Performances::evaluations"));
+        }
+        // KerML 8.3.4.8.3 checkConstructorExpressionResultSpecialization: the result of a
+        // ConstructorExpression, which the grammar writes (8.2.5.8.4), specializes the
+        // instantiated type; so the features of `new T(a = 1)` redefine those of T (ADR 0021).
+        if is_result(g, x) {
+            if let Some(c) =
+                owning_type(g, x).filter(|c| g.metaclass(*c).specializes(M::ConstructorExpression))
+            {
+                if let Some(t) = instantiated_type(db, project, at(file, c)) {
+                    let kind = if metaclass(db, t).specializes(M::Classifier) {
+                        M::FeatureTyping
+                    } else if metaclass(db, t).specializes(M::Feature) {
+                        M::Subsetting
+                    } else {
+                        M::Specialization
+                    };
+                    push(kind, Some(t));
+                }
+            }
         }
         // KerML 8.3.4.9.6 checkSuccessionFlowSpecialization, 8.3.4.9.2 checkFlowWithEnds…,
         // checkFlowSpecialization

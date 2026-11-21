@@ -7,12 +7,14 @@
 //! inventory of every rule and operation, with its status, is `crates/sysml-semantics/derived.json`,
 //! kept equal to `KerML.xmi` by `tests/derived_inventory.rs`.
 //!
-//! The functions are grouped by layer: Root (KerML 8.3.2), and Core (8.3.3: types, classifiers
-//! and features).
+//! The functions are grouped by layer: Root (KerML 8.3.2), Core (8.3.3: types, classifiers and
+//! features) and Kernel (8.3.4).
 
+mod kernel;
 mod root;
 mod types;
 
+pub use kernel::*;
 pub use root::*;
 pub use types::*;
 

@@ -35,7 +35,7 @@ Readings of the constraint text:
 
 Deferred to step 1a.9, because no library name depends on them:
 - the type-featuring and binding-connector constraints;
-- the constraints whose source is an implied element that the fragments do not contain: the result specializations of expressions (8.3.4.8), `checkFeatureValuationSpecialization`, and the source-target redefinitions of FeatureChainExpressions;
+- the constraints whose source is an implied element that the fragments do not contain: the result specializations of expressions (8.3.4.8), `checkFeatureValuationSpecialization`, and the source-target redefinitions of FeatureChainExpressions. A ConstructorExpression's result is written, and its specialization is included since step 1a.8 (ADR 0021);
 - the cross-feature constraints;
 - `checkMetadataFeatureSemanticSpecialization`, which needs model-level evaluation.
 
