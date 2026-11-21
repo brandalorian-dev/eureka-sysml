@@ -28,8 +28,8 @@ The owner chose to pull the implied relationships that resolution needs forward 
 Readings of the constraint text:
 - **Names of library features.** The OCL names `Performance::enclosedPerformance`, `subperformance` and `Object::ownedPerformance`, but the library declares them in the plural: `enclosedPerformances`, `subperformances` and `ownedPerformances`. The library names are used.
 - **`checkFeatureSubobjectSpecialization`.** Its OCL names `Occurrence::Occurrence::suboccurrences`; Table 9 names `Objects::Object::subobjects`. Table 9 is used, since a subobject constraint that only repeats the suboccurrence one would be pointless.
-- **`checkFeatureFlowFeatureRedefinition`.** Its second target is written `Transfers::Transfer::source::targetInput`. It is read as `Transfers::Transfer::target::targetInput`, where the library declares `targetInput`.
-- **`endFeature`.** For the binary-association constraints and the positions of end redefinitions, a type's end features are its owned ends or, with none, those of its first owned general that has ends. Implied generals are not consulted, which keeps this query out of a cycle with them. Every library type these constraints name owns its ends.
+- **`checkFeatureFlowFeatureRedefinition`.** Its second target is written `Transfers::Transfer::source::targetInput`. It is read as `Transfers::Transfer::target::targetInput`, where the library declares `targetInput`. Its OCL takes the FlowEnd's position among all the owned features of the flow, but the grammar puts a payload feature (`flow of P …`) first. The position is therefore counted among the flow's FlowEnds.
+- **`endFeature`.** For the binary-association and binary-connector constraints (`connectorEnd` is the connector's `endFeature`) and the positions of end redefinitions, a type's end features are its owned ends or, with none, those of its first owned general that has ends. Implied generals are not consulted, which keeps this query out of a cycle with them. Every library type these constraints name owns its ends.
 - **Library lookup.** A library element is found by its qualified name, the first segment in the global namespace and each later one among the owned memberships of the one before. Every element the constraints name is declared there.
 
 Deferred to step 1a.9, because no library name depends on them:
@@ -39,6 +39,8 @@ Deferred to step 1a.9, because no library name depends on them:
 - `checkMetadataFeatureSemanticSpecialization`, which needs model-level evaluation.
 
 Step 1a.9 materializes all of them and tests them table by table.
+
+- **Already redefined.** A redefinition constraint implies a Redefinition unless the feature already redefines that target with an owned Redefinition. Other relationships to the target, such as a subsetting, do not count, since the OCL asks for `redefines`.
 
 ### 2. A Redefinition whose generals do not have the name
 
@@ -56,9 +58,17 @@ KerML 8.2.3.5.1 resolves the `redefinedFeature` of a Redefinition owned by a fea
 
 `(that as StatePerformance).incomingTransitionTrigger` needs the features of the cast's result. A cast owns its result parameter, typed by the target type (8.2.5.8.1 `TypeResultMember`). For a FeatureChainExpression's argument, an InvocationExpression's own result parameter is therefore used before that of the function it invokes.
 
-### 5. Resolution reads a span-free structure
+### 5. `all` on an import with filter conditions
 
-As ADR 0019 foresaw, a lowered fragment has spans and no equality, so every query that read it reran after any edit. Re-resolving the KerML libraries after a layout edit to `Occurrences.kerml` took 54 ms, about half of resolving them from nothing. The `structure` query wraps the fragment with an equality that ignores spans (`Graph::same_structure`), and every resolution query reads that. An edit of layout now stops at `structure`, and the same re-resolution takes 13 ms. The test `an_edit_reruns_only_the_queries_that_depend_on_it` asserts this from the event log.
+In `import all A::*[@Approved];` the grammar (8.2.3.4.2) puts `isImportAll` on the outer import, whose imported namespace is the FilterPackage. The FilterPackage's own import is an `ImportDeclaration`, which cannot be `all`.
+
+**Reading:** `all` governs the FilterPackage, whose memberships are those its own import brings, once filtered. That import brings the visible memberships of `A`, so `all` does not reach `A`'s private members. The FilterPackage's own import has the default visibility of an Import, which is private. Its memberships are still what the outer import imports: otherwise an import with a filter and without `all` would import nothing, which 7.2.5.4 contradicts. Filter conditions are not evaluated yet (step 1a.10).
+
+Recursive imports follow `visibleMemberships(excluded, isRecursive, includeAll)` (8.3.2.4.5). They descend only into the namespaces a namespace owns, through a public owning membership unless `all`, and pass `all` to every level.
+
+### 6. Resolution reads a span-free structure
+
+As ADR 0019 foresaw, a lowered fragment has spans and no equality, so every query that read it reran after any edit. Re-resolving the KerML libraries after a layout edit to `Occurrences.kerml` took 54 ms, about half of resolving them from nothing. The `structure` query wraps the fragment with an equality that ignores spans (`Graph::same_structure`), and every resolution query reads that. It gives access only to the graph and the root: a fragment's diagnostics, whose spans it does not compare, are read through `lowered`. An edit of layout now stops at `structure`, and the same re-resolution takes about 11 ms. The test `an_edit_reruns_only_the_queries_that_depend_on_it` asserts this from the event log.
 
 ## Evidence
 
@@ -67,13 +77,14 @@ As ADR 0019 foresaw, a lowered fragment has spans and no equality, so every quer
   - with decision 2: 3937 the same;
   - with decision 1: 4001;
   - with decision 3: all 4003.
-- **Clause examples** (`tests/resolve.rs`), from the snippets of KerML 7.2.5.2, 7.2.5.4, 7.3.2.3 and 7.3.4.5: visibility, aliases, imports (including the recursive ones), inheritance, redefinition with effective names, and implied specializations and redefinitions.
+- **Clause examples** (`tests/resolve.rs`), from the snippets of KerML 7.2.5.2, 7.2.5.4, 7.3.2.3 and 7.3.4.5: visibility, aliases, imports (including the recursive ones, and `all` with and without filters), inheritance, redefinition with effective names, and implied specializations and redefinitions (positions of parameters and flow ends, binary connectors).
 - **Speed** (`cargo bench -p sysml-bench --bench semantics`, native):
-  - parsing, lowering and resolving the 36 library files from nothing: about 100–110 ms;
-  - re-resolving after a layout edit: about 13 ms.
+  - parsing, lowering and resolving the 36 library files from nothing: about 78 ms (loading the corpus and creating the inputs are not counted);
+  - re-resolving after a layout edit to `Occurrences.kerml`: about 11 ms.
 
 ## Consequences
 
 - Step 1a.9 starts from these queries. It materializes the implied relationships, adds the deferred ones, and tests every table row. It must keep the pilot oracle passing.
 - `supertypes` memoizes the transitive closure of every type, which costs memory in proportion to the depth of the library's hierarchies. It is measured at scale with the library snapshot (D5, step 1a.11).
+- Step 1a.10 evaluates filter conditions, on the FilterPackage of decision 5.
 - A name that resolves only through decision 2 or 3 is a candidate for a validation warning in step 1a.10: the spec text alone would leave it unresolved.

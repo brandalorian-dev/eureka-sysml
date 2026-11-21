@@ -6,7 +6,8 @@ use expect_test::expect;
 use salsa::Setter;
 use sysml_model::{FileId, Slot};
 use sysml_semantics::{
-    effective_names, lowered, resolved_names, Database, Global, Project, SourceFile,
+    effective_names, implied_generals, lowered, resolved_names, structure, Database, Global,
+    Project, SourceFile,
 };
 use sysml_syntax::Language;
 #[cfg(target_arch = "wasm32")]
@@ -398,4 +399,165 @@ fn an_edit_reruns_only_the_queries_that_depend_on_it() {
     let after = resolve_all(&db);
     assert_eq!(after[..2], before[..2]);
     assert_eq!(after[2], "FeatureTyping Z -> C::Z\n");
+}
+
+#[test]
+fn a_recursive_import_descends_only_into_owned_namespaces() {
+    // KerML 8.3.2.4.5 visibleMemberships: recursion follows `ownedMember`, so C, which A only
+    // imports, is not entered, and X is not imported into U.
+    let db = Database::default();
+    let user = "package B { package C { class X; } }
+        package A { public import B::*; }
+        package U { private import A::**; feature f : C; feature g : X; }";
+    let (project, files) = project(&db, &[user], false);
+    expect![[r#"
+        NamespaceImport B -> B
+        MembershipImport A -> membership A
+        FeatureTyping C -> B::C
+        FeatureTyping X -> unresolved
+    "#]]
+    .assert_eq(&resolutions(&db, project, files[0]));
+}
+
+#[test]
+fn import_all_applies_at_every_level_of_a_recursive_import() {
+    // KerML 8.3.2.4.4, 8.3.2.4.5: `all` is passed down as includeAll, so private members of
+    // nested namespaces, and private nested namespaces, are imported too.
+    let db = Database::default();
+    let user = "package N { package M { private class P; } private package Q { class R; } }
+        package U { private import all N::**; feature f : P; feature g : R; }
+        package V { private import N::**; feature f : P; feature g : R; }";
+    let (project, files) = project(&db, &[user], false);
+    expect![[r#"
+        MembershipImport N -> membership N
+        FeatureTyping P -> N::M::P
+        FeatureTyping R -> N::Q::R
+        MembershipImport N -> membership N
+        FeatureTyping P -> unresolved
+        FeatureTyping R -> unresolved
+    "#]]
+    .assert_eq(&resolutions(&db, project, files[0]));
+}
+
+#[test]
+fn import_all_with_a_filter_does_not_reach_private_members() {
+    // KerML 8.2.3.4.2: `all` is on the import of the FilterPackage; the FilterPackage's own
+    // import, which cannot be `all`, imports the visible memberships of A (ADR 0020).
+    let db = Database::default();
+    let user = "package A { private class S; public class T; }
+        package U { private import all A::*[true]; feature f : S; feature g : T; }";
+    let (project, files) = project(&db, &[user], false);
+    expect![[r#"
+        NamespaceImport A -> A
+        FeatureTyping S -> unresolved
+        FeatureTyping T -> A::T
+    "#]]
+    .assert_eq(&resolutions(&db, project, files[0]));
+}
+
+#[test]
+fn a_parameter_redefines_by_position_even_when_it_subsets_that_parameter() {
+    // KerML 8.3.3.3.4 checkFeatureParameterRedefinition: `a` must redefine B::x, which it only
+    // subsets; that hides B::x in C, so `x` resolves outside (decision 1 of ADR 0020).
+    let db = Database::default();
+    let user = "package P {
+        feature x;
+        behavior B { in x; }
+        behavior C specializes B { in a subsets B::x; feature u subsets x; }
+    }";
+    let (project, files) = project(&db, &[user], false);
+    expect![[r#"
+        Subclassification B -> P::B
+        Subsetting B::x -> P::B::x
+        Subsetting x -> P::x
+    "#]]
+    .assert_eq(&resolutions(&db, project, files[0]));
+}
+
+/// The implied relationships of every element of a metaclass in a file.
+fn implied_of(
+    db: &Database,
+    project: Project,
+    file: SourceFile,
+    m: sysml_model::Metaclass,
+) -> String {
+    let s = structure(db, file);
+    let mut out = String::new();
+    for e in s.graph().elements() {
+        if s.graph().metaclass(e) != m {
+            continue;
+        }
+        let at = Global {
+            file,
+            index: e.index() as u32,
+        };
+        out.push_str(&format!("{}:", path(db, project, at)));
+        for i in implied_generals(db, project, file, at.index) {
+            out.push_str(&format!(
+                " {} {};",
+                i.kind.name(),
+                path(db, project, i.general)
+            ));
+        }
+        out.push('\n');
+    }
+    out
+}
+
+#[test]
+fn flow_features_redefine_by_the_position_of_their_flow_end_after_a_payload() {
+    // KerML 8.3.3.3.4 checkFeatureFlowFeatureRedefinition: the first and second FlowEnds, not
+    // the first and second owned features, which start with the payload (ADR 0020).
+    let db = Database::default();
+    let user = "package P {
+        struct S { feature out; feature in; }
+        feature a : S; feature b : S;
+        flow of Anything from a.out to b.in;
+    }";
+    let (project, files) = project(&db, &[user], true);
+    let s = structure(&db, files[0]);
+    let g = s.graph();
+    let mut out = String::new();
+    for end in g
+        .elements()
+        .filter(|e| g.metaclass(*e) == sysml_model::Metaclass::FlowEnd)
+    {
+        let feature = g
+            .owned_relationships(end)
+            .iter()
+            .filter(|r| {
+                g.metaclass(**r)
+                    .specializes(sysml_model::Metaclass::FeatureMembership)
+            })
+            .find_map(|r| g.owned_related_elements(*r).first().copied())
+            .unwrap();
+        for i in implied_generals(&db, project, files[0], feature.index() as u32) {
+            if i.kind == sysml_model::Metaclass::Redefinition {
+                out.push_str(&format!("{}\n", path(&db, project, i.general)));
+            }
+        }
+    }
+    expect![[r#"
+        Transfers::Transfer::source::sourceOutput
+        Transfers::Transfer::target::targetInput
+    "#]]
+    .assert_eq(&out);
+}
+
+#[test]
+fn a_connector_without_owned_ends_is_binary_by_its_inherited_ends() {
+    // KerML 8.3.4.5.3 checkConnectorBinarySpecialization: `connectorEnd` includes the ends a
+    // connector inherits from its association.
+    let db = Database::default();
+    let user = "package P { assoc A { end feature s; end feature t; } connector c : A; }";
+    let (project, files) = project(&db, &[user], true);
+    expect![[r#"
+        P::c: Subsetting Links::binaryLinks;
+    "#]]
+    .assert_eq(&implied_of(
+        &db,
+        project,
+        files[0],
+        sysml_model::Metaclass::Connector,
+    ));
 }

@@ -104,7 +104,12 @@ fn no_globals(
 }
 
 fn specializes_kind(db: &dyn salsa::Database, project: Project, t: Global, m: M) -> bool {
-    let is = |x: Global| structure(db, x.file).graph.metaclass(x.ix()).specializes(m);
+    let is = |x: Global| {
+        structure(db, x.file)
+            .graph()
+            .metaclass(x.ix())
+            .specializes(m)
+    };
     is(t)
         || supertypes(db, project, t.file, t.index)
             .iter()
@@ -153,7 +158,7 @@ pub fn end_features(
     ty: u32,
 ) -> Vec<Global> {
     let l = structure(db, file);
-    let g = &l.graph;
+    let g = &l.graph();
     let owned: Vec<Global> = owned_features(g, ix(ty))
         .filter(|f| g.flag(*f, Attr::IsEnd))
         .map(|f| at(file, f))
@@ -183,7 +188,7 @@ pub fn result_parameter(
     ty: u32,
 ) -> Option<Global> {
     let l = structure(db, file);
-    let g = &l.graph;
+    let g = &l.graph();
     if let Some(r) = owned_features(g, ix(ty)).find(|f| is_result(g, *f)) {
         return Some(at(file, r));
     }
@@ -205,7 +210,7 @@ fn no_result(
 }
 
 fn metaclass(db: &dyn salsa::Database, x: Global) -> M {
-    structure(db, x.file).graph.metaclass(x.ix())
+    structure(db, x.file).graph().metaclass(x.ix())
 }
 
 fn is_function_or_expression(db: &dyn salsa::Database, x: Global) -> bool {
@@ -221,7 +226,7 @@ fn is_behavior_or_step(db: &dyn salsa::Database, x: Global) -> bool {
 /// The targets of a feature's owned FeatureTypings (`ownedTyping.type`).
 fn owned_types(db: &dyn salsa::Database, project: Project, f: Global) -> Vec<Global> {
     let l = structure(db, f.file);
-    let g = &l.graph;
+    let g = &l.graph();
     g.owned_relationships(f.ix())
         .iter()
         .filter(|r| g.metaclass(**r) == M::FeatureTyping)
@@ -238,7 +243,7 @@ fn owned_types(db: &dyn salsa::Database, project: Project, f: Global) -> Vec<Glo
 /// BaseFunctions, DataFunctions or ControlFunctions.
 fn instantiated_type(db: &dyn salsa::Database, project: Project, x: Global) -> Option<Global> {
     let l = structure(db, x.file);
-    let g = &l.graph;
+    let g = &l.graph();
     if g.metaclass(x.ix()).specializes(M::OperatorExpression) {
         let op = g.string(x.ix(), Attr::Operator)?;
         return *operator_function(db, project, op.to_owned());
@@ -297,7 +302,7 @@ pub fn implied_generals(
 ) -> Vec<Implied> {
     let here = Global { file, index: ty };
     let l = structure(db, file);
-    let g = &l.graph;
+    let g = &l.graph();
     let x = ix(ty);
     let m = g.metaclass(x);
     if !m.specializes(M::Type) {
@@ -458,10 +463,8 @@ pub fn implied_generals(
             push(subset, lib("Links::selfLinks"));
         }
         if m.specializes(M::Connector) {
-            let binary = owned_features(g, x)
-                .filter(|f| g.flag(*f, Attr::IsEnd))
-                .count()
-                == 2;
+            // `connectorEnd` is the connector's `endFeature`, owned or inherited.
+            let binary = end_features(db, project, file, ty).len() == 2;
             let object = typed(M::AssociationStructure);
             if binary && object {
                 push(subset, lib("Objects::binaryLinkObjects"));
@@ -536,9 +539,26 @@ pub fn implied_generals(
 
     // ---- redefinition constraints ----
     if m.specializes(M::Feature) {
+        // A redefinition is implied unless the feature already redefines its target itself (the
+        // OCL's `redefines`), whatever its other generals are.
+        let redefined: Vec<Global> = g
+            .owned_relationships(x)
+            .iter()
+            .filter(|r| g.metaclass(**r) == M::Redefinition)
+            .filter_map(|r| {
+                resolve_end(db, project, at(file, *r), sysml_model::Slot::Target, 0)
+                    .as_ref()
+                    .and_then(|e| member_element(db, project, e))
+            })
+            .collect();
         let mut redefine = |target: Option<Global>| {
             if let Some(t) = target {
-                if t != here && !owned.contains(&t) && !kept.iter().any(|k| k.general == t) {
+                if t != here
+                    && !redefined.contains(&t)
+                    && !kept
+                        .iter()
+                        .any(|k| k.kind == M::Redefinition && k.general == t)
+                {
                     kept.push(Implied {
                         kind: M::Redefinition,
                         general: t,
@@ -577,7 +597,7 @@ pub fn implied_generals(
                         .filter(|s| **s != tg && is_behavior_or_step(db, **s))
                     {
                         let sl = structure(db, s.file);
-                        let p = owned_parameters(&sl.graph, s.ix()).get(i).copied();
+                        let p = owned_parameters(sl.graph(), s.ix()).get(i).copied();
                         redefine(p.map(|p| at(s.file, p)));
                     }
                 }
@@ -592,10 +612,14 @@ pub fn implied_generals(
                 }
             }
             // KerML 8.3.3.3.4 checkFeatureFlowFeatureRedefinition (the OCL's second target,
-            // `source::targetInput`, reads `target::targetInput`; ADR 0020)
+            // `source::targetInput`, reads `target::targetInput`; the position is among the flow's
+            // FlowEnds, after any payload feature; ADR 0020)
             if g.metaclass(t) == M::FlowEnd && owned_features(g, t).next() == Some(x) {
                 if let Some(flow) = owning_type(g, t) {
-                    match owned_features(g, flow).position(|f| f == t) {
+                    match owned_features(g, flow)
+                        .filter(|f| g.metaclass(*f) == M::FlowEnd)
+                        .position(|f| f == t)
+                    {
                         Some(0) => redefine(lib("Transfers::Transfer::source::sourceOutput")),
                         Some(1) => redefine(lib("Transfers::Transfer::target::targetInput")),
                         _ => {}
