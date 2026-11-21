@@ -117,17 +117,37 @@ fn no_globals(
     Vec::new()
 }
 
-fn specializes_kind(db: &dyn salsa::Database, project: Project, t: Global, m: M) -> bool {
-    let is = |x: Global| {
-        structure(db, x.file)
-            .graph()
-            .metaclass(x.ix())
-            .specializes(m)
-    };
-    is(t)
-        || supertypes(db, project, t.file, t.index)
-            .iter()
-            .any(|s| is(*s))
+/// `owningType.oclIsKindOf(kind)`, or the owning type is a Feature one of whose `type`s is
+/// (KerML 8.3.3.3.4, as in checkFeatureSubobjectSpecialization).
+fn owner_of_kind(db: &dyn salsa::Database, project: Project, t: Global, kind: M) -> bool {
+    let m = metaclass(db, t);
+    m.specializes(kind)
+        || (m.specializes(M::Feature)
+            && feature_types(db, project, t)
+                .iter()
+                .any(|x| metaclass(db, *x).specializes(kind)))
+}
+
+/// A feature's `type`s (KerML 8.3.3.3.4): the types of its typings, and those of the features it
+/// subsets, redefines or chains, directly or indirectly.
+fn feature_types(db: &dyn salsa::Database, project: Project, f: Global) -> Vec<Global> {
+    let mut types = Vec::new();
+    let mut seen = vec![f];
+    let mut stack = vec![f];
+    while let Some(x) = stack.pop() {
+        for general in generals(db, project, x).iter().copied() {
+            let m = metaclass(db, general);
+            if m.specializes(M::Feature) {
+                if !seen.contains(&general) {
+                    seen.push(general);
+                    stack.push(general);
+                }
+            } else if m.specializes(M::Type) && !types.contains(&general) {
+                types.push(general);
+            }
+        }
+    }
+    types
 }
 
 /// `owningType` (KerML 8.3.3.3.4): the type that owns a feature through a FeatureMembership.
@@ -370,7 +390,7 @@ pub fn implied_generals(
     if m.specializes(M::Feature) {
         let subset = M::Subsetting;
         let owner = owning_type(g, x).map(|t| at(file, t));
-        let owner_is = |kind: M| owner.is_some_and(|t| specializes_kind(db, project, t, kind));
+        let owner_is = |kind: M| owner.is_some_and(|t| owner_of_kind(db, project, t, kind));
         let types = owned_types(db, project, here);
         let typed = |kind: M| types.iter().any(|t| metaclass(db, *t).specializes(kind));
         let composite = g.flag(x, Attr::IsComposite);
@@ -525,7 +545,54 @@ pub fn implied_generals(
         push(subset, lib("Base::things"));
     }
 
-    // ---- redefinition constraints ----
+    let redefinitions = implied_redefinitions(db, project, file, ty).clone();
+    // KerML 8.4.2: drop the specializations already implied, by an owned specialization, another
+    // implied specialization, or an implied redefinition (which itself is never dropped).
+    let mut kept: Vec<Implied> = Vec::new();
+    let generals_so_far: Vec<Global> = candidates.iter().filter_map(|c| c.1).collect();
+    for (kind, general) in candidates {
+        let Some(general) = general else { continue };
+        if general == here || owned.contains(&general) || kept.iter().any(|k| k.general == general)
+        {
+            continue;
+        }
+        let redundant = owned
+            .iter()
+            .chain(&generals_so_far)
+            .chain(redefinitions.iter().map(|r| &r.general))
+            .any(|o| {
+                *o != general
+                    && *o != here
+                    && supertypes(db, project, o.file, o.index).contains(&general)
+            });
+        if !redundant {
+            kept.push(Implied { kind, general });
+        }
+    }
+
+    kept.extend(redefinitions);
+    kept
+}
+
+/// The implied redefinitions of a feature, from the redefinition constraints (KerML 8.3.3.3.4):
+/// ends (`checkFeatureEndRedefinition`), parameters (`checkFeatureParameterRedefinition`),
+/// results (`checkFeatureResultRedefinition`), flow end features
+/// (`checkFeatureFlowFeatureRedefinition`) and payloads (`checkPayloadFeatureRedefinition`), each
+/// unless the feature already redefines its target. Apart from [`implied_generals`], so that
+/// following redefinitions does not compute the implied specializations. A fixpoint from none.
+#[salsa::tracked(returns(ref), cycle_initial = no_implied, cycle_fn = settle_implied)]
+pub fn implied_redefinitions(
+    db: &dyn salsa::Database,
+    project: Project,
+    file: SourceFile,
+    ty: u32,
+) -> Vec<Implied> {
+    let here = Global { file, index: ty };
+    let l = structure(db, file);
+    let g = l.graph();
+    let x = ix(ty);
+    let m = g.metaclass(x);
+    let lib = |n: &'static str| *library(db, project, n);
     let mut redefinitions: Vec<Implied> = Vec::new();
     if m.specializes(M::Feature) {
         // A redefinition is implied unless the feature already redefines its target itself (the
@@ -619,32 +686,7 @@ pub fn implied_generals(
             redefine(lib("Transfers::Transfer::payload"));
         }
     }
-    // KerML 8.4.2: drop the specializations already implied, by an owned specialization, another
-    // implied specialization, or an implied redefinition (which itself is never dropped).
-    let mut kept: Vec<Implied> = Vec::new();
-    let generals_so_far: Vec<Global> = candidates.iter().filter_map(|c| c.1).collect();
-    for (kind, general) in candidates {
-        let Some(general) = general else { continue };
-        if general == here || owned.contains(&general) || kept.iter().any(|k| k.general == general)
-        {
-            continue;
-        }
-        let redundant = owned
-            .iter()
-            .chain(&generals_so_far)
-            .chain(redefinitions.iter().map(|r| &r.general))
-            .any(|o| {
-                *o != general
-                    && *o != here
-                    && supertypes(db, project, o.file, o.index).contains(&general)
-            });
-        if !redundant {
-            kept.push(Implied { kind, general });
-        }
-    }
-
-    kept.extend(redefinitions);
-    kept
+    redefinitions
 }
 
 fn no_implied(

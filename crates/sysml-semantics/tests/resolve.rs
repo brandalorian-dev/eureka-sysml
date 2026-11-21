@@ -238,7 +238,7 @@ fn imported_memberships_are_reimported_and_recursive_imports_reach_nested_member
         "import C; feature x : C; feature y : A;",
     );
     let recursive = "namespace N9 { private import N8::**; feature a : A; feature c : C; }
-        namespace N10 { private import N8::*::**; feature m : M; feature c : C; }";
+        namespace N10 { private import N8::*::**; alias m for M; feature c : C; }";
     let (project, files) = project(
         &db,
         &[
@@ -262,7 +262,7 @@ fn imported_memberships_are_reimported_and_recursive_imports_reach_nested_member
         FeatureTyping A -> N8::A
         FeatureTyping C -> N8::M::C
         NamespaceImport N8 -> N8
-        FeatureTyping M -> N8::M
+        Membership M -> N8::M
         FeatureTyping C -> N8::M::C
     "#]]
     .assert_eq(&resolutions(&db, project, files[3]));
@@ -410,12 +410,12 @@ fn a_recursive_import_descends_only_into_owned_namespaces() {
     let db = Database::default();
     let user = "package B { package C { class X; } }
         package A { public import B::*; }
-        package U { private import A::**; feature f : C; feature g : X; }";
+        package U { private import A::**; alias c for C; feature g : X; }";
     let (project, files) = project(&db, &[user], false);
     expect![[r#"
         NamespaceImport B -> B
         MembershipImport A -> membership A
-        FeatureTyping C -> B::C
+        Membership C -> B::C
         FeatureTyping X -> unresolved
     "#]]
     .assert_eq(&resolutions(&db, project, files[0]));
@@ -670,6 +670,105 @@ fn an_implied_redefinition_makes_the_implied_subsetting_of_things_redundant() {
     expect![[r#"
         P::B::x: Subsetting Base::things;
         P::C::a: Redefinition P::B::x;
+    "#]]
+    .assert_eq(&implied_of(
+        &db,
+        project,
+        files[0],
+        sysml_model::Metaclass::Feature,
+    ));
+}
+
+#[test]
+fn an_inherited_feature_is_hidden_only_where_every_path_or_an_inherited_feature_redefines_it() {
+    // KerML 8.3.3.1.10 removeRedefinedFeatures. In D, B's `g` (inherited) redefines A::f, so A::f
+    // is removed and `f` resolves outside. In E, B2's `g` is private and not inherited; A::f
+    // comes unhidden through C, so `f` is A::f.
+    let db = Database::default();
+    let user = "package P {
+        feature f;
+        class A { feature f; }
+        class B specializes A { feature g redefines f; }
+        class B2 specializes A { private feature g redefines f; }
+        class C specializes A;
+        class D specializes B, C { feature h subsets f; }
+        class E specializes B2, C { feature h subsets f; }
+    }";
+    let (project, files) = project(&db, &[user], false);
+    let all = resolutions(&db, project, files[0]);
+    let subsets: Vec<&str> = all
+        .lines()
+        .filter(|l| l.starts_with("Subsetting"))
+        .collect();
+    assert_eq!(
+        subsets,
+        ["Subsetting f -> P::f", "Subsetting f -> P::A::f"],
+        "{all}"
+    );
+}
+
+#[test]
+fn a_qualified_redefined_feature_is_tried_with_each_general() {
+    // KerML 8.2.3.5.1: the whole name is resolved with each general in turn; G1's `A` has no `b`,
+    // so G2's resolution, which reaches P::A, is used.
+    let db = Database::default();
+    let user = "package P {
+        package A { feature b; }
+        classifier G1 { package A; }
+        classifier G2;
+        classifier T specializes G1, G2 { feature redefines A::b; }
+    }";
+    let (project, files) = project(&db, &[user], false);
+    let all = resolutions(&db, project, files[0]);
+    assert!(all.contains("Redefinition A::b -> P::A::b"), "{all}");
+}
+
+#[test]
+fn a_name_of_an_element_of_the_wrong_metaclass_has_no_resolution() {
+    // KerML 8.2.3.5.1: a FeatureTyping needs a Type, a Subclassification a Classifier and a
+    // Subsetting a Feature; a feature, which is a Type, may type another.
+    let db = Database::default();
+    let user = "package P {
+        package Q; classifier K; feature x;
+        feature y : Q; classifier L specializes Q; feature z subsets K; feature w : x;
+    }";
+    let (project, files) = project(&db, &[user], false);
+    expect![[r#"
+        FeatureTyping Q -> unresolved
+        Subclassification Q -> unresolved
+        Subsetting K -> unresolved
+        FeatureTyping x -> P::x
+    "#]]
+    .assert_eq(&resolutions(&db, project, files[0]));
+}
+
+#[test]
+fn a_redefinition_in_a_type_that_specializes_itself_does_not_find_itself() {
+    // KerML 8.2.3.5.1: the owning type is not one of its own generals here (ADR 0020 decision 2).
+    let db = Database::default();
+    let user = "package P { feature x; classifier T specializes T { feature redefines x; } }";
+    let (project, files) = project(&db, &[user], false);
+    expect![[r#"
+        Subclassification T -> P::T
+        Redefinition x -> P::x
+    "#]]
+    .assert_eq(&resolutions(&db, project, files[0]));
+}
+
+#[test]
+fn subobjects_are_implied_by_a_structure_owner_not_by_a_classifier_specializing_one() {
+    // KerML 8.3.3.3.4 checkFeatureSubobjectSpecialization: `owningType.oclIsKindOf(Structure)`,
+    // which K, a classifier specializing S, is not.
+    let db = Database::default();
+    let user = "package P {
+        struct S;
+        classifier K specializes S { composite feature p : S; }
+        struct T { composite feature q : S; }
+    }";
+    let (project, files) = project(&db, &[user], true);
+    expect![[r#"
+        P::K::p: Subsetting Objects::objects;
+        P::T::q: Subsetting Objects::Object::subobjects;
     "#]]
     .assert_eq(&implied_of(
         &db,

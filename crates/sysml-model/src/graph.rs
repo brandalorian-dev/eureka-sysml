@@ -29,8 +29,12 @@ impl ElementIx {
 
     /// The element at a position, as [`index`](Self::index) gives it (ADR 0019 addresses an
     /// element in the query graph by its file and this position).
+    ///
+    /// # Panics
+    ///
+    /// If `index` does not fit in a `u32`, which no graph's index does.
     pub fn from_index(index: usize) -> ElementIx {
-        ElementIx(index as u32)
+        ElementIx(u32::try_from(index).expect("an element index fits in a u32"))
     }
 }
 
