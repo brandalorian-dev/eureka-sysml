@@ -777,3 +777,55 @@ fn subobjects_are_implied_by_a_structure_owner_not_by_a_classifier_specializing_
         sysml_model::Metaclass::Feature,
     ));
 }
+
+#[test]
+fn private_imports_in_a_ring_do_not_make_one_cycle_of_the_ring() {
+    // KerML 8.3.2.4.5 visibleMemberships: membershipsOfVisibility(public) evaluates the public
+    // imports only, so what a private import brings is no part of what a package shows. Thirty
+    // packages, each privately importing the next, resolve their names; an edit of one reruns the
+    // queries of its neighbours, not those of the whole ring.
+    let n = 30;
+    let texts: Vec<String> = (0..n)
+        .map(|i| {
+            format!(
+                "package P{i} {{ private import P{}::*; classifier C{i}; feature f : C{}; }}",
+                (i + 1) % n,
+                (i + 1) % n
+            )
+        })
+        .collect();
+    let log = std::sync::Arc::new(std::sync::Mutex::new(Vec::<String>::new()));
+    let sink = log.clone();
+    let mut db = Database::with_log(move |e| sink.lock().unwrap().push(e));
+    let refs: Vec<&str> = texts.iter().map(String::as_str).collect();
+    let (project, files) = project(&db, &refs, false);
+    for (i, f) in files.iter().enumerate() {
+        let r = resolutions(&db, project, *f);
+        assert!(
+            r.contains(&format!(
+                "FeatureTyping C{} -> P{}::C{}",
+                (i + 1) % n,
+                (i + 1) % n,
+                (i + 1) % n
+            )),
+            "{r}"
+        );
+    }
+    log.lock().unwrap().clear();
+    files[15].set_text(&mut db).to(
+        "package P15 { private import P16::*; classifier C15; classifier D15; feature f : C16; }"
+            .to_string(),
+    );
+    for f in &files {
+        resolved_names(&db, project, *f);
+    }
+    let reran = log.lock().unwrap().clone();
+    let outside = reran
+        .iter()
+        .filter(|e| e.starts_with("visible_memberships(") || e.starts_with("outside_memberships("))
+        .count();
+    assert!(
+        outside < 10,
+        "{outside} of the queries of what packages show reran:\n{reran:#?}"
+    );
+}

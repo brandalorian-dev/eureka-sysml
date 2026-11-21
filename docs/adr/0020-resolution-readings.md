@@ -76,6 +76,14 @@ KerML 8.2.3.5.2 resolves the target of a FeatureChainExpression `a.foo` among th
 
 The description of `Namespace::importedMemberships` (8.3.2.4.5) excludes "Memberships that have distinguishability collisions with each other or with any ownedMembership"; its OCL body does not. The description is followed. Two memberships collide when they are not distinguishable by `isDistinguishableFrom` (8.3.2.4.3): a name or short name of one is a name or short name of the other, and one member element's metaclass conforms to the other's. Both of two colliding imported memberships are excluded, so `import A::*; import B::*;` with a class `X` in each imports no `X`. An imported membership that collides with an owned one is excluded, too. Step 1a.10 reports the collision as a validation error (`validateNamespaceDistinguishability`).
 
+### 5a. What a namespace shows
+
+`visibleMemberships` (8.3.2.4.5) is `membershipsOfVisibility(public)`: the public owned memberships, and what the public imports bring (`ownedImport->select(visibility = public).importedMemberships`). For a type, the public inherited memberships are added (8.3.3.1.10). `nonPrivateMemberships`, which inheritance uses, likewise takes the public and protected ones. Only the imports of those visibilities are evaluated: what a private import brings is no part of what a namespace shows.
+
+This is followed exactly (`outside_memberships`). Taking all of a namespace's memberships and then keeping the public ones gives the same set, but it makes what a namespace shows depend on its private imports. Packages that each privately import the next then form one cycle around the whole ring, which every edit reopens. On a generated model of 1,300 such packages (1M elements), resolution took 281 s and an edit 276 s (the D10 spike, step 1a.9); following the OCL, they take 5.9 s and 9 ms.
+
+The OCL of `membershipsOfVisibility` excludes no collisions, so neither do these views. A namespace's own `importedMembership`, in which its own names resolve, still excludes them (decision 5).
+
 ### 6. Cycles that do not converge
 
 The queries that iterate to a fixpoint are not all monotone: a lookup takes the first match, and colliding imports are excluded. A cycle in a user model might therefore oscillate, and `salsa` panics after 200 iterations. Every fixpoint query has a `cycle_fn`. After 100 iterations it keeps the value of the last iteration, or for the resolution of a name, none, which ends the iteration. Such a name is unresolved, not a crash. Aliases that name each other have no member element.

@@ -556,14 +556,8 @@ pub(crate) fn namespace_memberships(
 ) -> Vec<Entry> {
     // A recursive import inherits through the written specializations only: `visibleMemberships`
     // of a Type passes `isRecursive` as `excludeImplied` (KerML 8.3.3.1.10; ADR 0021).
-    let mut out = if !recursive && !all {
-        visible_memberships(db, project, ns.file, ns.index).clone()
-    } else {
-        memberships_with(db, project, ns, recursive)
-            .into_iter()
-            .filter(|e| all || e.visibility == Visibility::Public)
-            .collect()
-    };
+    let level = if all { ALL } else { PUBLIC };
+    let mut out = outside_memberships(db, project, ns.file, ns.index, level, recursive).clone();
     if recursive {
         let l = structure(db, ns.file);
         let g = &l.graph();
@@ -729,10 +723,17 @@ pub fn inherited_memberships(
         if general == here {
             continue;
         }
-        for e in memberships_with(db, project, general, exclude_implied) {
-            if e.visibility == Visibility::Private {
-                continue;
-            }
+        for e in outside_memberships(
+            db,
+            project,
+            general.file,
+            general.index,
+            NON_PRIVATE,
+            exclude_implied,
+        )
+        .iter()
+        .cloned()
+        {
             match out.iter_mut().find(|o| o.membership == e.membership) {
                 Some(o) => o.hidden &= e.hidden,
                 None => out.push(e),
@@ -932,11 +933,95 @@ pub fn visible_memberships(
     file: SourceFile,
     ns: u32,
 ) -> Vec<Entry> {
-    memberships(db, project, Global { file, index: ns })
-        .into_iter()
-        .filter(|e| e.visibility == Visibility::Public)
-        .collect()
+    outside_memberships(db, project, file, ns, PUBLIC, false).clone()
 }
+
+/// Which memberships a namespace shows: the public ones (`visibleMemberships`), the public and
+/// protected ones (`nonPrivateMemberships`, for inheritance), or all (`includeAll`).
+pub(crate) const PUBLIC: u8 = 0;
+pub(crate) const NON_PRIVATE: u8 = 1;
+pub(crate) const ALL: u8 = 2;
+
+fn shows(level: u8, v: Visibility) -> bool {
+    match level {
+        PUBLIC => v == Visibility::Public,
+        NON_PRIVATE => v != Visibility::Private,
+        _ => true,
+    }
+}
+
+/// The memberships a namespace shows from outside (KerML 8.3.2.4.5 `membershipsOfVisibility`, and
+/// 8.3.3.1.10 `visibleMemberships`, `nonPrivateMemberships`): its owned memberships, those of its
+/// imports, and for a type those it inherits, of the visibilities `level` shows. Only the imports
+/// of those visibilities are evaluated, as the OCL does: what a private import brings is no part
+/// of what a namespace shows, so it is not computed, and imports that form a ring do not make one
+/// cycle of every namespace on it (ADR 0020). The OCL applies no exclusion of collisions here.
+#[salsa::tracked(returns(ref), cycle_initial = no_outside, cycle_fn = settle_outside)]
+pub(crate) fn outside_memberships(
+    db: &dyn salsa::Database,
+    project: Project,
+    file: SourceFile,
+    ns: u32,
+    level: u8,
+    exclude_implied: bool,
+) -> Vec<Entry> {
+    let here = Global { file, index: ns };
+    let mut out: Vec<Entry> = owned_memberships(db, project, file, ns)
+        .iter()
+        .filter(|e| shows(level, e.visibility))
+        .cloned()
+        .collect();
+    let filtered_package = structure(db, file)
+        .graph()
+        .metaclass(here.ix())
+        .specializes(M::Package)
+        && !crate::derived::filter_condition(db, project, here).is_empty();
+    for decl in imports(db, file, ns) {
+        if !shows(level, decl.visibility) {
+            continue;
+        }
+        for mut e in decl_memberships(db, project, file, decl) {
+            e.visibility = decl.visibility;
+            if filtered_package
+                && !member_element(db, project, &e)
+                    .is_some_and(|x| crate::derived::include_as_member(db, project, here, x))
+            {
+                continue;
+            }
+            if !out
+                .iter()
+                .any(|o| o.membership == e.membership && o.visibility == e.visibility)
+            {
+                out.push(e);
+            }
+        }
+    }
+    out.extend(
+        inherited_memberships(db, project, file, ns, exclude_implied)
+            .iter()
+            .filter(|e| shows(level, e.visibility))
+            .cloned(),
+    );
+    out
+}
+
+fn no_outside(
+    _db: &dyn salsa::Database,
+    _id: salsa::Id,
+    _project: Project,
+    _file: SourceFile,
+    _ns: u32,
+    _level: u8,
+    _exclude_implied: bool,
+) -> Vec<Entry> {
+    Vec::new()
+}
+
+settle!(
+    settle_outside,
+    Vec<Entry>,
+    (Project, SourceFile, u32, u8, bool)
+);
 
 /// The global namespace (KerML 8.2.3.5.2): the visible memberships of every root namespace.
 #[salsa::tracked(returns(ref))]
