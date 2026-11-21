@@ -58,6 +58,14 @@ The step's "done when" is therefore a test: all three layers complete.
   - **`canAccess`:** `featuringTypes` is read as `featuringType`, and `subsettingFeature.resolveGlobal` as `resolveGlobal`.
   - **`deriveFeatureType`:** `OrderedSet(Types)` and `types->exist` are read as `OrderedSet(Type)` and `exists`.
   - **`ownedCrossFeature`:** it rejects `oclIsKindOf(FeatureValue)` among features; a FeatureValue is a membership, so this has no effect.
+- **Kernel readings.**
+  - `instantiatedType()` (8.3.4.8.7): the OCL's `typeMembers->first()` is read as `members->first()`.
+  - `deriveMetadataFeatureMetaclass`: `metaClassTypes` is read as `metaclassTypes`.
+  - `deriveFlowSourceOutputFeature`: `connectorEnd.ownedFeature->first()` would be the first owned feature of any end. It is read as the first end's, as `targetInputFeature` reads the second's.
+  - `deriveConnectorDefaultFeaturingType`: `relatedFeature->closure(featuringType)` includes the related features themselves, as OCL's `closure` includes its source.
+  - Two properties have the same name in two metaclasses: `targetFeature` (Connector and FeatureChainExpression) and `argument` (InvocationExpression and ConstructorExpression). The second of each has its own function, `chain_target_feature` and `constructor_argument`.
+- **The result of a ConstructorExpression** specializes its instantiated type (`checkConstructorExpressionResultSpecialization`, 8.4.4.1 Table 10). Unlike the results of other expressions, it is written in the grammar (8.2.5.8.4), so `implied_generals` gives it now. Without it, the named arguments of `new T(a = 1)`, which are the result's features redefining T's, would not resolve.
+- **Model-level evaluation** (8.4.4.9.8) is the rest of the Kernel layer, in a fourth PR of this step. It covers `evaluate`, `modelLevelEvaluable`, `isModelLevelEvaluable`, `checkCondition`, `MultiplicityRange::valueOf` and `hasBounds`, `MetadataFeature::evaluateFeature` and `syntaxElement`, `MetadataAccessExpression::metaclassFeature`, `Package::importedMemberships` and `includeAsMember`. The owner chose this split on 2026-11-21. The constraints need all of these, so Kernel is marked complete only after that PR.
 - **`memberElementId`** is the `elementId` of the member element. Inside the query graph, an element is (file, index), and `DataIdentity` ids are assigned outside it (ADR 0019). It is deferred to the UUID mapping of step 1a.11, and no constraint needs it.
 
 ## Evidence
@@ -65,9 +73,10 @@ The step's "done when" is therefore a test: all three layers complete.
 - **The library oracle** (`tests/derived_oracle.rs`). KerML 9.1 makes the id of each element of a library package a v5 UUID of the package's id and the element's `path()`. For all 24,859 elements of the 36 KerML library files that are in a library package, our `path()` gives the pilot's `elementId`. This holds for every element, including those named only through an implied redefinition, which `scripts/check_uuid_oracle.py` cannot recompute. The test checks `path()`, `qualifiedName`, `escapedName`, `name`, `owningNamespace`, `ownedMember` and `libraryNamespace` together.
 - **The Root layer** (KerML 8.3.2): 49 tests, one per rule and operation, from the OCL. That is 25 derive rules, and 24 operations including `LibraryPackage::libraryNamespace` from Kernel. `memberElementId` is deferred.
 - **The Core layer** (KerML 8.3.3): 67 tests, one per rule and operation (35 derive rules, 32 operations). The library tests check implied supertypes (`Base::Anything`) and recursive imports.
+- **The Kernel layer, without evaluation** (KerML 8.3.4): 34 tests (27 derive rules, 7 operations), for connectors, associations, flows, expressions, multiplicities, metadata and packages.
 
 ## Consequences
 
 - Steps 1a.9 to 1a.11 call these functions rather than re-deriving properties. The library UUIDs of 1a.11 can use `path()` directly.
-- The Kernel layer (8.3.4) follows in its own PR, and marks its layer complete in the inventory test.
+- Model-level evaluation follows in its own PR, which marks the Kernel layer complete in the inventory test and completes the step.
 - When `KerML.xmi` changes, the inventory test fails until `derived.json` and the needed counts are reviewed.

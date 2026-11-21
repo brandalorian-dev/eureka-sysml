@@ -23,35 +23,44 @@
       "function": "owned_annotating_element"
     },
     "Association::deriveAssociationRelatedType": {
-      "status": "open"
+      "status": "done",
+      "function": "related_type"
     },
     "Association::deriveAssociationSourceType": {
-      "status": "open"
+      "status": "done",
+      "function": "source_type"
     },
     "Association::deriveAssociationTargetType": {
-      "status": "open"
+      "status": "done",
+      "function": "target_type"
     },
     "Behavior::deriveBehaviorStep": {
-      "status": "open"
+      "status": "done",
+      "function": "step"
     },
     "Classifier::deriveClassifierOwnedSubclassification": {
       "status": "done",
       "function": "owned_subclassification"
     },
     "Connector::deriveConnectorDefaultFeaturingType": {
-      "status": "open"
+      "status": "done",
+      "function": "default_featuring_type"
     },
     "Connector::deriveConnectorRelatedFeature": {
-      "status": "open"
+      "status": "done",
+      "function": "related_feature"
     },
     "Connector::deriveConnectorSourceFeature": {
-      "status": "open"
+      "status": "done",
+      "function": "source_feature"
     },
     "Connector::deriveConnectorTargetFeature": {
-      "status": "open"
+      "status": "done",
+      "function": "target_feature"
     },
     "ConstructorExpression::deriveConstructorExpressionArgument": {
-      "status": "open"
+      "status": "done",
+      "function": "constructor_argument"
     },
     "Element::deriveElementDocumentation": {
       "status": "done",
@@ -97,7 +106,8 @@
       "status": "open"
     },
     "Expression::deriveExpressionResult": {
-      "status": "open"
+      "status": "done",
+      "function": "result"
     },
     "Feature::deriveFeatureChainingFeature": {
       "status": "done",
@@ -152,34 +162,44 @@
       "function": "r#type"
     },
     "FeatureChainExpression::deriveFeatureChainExpressionTargetFeature": {
-      "status": "open"
+      "status": "done",
+      "function": "chain_target_feature"
     },
     "FeatureReferenceExpression::deriveFeatureReferenceExpressionReferent": {
-      "status": "open"
+      "status": "done",
+      "function": "referent"
     },
     "Flow::deriveFlowFlowEnd": {
-      "status": "open"
+      "status": "done",
+      "function": "flow_end"
     },
     "Flow::deriveFlowPayloadFeature": {
-      "status": "open"
+      "status": "done",
+      "function": "payload_feature"
     },
     "Flow::deriveFlowPayloadType": {
-      "status": "open"
+      "status": "done",
+      "function": "payload_type"
     },
     "Flow::deriveFlowSourceOutputFeature": {
-      "status": "open"
+      "status": "done",
+      "function": "source_output_feature"
     },
     "Flow::deriveFlowTargetInputFeature": {
-      "status": "open"
+      "status": "done",
+      "function": "target_input_feature"
     },
     "Function::deriveFunctionResult": {
-      "status": "open"
+      "status": "done",
+      "function": "result"
     },
     "InstantiationExpression::deriveInstantiationExpressionInstantiatedType": {
-      "status": "open"
+      "status": "done",
+      "function": "instantiated_type"
     },
     "InvocationExpression::deriveInvocationExpressionArgument": {
-      "status": "open"
+      "status": "done",
+      "function": "argument"
     },
     "LiteralExpression::deriveLiteralExpressionIsModelLevelEvaluable": {
       "status": "open"
@@ -193,19 +213,24 @@
       "function": "imported_element"
     },
     "MetadataAccessExpression::deriveMetadataAccessExpressionReferencdElement": {
-      "status": "open"
+      "status": "done",
+      "function": "referenced_element"
     },
     "MetadataFeature::deriveMetadataFeatureMetaclass": {
-      "status": "open"
+      "status": "done",
+      "function": "metaclass_of"
     },
     "MultiplicityRange::deriveMultiplicityRangeBound": {
-      "status": "open"
+      "status": "done",
+      "function": "bound"
     },
     "MultiplicityRange::deriveMultiplicityRangeLowerBound": {
-      "status": "open"
+      "status": "done",
+      "function": "lower_bound"
     },
     "MultiplicityRange::deriveMultiplicityRangeUpperBound": {
-      "status": "open"
+      "status": "done",
+      "function": "upper_bound"
     },
     "Namespace::deriveNamespaceImportedMembership": {
       "status": "done",
@@ -240,14 +265,16 @@
       "function": "owned_member_short_name"
     },
     "Package::derivePackageFilterCondition": {
-      "status": "open"
+      "status": "done",
+      "function": "filter_condition"
     },
     "Relationship::deriveRelationshipRelatedElement": {
       "status": "done",
       "function": "related_element"
     },
     "Step::deriveStepBehavior": {
-      "status": "open"
+      "status": "done",
+      "function": "behavior"
     },
     "Type::deriveTypeDifferencingType": {
       "status": "done",
@@ -440,7 +467,8 @@
       "function": "typing_features"
     },
     "FeatureChainExpression::sourceTargetFeature": {
-      "status": "open"
+      "status": "done",
+      "function": "source_target_feature"
     },
     "FeatureReferenceExpression::evaluate": {
       "status": "open"
@@ -453,7 +481,8 @@
       "function": "import_imported_memberships"
     },
     "InstantiationExpression::instantiatedType": {
-      "status": "open"
+      "status": "done",
+      "function": "instantiated_type"
     },
     "InvocationExpression::evaluate": {
       "status": "open"
@@ -492,10 +521,12 @@
       "status": "open"
     },
     "MetadataFeature::isSemantic": {
-      "status": "open"
+      "status": "done",
+      "function": "is_semantic"
     },
     "MetadataFeature::isSyntactic": {
-      "status": "open"
+      "status": "done",
+      "function": "is_syntactic"
     },
     "MetadataFeature::syntaxElement": {
       "status": "open"
@@ -561,7 +592,8 @@
       "status": "open"
     },
     "OperatorExpression::instantiatedType": {
-      "status": "open"
+      "status": "done",
+      "function": "instantiated_type"
     },
     "OwningMembership::path": {
       "status": "done",
@@ -574,7 +606,8 @@
       "status": "open"
     },
     "ParameterMembership::parameterDirection": {
-      "status": "open"
+      "status": "done",
+      "function": "parameter_direction"
     },
     "Relationship::libraryNamespace": {
       "status": "done",
@@ -585,7 +618,8 @@
       "function": "path"
     },
     "ReturnParameterMembership::parameterDirection": {
-      "status": "open"
+      "status": "done",
+      "function": "parameter_direction"
     },
     "Type::allRedefinedFeaturesOf": {
       "status": "done",
