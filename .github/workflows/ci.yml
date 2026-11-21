@@ -18,7 +18,7 @@ env:
 jobs:
   rust:
     name: Rust (fmt, clippy, test, wasm)
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v7
 
@@ -37,7 +37,8 @@ jobs:
       - name: Fetch and verify specs
         run: python scripts/fetch_specs.py fetch
 
-      # The spec snippets (ADR 0016) are extracted from the pinned PDFs, never committed.
+      # The spec snippets (ADR 0016) are extracted from the pinned PDFs, never committed. The
+      # runner is pinned to ubuntu-24.04 for its poppler 24.02, which the script checks.
       - name: Extract the spec snippets
         run: |
           sudo apt-get update -q && sudo apt-get install -y -q --no-install-recommends poppler-utils
@@ -81,7 +82,7 @@ jobs:
   # then builds the sysml-wasm package and calls it from JavaScript (step 1a.1, ADR 0010).
   wasm:
     name: Rust (wasm tests)
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v7
 
@@ -98,7 +99,8 @@ jobs:
       - name: Fetch and verify specs
         run: python scripts/fetch_specs.py fetch
 
-      # The spec snippets (ADR 0016) are extracted from the pinned PDFs, never committed.
+      # The spec snippets (ADR 0016) are extracted from the pinned PDFs, never committed. The
+      # runner is pinned to ubuntu-24.04 for its poppler 24.02, which the script checks.
       - name: Extract the spec snippets
         run: |
           sudo apt-get update -q && sudo apt-get install -y -q --no-install-recommends poppler-utils
@@ -152,7 +154,7 @@ jobs:
   # dependency update that needs a newer compiler fails here instead of going unnoticed.
   msrv:
     name: Rust MSRV (test, wasm)
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v7
 
@@ -169,7 +171,8 @@ jobs:
       - name: Fetch and verify specs
         run: python scripts/fetch_specs.py fetch
 
-      # The spec snippets (ADR 0016) are extracted from the pinned PDFs, never committed.
+      # The spec snippets (ADR 0016) are extracted from the pinned PDFs, never committed. The
+      # runner is pinned to ubuntu-24.04 for its poppler 24.02, which the script checks.
       - name: Extract the spec snippets
         run: |
           sudo apt-get update -q && sudo apt-get install -y -q --no-install-recommends poppler-utils
@@ -209,7 +212,7 @@ jobs:
   # attach and sign them.
   sbom:
     name: SBOM (CycloneDX)
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v7
 
@@ -234,14 +237,14 @@ jobs:
 
   licenses-and-advisories:
     name: cargo-deny (licenses, advisories, sources)
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v7
       - uses: EmbarkStudios/cargo-deny-action@v2
 
   repo-hygiene:
     name: Repository hygiene
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v7
       - name: No spec material committed

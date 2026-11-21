@@ -84,7 +84,13 @@ fn main() {
                     code,
                     "    ({:?}, include_bytes!({:?})),",
                     format!("snippets/{path}"),
-                    full.canonicalize().unwrap().to_str().unwrap()
+                    full.canonicalize()
+                        .unwrap_or_else(|e| panic!(
+                            "{}: {e}. The snippets are incomplete: run `python scripts/extract_spec_snippets.py`.",
+                            full.display()
+                        ))
+                        .to_str()
+                        .unwrap()
                 )
                 .unwrap();
             }

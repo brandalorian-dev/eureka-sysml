@@ -80,3 +80,23 @@ class Retries(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class Lock(unittest.TestCase):
+    """`lock` pins the fetched spec files, not the files derived from them."""
+
+    def test_derived_folders_are_not_locked(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            specs = Path(tmp) / "specs"
+            (specs / "KerML").mkdir(parents=True)
+            (specs / "KerML" / "a.pdf").write_bytes(b"pdf")
+            # extract_spec_text.py and extract_spec_snippets.py (ADR 0016) write these.
+            for derived in ["text/kerml/1-scope.md", "snippets/index.json", "snippets/kerml/7.2-1.kerml"]:
+                (specs / derived).parent.mkdir(parents=True, exist_ok=True)
+                (specs / derived).write_text("derived")
+            saved = {}
+            with mock.patch.object(fetch_specs, "SPECS", specs), \
+                    mock.patch.object(fetch_specs, "save_lock", lambda lock: saved.update(lock)), \
+                    mock.patch("sys.stdout", io.StringIO()):  # its "wrote specs.lock.json" line
+                fetch_specs.cmd_lock({"files": []})
+            self.assertEqual([e["path"] for e in saved["files"]], ["KerML/a.pdf"])
