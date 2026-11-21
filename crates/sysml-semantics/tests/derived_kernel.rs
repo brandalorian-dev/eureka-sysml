@@ -257,9 +257,21 @@ fn derive_connector_target_feature() {
 #[test]
 fn derive_connector_default_featuring_type() {
     // defaultFeaturingType: the nearest type within which every related feature is featured
-    let m = model("classifier A { feature v; feature w; connector c from v to w; }");
-    let x = d::default_featuring_type(&m.db, m.project, m.get("A::c"));
-    assert_eq!(m.label_of(x), Some("A".into()));
+    let m = model(
+        "classifier A { feature v; feature w; connector c from v to w; }
+        classifier B { feature x { feature y; feature y2; connector c2 from y to y2; } feature z; }
+        classifier C { feature p { feature q; } feature r; connector c3 from p.q to r; }
+        feature v; feature w; connector c from v to w;",
+    );
+    let (db, p) = (&m.db, m.project);
+    let at = |path: &str| m.label_of(d::default_featuring_type(db, p, m.get(path)));
+    assert_eq!(at("A::c"), Some("A".into()));
+    // The nearest: x features y and y2, and B features x.
+    assert_eq!(at("B::x::c2"), Some("B::x".into()));
+    // A chain is featured by the featuring types of its first chaining feature.
+    assert_eq!(at("C::c3"), Some("C".into()));
+    // Top-level features have no featuring type, so no common one.
+    assert_eq!(at("c"), None);
 }
 
 const ASSOC: &str = "classifier T; classifier U; assoc A { end feature s : T; end feature t : U; }";
@@ -341,7 +353,7 @@ fn derive_flow_target_input_feature() {
     assert_eq!(x, Some(m.get("fl::FlowEnd#2::Feature#1")));
 }
 
-// ---- Multiplicities (KerML 8.3.4.12) ----
+// ---- Multiplicities (KerML 8.3.4.11) ----
 
 const RANGES: &str = "feature k[1..3]; feature j[2];";
 

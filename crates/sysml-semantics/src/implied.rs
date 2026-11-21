@@ -459,7 +459,7 @@ pub fn implied_generals(
             push(subset, lib("Performances::evaluations"));
         }
         // KerML 8.3.4.8.3 checkConstructorExpressionResultSpecialization: the result of a
-        // ConstructorExpression, which the grammar writes (8.2.5.8.4), specializes the
+        // ConstructorExpression, which the grammar writes (8.2.5.8.3), specializes the
         // instantiated type; so the features of `new T(a = 1)` redefine those of T (ADR 0021).
         if is_result(g, x) {
             if let Some(c) =

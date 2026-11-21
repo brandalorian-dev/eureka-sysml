@@ -25,7 +25,7 @@ fn owned_element_of(db: &dyn salsa::Database, rel: Global) -> Option<Global> {
         .map(|e| at(rel.file, *e))
 }
 
-/// The value Expression of a feature's FeatureValue (`valuation.value`, KerML 8.3.4.11), if any.
+/// The value Expression of a feature's FeatureValue (`valuation.value`, KerML 8.3.4.10), if any.
 fn valuation_value(db: &dyn salsa::Database, f: Global) -> Option<Global> {
     let s = structure(db, f.file);
     let g = s.graph();
@@ -151,7 +151,7 @@ pub fn chain_target_feature(
     referent(db, project, x)
 }
 
-/// `sourceTargetFeature()` (KerML 8.3.4.8.6): the first owned feature of the first input
+/// `sourceTargetFeature()` (KerML 8.3.4.8.4): the first owned feature of the first input
 /// parameter.
 pub fn source_target_feature(
     db: &dyn salsa::Database,
@@ -197,25 +197,29 @@ pub fn target_feature(db: &dyn salsa::Database, project: Project, c: Global) -> 
     unique(related_feature(db, project, c).into_iter().skip(1))
 }
 
+/// The featuring types of the features, and theirs, transitively: not the features themselves,
+/// unless one is a featuring type of another.
 fn featuring_closure(db: &dyn salsa::Database, project: Project, xs: &[Global]) -> Vec<Global> {
-    let mut out: Vec<Global> = unique(xs.iter().copied());
-    let mut i = 0;
-    while i < out.len() {
-        if kind_of(db, out[i], M::Feature) {
-            for t in featuring_type(db, project, out[i]) {
-                if !out.contains(t) {
-                    out.push(*t);
-                }
+    let mut out: Vec<Global> = Vec::new();
+    let mut frontier: Vec<Global> = xs.to_vec();
+    while let Some(x) = frontier.pop() {
+        if !kind_of(db, x, M::Feature) {
+            continue;
+        }
+        for t in featuring_type(db, project, x) {
+            if !out.contains(t) {
+                out.push(*t);
+                frontier.push(*t);
             }
         }
-        i += 1;
     }
     out
 }
 
-/// `defaultFeaturingType` (deriveConnectorDefaultFeaturingType): of the related features and
-/// their featuring types, transitively, those within which every related feature is featured,
-/// and of these the first that is not a featuring type, transitively, of another.
+/// `defaultFeaturingType` (deriveConnectorDefaultFeaturingType): of the featuring types of the
+/// related features, transitively, those within which every related feature is featured, and of
+/// these the first that is not a featuring type, transitively, of another. A related feature is
+/// a candidate only as the featuring type of another (ADR 0021).
 pub fn default_featuring_type(
     db: &dyn salsa::Database,
     project: Project,
@@ -233,7 +237,7 @@ pub fn default_featuring_type(
     common.iter().copied().find(|t1| {
         !common
             .iter()
-            .any(|t2| t2 != t1 && featuring_closure(db, project, &[*t2])[1..].contains(t1))
+            .any(|t2| t2 != t1 && featuring_closure(db, project, &[*t2]).contains(t1))
     })
 }
 
@@ -301,7 +305,7 @@ pub fn target_input_feature(
     owned_feature(db, project, second).first().copied()
 }
 
-// ---- Multiplicities (KerML 8.3.4.12) ----
+// ---- Multiplicities (KerML 8.3.4.11) ----
 
 fn owned_expressions(db: &dyn salsa::Database, project: Project, m: Global) -> Vec<Global> {
     owned_member(db, project, m)
