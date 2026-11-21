@@ -46,7 +46,7 @@ impl Parse {
 /// Parse `text` as one root namespace of `language`.
 pub fn parse(language: Language, text: &str) -> Parse {
     let lexed = lex(language, text);
-    let mut p = parser::Parser::new(&lexed.tokens);
+    let mut p = parser::Parser::new(text, &lexed.tokens);
     grammar::root_namespace(&mut p);
     let (green, diagnostics) = parser::build(text, &lexed.tokens, p.finish(), lexed.diagnostics);
     Parse { green, diagnostics }

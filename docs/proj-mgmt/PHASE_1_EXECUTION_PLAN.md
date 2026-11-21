@@ -1,6 +1,6 @@
 # Eureka SysML: Phase 1 execution plan
 
-Status: Draft v1.6 · 2026-11-20 · Covers PROJECT_PLAN v0.7 §6, Phases 1a and 1b (Release 0.1 "Language")
+Status: Draft v1.7 · 2026-11-20 · Covers PROJECT_PLAN v0.7 §6, Phases 1a and 1b (Release 0.1 "Language")
 
 This plan breaks Phase 1 into ordered steps, each small enough for one or a few pull requests. PROJECT_PLAN.md remains the source of truth for scope, architecture and budgets. Where this plan finds something the project plan does not settle, it is listed under [decisions](#24-decisions-and-their-recommended-defaults), and settled by the [decision methodology](#25-decision-methodology): each recommended default is evaluated during the step that first depends on it.
 
@@ -12,6 +12,7 @@ Change history:
 - v1.4: D1 and D4 adopted (ADRs 0011, 0012), from the step 1a.2 parser spike.
 - v1.5: step 1a.2 done: the `sysml-syntax` lexer, parser framework and diagnostics.
 - v1.6: step 1a.3 done, with the owner-approved scope change: the Kernel parts the Root and Core layers need first (packages, multiplicities with literal and feature-reference bounds, prefix metadata) are pulled forward from 1a.4, and the library criterion is restated as measurable. ADR 0014 records two readings of the grammar.
+- v1.7: step 1a.4 done: the whole KerML grammar, including the expressions. All 36 KerML library files parse with zero diagnostics, and a mutation fuzzer ran 5 minutes without a failure. ADR 0015 records four readings of the Kernel grammar.
 
 ## 1. Executive summary
 
@@ -208,6 +209,16 @@ Each step below gives its goal, the spec clauses, what it delivers, the tests to
 - **Effort:** 1–1.5
 
 #### 1a.4 KerML grammar: Kernel layer and expressions
+- **Status:** done 2026-11-20.
+  - **The grammar:** `sysml-syntax` parses the whole KerML grammar. Expressions are a Pratt parser over Table 6. `syntax::not-yet-supported` is gone.
+  - **The library:** all 36 KerML library files parse with **zero diagnostics** and round-trip byte for byte, in about 3.6 ms (`parse_kerml_library`).
+  - **Tests:** 27 Kernel production tests with tree snapshots, and a Table 6 precedence and associativity table of 39 cases. Also 16 quoted KerML 7.4 examples, and the 1a.3 tests, updated.
+  - **ADR 0015:** four readings of the grammar. The declaration of `inv`, `step`, `expr` and `bool` is optional, as the library's 42 `inv { … }` show. `new` is a contextual keyword. `@@` is two `@` tokens. `InvocationTypeMember` is `InstantiatedTypeMember`.
+- **Fuzzing (agreed run time: 5 minutes):**
+  - `tests/fuzz.rs` mutates the library: it deletes, duplicates and replaces token spans, and checks that the parser never panics, never stops early and stays lossless.
+  - 200 mutants run with every test run, natively and on WASM. The long run is `cargo test -p sysml-syntax --test fuzz -- --ignored`, with `FUZZ_SECONDS` and `FUZZ_SEED`.
+  - It found two ways for the parser to stop early. A lookahead scan spent the parser's fuel, and a stray `.` in a function body was taken for an expression that consumed nothing. Both are fixed and kept as regression tests.
+  - The 5-minute run then passed 1.78 million mutants.
 - **Goal:** complete the KerML grammar.
 - **Clauses:**
   - KerML 8.2.5.1–8.2.5.7: data types, classes, structures, associations, connectors (including binding connectors and successions), behaviors and steps, functions, expressions, predicates, Boolean expressions and invariants

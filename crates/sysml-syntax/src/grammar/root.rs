@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 //! The Root layer (KerML 8.2.3), and the namespace members, which every body shares.
 
+use super::expressions::{at_expression, expression};
 use super::names::{body, identification, qualified_name};
 use super::{at_qualified_name, core, is_name, kernel, Context, PREFIX, VISIBILITY};
 use crate::kinds::SyntaxKind as K;
@@ -27,10 +28,91 @@ pub(crate) fn root_namespace(p: &mut Parser) {
     root.complete(p, K::RootNamespace);
 }
 
-/// The members of a body, up to its `}`.
+/// The members of a body, up to its `}`. A function body (FunctionBodyPart, KerML 8.2.5.7.1)
+/// can end with a result expression.
 pub(super) fn members(p: &mut Parser, context: Context) {
+    let mut result = false;
     while !p.at_eof() && !p.at(K::RBrace) {
-        member(p, context);
+        if result {
+            p.error(
+                "syntax::misplaced-member",
+                "the result expression must be the last element of the body",
+                Some("KerML 8.2.5.7.1"),
+            );
+            result = false;
+        }
+        if context == Context::Function && at_result_expression(p) {
+            // ResultExpressionMember: `MemberPrefix OwnedExpression`.
+            let before = p.position();
+            let m = p.start();
+            if p.at_any(VISIBILITY) {
+                p.bump();
+            }
+            expression(p);
+            if p.position() == before {
+                // Nothing was an expression after all (the error is reported): recover as a
+                // member, which consumes, so that the loop makes progress.
+                m.abandon(p);
+                member(p, context);
+                continue;
+            }
+            m.complete(p, K::ResultExpressionMember);
+            result = true;
+        } else {
+            member(p, context);
+        }
+    }
+}
+
+/// The tokens after a feature's name that make it a feature declaration rather than the start of
+/// an expression (KerML 8.2.4.3.1, 8.2.5.10).
+fn continues_feature(kind: K) -> bool {
+    matches!(
+        kind,
+        K::Colon
+            | K::TypedKw
+            | K::ColonGt
+            | K::SubsetsKw
+            | K::ColonColonGt
+            | K::ReferencesKw
+            | K::FatArrow
+            | K::CrossesKw
+            | K::ColonGtGt
+            | K::RedefinesKw
+            | K::Tilde
+            | K::ConjugatesKw
+            | K::OrderedKw
+            | K::NonuniqueKw
+            | K::LBracket
+            | K::ChainsKw
+            | K::InverseKw
+            | K::FeaturedKw
+            | K::DisjointKw
+            | K::UnionsKw
+            | K::IntersectsKw
+            | K::DifferencesKw
+            | K::Eq
+            | K::ColonEq
+            | K::DefaultKw
+            | K::Semicolon
+            | K::LBrace
+    )
+}
+
+/// Whether the current token, in a function body, starts its result expression rather than a
+/// member. Both can start with a name: `x : T;` is a feature, `x > 0` an expression. A name
+/// followed by what can only continue a feature declaration is a feature (`x;`, `x[1]`), and so
+/// is `all x …` followed by one.
+fn at_result_expression(p: &Parser) -> bool {
+    if p.at_any(VISIBILITY) {
+        return false;
+    }
+    match p.current() {
+        k if is_name(k) => !continues_feature(p.nth(1)),
+        K::AllKw if is_name(p.nth(1)) => !continues_feature(p.nth(2)),
+        // `@` starts a metadata feature (8.2.5.12) here, not a classification.
+        K::At => false,
+        _ => at_expression(p),
     }
 }
 
@@ -40,18 +122,18 @@ fn deciding_token(p: &Parser) -> (K, bool) {
     let mut n = usize::from(p.at_any(VISIBILITY));
     let mut prefixed = false;
     loop {
-        let k = p.nth(n);
+        let k = p.peek(n);
         if PREFIX.contains(&k) {
             n += 1;
         } else if k == K::Hash {
             n += 1;
-            if p.nth_at(n, K::Dollar) {
+            if p.peek(n) == K::Dollar {
                 n += 2;
             }
-            if is_name(p.nth(n)) {
+            if is_name(p.peek(n)) {
                 n += 1;
             }
-            while (p.nth_at(n, K::ColonColon) || p.nth_at(n, K::Dot)) && is_name(p.nth(n + 1)) {
+            while matches!(p.peek(n), K::ColonColon | K::Dot) && is_name(p.peek(n + 1)) {
                 n += 2;
             }
         } else {
@@ -73,7 +155,10 @@ enum Production {
     Alias,
     Import,
     Type,
-    Classifier,
+    /// A classifier, or a Kernel definition of the same shape (`class`, `function` …).
+    Definition,
+    MetadataFeature,
+    Filter,
     Specialization,
     Conjugation,
     Disjoining,
@@ -84,8 +169,6 @@ enum Production {
     Feature,
     /// A feature that starts with its declaration: a name, `:`, `[`, `ordered` …
     FeatureDeclaration,
-    /// A Kernel construct that step 1a.3 does not parse yet.
-    NotYet,
 }
 
 /// The production that `deciding` starts, if any. Both [`member`] and [`at_member_start`] use it,
@@ -102,7 +185,9 @@ fn production(deciding: K, prefixed: bool) -> Option<Production> {
         K::AliasKw => P::Alias,
         K::ImportKw => P::Import,
         K::TypeKw => P::Type,
-        K::ClassifierKw => P::Classifier,
+        k if kernel::definition(k).is_some() => P::Definition,
+        K::MetadataKw | K::At => P::MetadataFeature,
+        K::FilterKw => P::Filter,
         K::SpecializationKw
         | K::SubtypeKw
         | K::SubclassifierKw
@@ -115,10 +200,10 @@ fn production(deciding: K, prefixed: bool) -> Option<Production> {
         K::FeaturingKw => P::TypeFeaturing,
         K::MultiplicityKw => P::Multiplicity,
         K::FeatureKw => P::Feature,
+        k if kernel::KERNEL_FEATURES.contains(&k) => P::Feature,
         k if core::at_feature_declaration(k) => P::FeatureDeclaration,
         // `#M;` or `in;`: prefixes with no keyword are a feature (8.2.4.3.1).
         K::Semicolon | K::LBrace | K::Eq | K::ColonEq | K::DefaultKw if prefixed => P::Feature,
-        k if kernel::is_not_yet(k) => P::NotYet,
         _ => return None,
     })
 }
@@ -167,15 +252,23 @@ fn member(p: &mut Parser, context: Context) {
         Some(P::Alias) => alias_member(p, m),
         Some(P::Import) => import(p, m, visible),
         Some(P::Type) => core::type_(p, m),
-        Some(P::Classifier) => core::classifier(p, m),
+        Some(P::Definition) => core::classifier(p, m, deciding),
+        Some(P::MetadataFeature) => kernel::metadata_feature(p, m),
+        Some(P::Filter) => kernel::element_filter(p, m, context),
         Some(P::Specialization) => core::specialization(p, m),
         Some(P::Conjugation) => core::conjugation(p, m),
         Some(P::Disjoining) => core::disjoining(p, m),
         Some(P::FeatureInverting) => core::feature_inverting(p, m),
         Some(P::TypeFeaturing) => core::type_featuring(p, m),
         Some(P::Multiplicity) => kernel::multiplicity(p, m),
+        // MetadataBodyFeature (8.2.5.12): a feature of a metadata body redefines.
+        Some(P::Feature | P::FeatureDeclaration)
+            if context == Context::Metadata
+                && (deciding == K::FeatureKw || core::at_feature_declaration(deciding)) =>
+        {
+            kernel::metadata_body_feature(p, m)
+        }
         Some(P::Feature | P::FeatureDeclaration) => core::feature(p, m, context),
-        Some(P::NotYet) => kernel::not_yet(p, m, deciding),
         None => {
             p.error(
                 "syntax::expected-member",
@@ -385,9 +478,9 @@ fn import(p: &mut Parser, m: Marker, visible: bool) {
         p.bump();
         p.bump();
     }
-    // FilterPackageMember (8.2.3.4.2): `'[' OwnedExpression ']'`, an expression (step 1a.4).
+    // FilterPackage (8.2.3.4.2): the declaration followed by `[ OwnedExpression ]`s.
     while p.at(K::LBracket) {
-        kernel::not_yet_bracketed(p, "filter conditions are", "KerML 8.2.3.4.2");
+        kernel::filter_package_member(p);
     }
     body(p, Context::Relationship, "KerML 8.2.3.4.2");
     m.complete(p, K::Import);

@@ -40,19 +40,30 @@ pub(crate) const FUEL: u32 = 256;
 
 pub(crate) struct Parser {
     kinds: Vec<SyntaxKind>,
+    /// For each significant token, whether it is the name `new`, the contextual keyword of a
+    /// ConstructorExpression (KerML 8.2.5.8.3, ADR 0015).
+    new: Vec<bool>,
     pos: usize,
     events: Vec<Event>,
     fuel: std::cell::Cell<u32>,
 }
 
 impl Parser {
-    pub(crate) fn new(tokens: &[Token]) -> Parser {
+    pub(crate) fn new(text: &str, tokens: &[Token]) -> Parser {
+        let mut kinds = Vec::new();
+        let mut new = Vec::new();
+        let mut offset = 0usize;
+        for t in tokens {
+            let end = offset + t.len as usize;
+            if !t.kind.is_trivia() {
+                kinds.push(t.kind);
+                new.push(t.kind == SyntaxKind::BasicName && &text[offset..end] == "new");
+            }
+            offset = end;
+        }
         Parser {
-            kinds: tokens
-                .iter()
-                .map(|t| t.kind)
-                .filter(|k| !k.is_trivia())
-                .collect(),
+            kinds,
+            new,
             pos: 0,
             events: Vec::new(),
             fuel: std::cell::Cell::new(FUEL),
@@ -73,8 +84,29 @@ impl Parser {
             .unwrap_or(SyntaxKind::Eof)
     }
 
+    /// The kind of the `n`-th significant token ahead, or `Eof`, without spending fuel: for
+    /// lookahead scans, which are bounded by `n` and so cannot loop, unlike productions.
+    pub(crate) fn peek(&self, n: usize) -> SyntaxKind {
+        self.kinds
+            .get(self.pos + n)
+            .copied()
+            .unwrap_or(SyntaxKind::Eof)
+    }
+
     pub(crate) fn current(&self) -> SyntaxKind {
         self.nth(0)
+    }
+
+    /// How many significant tokens have been consumed: a loop compares it to know that it made
+    /// progress.
+    pub(crate) fn position(&self) -> usize {
+        self.pos
+    }
+
+    /// Whether the `n`-th significant token ahead is the name `new` (ADR 0015).
+    pub(crate) fn nth_is_new(&self, n: usize) -> bool {
+        self.peek(n) == SyntaxKind::BasicName
+            && self.new.get(self.pos + n).copied().unwrap_or(false)
     }
 
     /// Whether the `n`-th significant token ahead is `kind`.
@@ -141,32 +173,6 @@ impl Parser {
             message: message.into(),
             clause,
         });
-    }
-
-    /// Report an error, and wrap the tokens up to one in `recovery` (or the end) in an `Error`
-    /// node, so that one error never hides the next. Returns whether it consumed a token.
-    ///
-    /// At a token in `recovery` it consumes nothing: that token belongs to the enclosing
-    /// production (for example the `}` that closes a body), which must consume it. A caller that
-    /// loops must therefore also stop at its recovery tokens.
-    #[allow(dead_code)] // members recover in the grammar; expression lists will use it (step 1a.4)
-    pub(crate) fn err_recover(
-        &mut self,
-        code: &'static str,
-        message: &str,
-        clause: Option<&'static str>,
-        recovery: &[SyntaxKind],
-    ) -> bool {
-        self.error(code, message, clause);
-        if self.at_eof() || self.at_any(recovery) {
-            return false;
-        }
-        let m = self.start();
-        while !self.at_eof() && !self.at_any(recovery) {
-            self.bump();
-        }
-        m.complete(self, SyntaxKind::Error);
-        true
     }
 
     /// Start a node.
@@ -378,7 +384,7 @@ mod tests {
 
     fn tree(text: &str, grammar: impl Fn(&mut Parser)) -> (SyntaxNode, Vec<Diagnostic>) {
         let lexed = lex(Language::KerML, text);
-        let mut p = Parser::new(&lexed.tokens);
+        let mut p = Parser::new(text, &lexed.tokens);
         grammar(&mut p);
         let (green, diags) = build(text, &lexed.tokens, p.finish(), lexed.diagnostics);
         (SyntaxNode::new_root(green), diags)
@@ -504,17 +510,13 @@ mod tests {
 
     #[test]
     fn a_stuck_production_terminates_and_stays_lossless() {
-        // A caller bug: looping until the end while the current token is in the recovery set.
-        // The parser must neither hang nor lose text.
+        // A grammar bug: a loop that reports an error but never consumes the token. The fuel makes
+        // the parser see the end, and the build keeps the text it did not consume.
         let (root, diags) = tree("a } b", |p| {
             let r = p.start();
+            p.bump();
             while !p.at_eof() {
-                p.err_recover(
-                    "syntax::expected-member",
-                    "expected a member",
-                    None,
-                    &[SyntaxKind::RBrace],
-                );
+                p.error("syntax::expected-member", "expected a member", None);
             }
             r.complete(p, SyntaxKind::RootNamespace);
         });
@@ -528,22 +530,6 @@ mod tests {
             diags.iter().all(|d| seen.insert((d.code, d.range))),
             "duplicate diagnostics are dropped"
         );
-    }
-
-    #[test]
-    fn err_recover_reports_whether_it_consumed() {
-        let (_, _) = tree("} x", |p| {
-            let r = p.start();
-            assert!(!p.err_recover(
-                "syntax::expected-member",
-                "expected a member",
-                None,
-                &[SyntaxKind::RBrace]
-            ));
-            p.bump(); // the caller consumes the recovery token
-            assert!(p.err_recover("syntax::expected-member", "expected a member", None, &[]));
-            r.complete(p, SyntaxKind::RootNamespace);
-        });
     }
 
     #[test]
@@ -562,25 +548,5 @@ mod tests {
         assert_eq!(SyntaxKind::StringValue.description(), "a string");
         assert_eq!(SyntaxKind::Semicolon.description(), "`;`");
         assert_eq!(SyntaxKind::PackageKw.description(), "`package`");
-    }
-
-    #[test]
-    fn recovery_stops_at_a_recovery_token() {
-        let (root, diags) = tree("x y ; z", |p| {
-            let r = p.start();
-            p.err_recover(
-                "syntax::expected-member",
-                "expected a member",
-                None,
-                &[SyntaxKind::Semicolon],
-            );
-            p.bump(); // `;`
-            p.err_recover("syntax::expected-member", "expected a member", None, &[]);
-            r.complete(p, SyntaxKind::RootNamespace);
-        });
-        assert_eq!(shape(&root), "RootNamespace(Error Error)");
-        let errors: Vec<String> = root.children().map(|c| c.text().to_string()).collect();
-        assert_eq!(errors, ["x y", "z"]);
-        assert_eq!(diags.len(), 2);
     }
 }

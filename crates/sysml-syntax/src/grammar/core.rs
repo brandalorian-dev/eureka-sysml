@@ -29,7 +29,7 @@ fn expect_either(p: &mut Parser, symbol: K, keyword: K, clause: &'static str) ->
 }
 
 /// TYPED_BY (KerML 8.2.2.7): `':' | 'typed' 'by'`.
-fn eat_typed_by(p: &mut Parser) -> bool {
+pub(super) fn eat_typed_by(p: &mut Parser) -> bool {
     if p.eat(K::Colon) {
         return true;
     }
@@ -87,11 +87,18 @@ pub(super) fn type_(p: &mut Parser, m: Marker) {
 
 /// Classifier (KerML 8.2.4.2.1): `TypePrefix 'classifier' ClassifierDeclaration TypeBody`, where
 /// ClassifierDeclaration is `'all'? Identification OwnedMultiplicity?
-/// ( SuperclassingPart | ConjugationPart )? TypeRelationshipPart*`.
-pub(super) fn classifier(p: &mut Parser, m: Marker) {
+/// ( SuperclassingPart | ConjugationPart )? TypeRelationshipPart*`. The Kernel definitions have
+/// the same shape with their own keyword (`datatype`, `class`, `assoc struct`, `function` …),
+/// and functions and predicates have a FunctionBody (KerML 8.2.5.1–8.2.5.12).
+pub(super) fn classifier(p: &mut Parser, m: Marker, keyword: K) {
+    let (mut kind, body_context, clause) =
+        kernel::definition(keyword).unwrap_or((K::Classifier, Context::Type, "KerML 8.2.4.2.1"));
     type_prefix(p);
-    misplaced_prefixes(p, "KerML 8.2.4.2.1");
-    p.bump(); // `classifier`
+    misplaced_prefixes(p, clause);
+    p.bump(); // the keyword
+    if kind == K::Association && p.eat(K::StructKw) {
+        kind = K::AssociationStructure;
+    }
     p.eat(K::AllKw);
     identification(p);
     if p.at(K::LBracket) {
@@ -106,8 +113,8 @@ pub(super) fn classifier(p: &mut Parser, m: Marker) {
         owned(p, K::OwnedConjugation, true, "KerML 8.2.4.1.3");
     }
     relationship_parts(p, false);
-    body(p, Context::Type, "KerML 8.2.4.2.1");
-    m.complete(p, K::Classifier);
+    body(p, body_context, clause);
+    m.complete(p, kind);
 }
 
 /// TypeRelationshipPart (KerML 8.2.4.1.1) and, for a feature, FeatureRelationshipPart (8.2.4.3.1).
@@ -185,14 +192,25 @@ pub(super) fn at_feature_declaration(kind: K) -> bool {
 /// ```
 ///
 /// where FeaturePrefix is `( EndFeaturePrefix OwnedCrossFeatureMember? | BasicFeaturePrefix )
-/// PrefixMetadataMember*`. Also the `member` of a TypeFeatureMember (8.2.4.1.6).
+/// PrefixMetadataMember*`. Also the `member` of a TypeFeatureMember (8.2.4.1.6), the `return` of
+/// a ReturnFeatureMember (8.2.5.7.1), and the kernel features that follow a FeaturePrefix
+/// (8.2.5.5–8.2.5.9).
 pub(super) fn feature(p: &mut Parser, m: Marker, context: Context) {
     if p.at(K::MemberKw) {
-        if context != Context::Type {
+        if !matches!(context, Context::Type | Context::Function) {
             p.error(
                 "syntax::misplaced-prefix",
                 "`member` is only allowed in the body of a type",
                 Some("KerML 8.2.4.1.6"),
+            );
+        }
+        p.bump();
+    } else if p.at(K::ReturnKw) {
+        if context != Context::Function {
+            p.error(
+                "syntax::misplaced-prefix",
+                "`return` is only allowed in the body of a function or expression",
+                Some("KerML 8.2.5.7.1"),
             );
         }
         p.bump();
@@ -201,7 +219,7 @@ pub(super) fn feature(p: &mut Parser, m: Marker, context: Context) {
         // EndFeaturePrefix: `( 'const' )? 'end'`.
         p.eat(K::ConstKw);
         p.bump();
-        if !p.at(K::FeatureKw) && !p.at(K::Hash) {
+        if !p.at(K::FeatureKw) && !p.at(K::Hash) && !p.at_any(kernel::KERNEL_FEATURES) {
             // Either the FeatureDeclaration of the end feature, or an OwnedCrossFeature
             // (`BasicFeaturePrefix FeatureDeclaration`) if `feature` or `#` follows.
             let cross = p.start();
@@ -227,6 +245,10 @@ pub(super) fn feature(p: &mut Parser, m: Marker, context: Context) {
     }
     let metadata = kernel::prefix_metadata_list(p);
     misplaced_prefixes(p, "KerML 8.2.4.3.1");
+    if p.at_any(kernel::KERNEL_FEATURES) {
+        kernel::kernel_feature(p, m);
+        return;
+    }
     if p.eat(K::FeatureKw) || metadata {
         if at_feature_declaration(p.current()) {
             feature_declaration(p, false);
@@ -239,7 +261,7 @@ pub(super) fn feature(p: &mut Parser, m: Marker, context: Context) {
 
 /// `ValuePart? TypeBody` (KerML 8.2.4.3.1), completing the feature.
 fn value_and_body(p: &mut Parser, m: Marker) {
-    kernel::value_part(p);
+    kernel::feature_value(p);
     body(p, Context::Type, "KerML 8.2.4.3.1");
     m.complete(p, K::Feature);
 }
@@ -269,7 +291,7 @@ fn basic_feature_prefix(p: &mut Parser) -> bool {
 /// FeatureDeclaration (KerML 8.2.4.3.1): `'all'? ( FeatureIdentification
 /// ( FeatureSpecializationPart | ConjugationPart )? | FeatureSpecializationPart | ConjugationPart )
 /// FeatureRelationshipPart*`.
-fn feature_declaration(p: &mut Parser, required: bool) {
+pub(super) fn feature_declaration(p: &mut Parser, required: bool) {
     if !at_feature_declaration(p.current()) {
         if required {
             p.error(
@@ -302,7 +324,7 @@ fn feature_declaration(p: &mut Parser, required: bool) {
 
 /// FeatureSpecializationPart (KerML 8.2.4.3.1): FeatureSpecializations with at most one
 /// MultiplicityPart among them. Returns whether there was any.
-fn feature_specialization_part(p: &mut Parser) -> bool {
+pub(super) fn feature_specialization_part(p: &mut Parser) -> bool {
     let mut any = false;
     let mut multiplicity = false;
     loop {

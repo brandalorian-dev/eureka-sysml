@@ -1,13 +1,13 @@
 // SPDX-License-Identifier: Apache-2.0
-//! The Kernel layer (KerML 8.2.5). Step 1a.3 has the parts that the Root and Core layers need
-//! first: packages (8.2.5.13), multiplicities with literal and feature-reference bounds (8.2.5.11)
-//! and prefix metadata (8.2.5.12). Every other Kernel construct is reported once as
-//! `syntax::not-yet-supported` and skipped as a whole, so that the rest of the file still parses;
-//! step 1a.4 replaces the skipping with the productions.
+//! The Kernel layer (KerML 8.2.5), apart from expressions (`expressions.rs`): packages, prefix
+//! metadata and metadata features, multiplicities, feature values, element filters, the
+//! classifier-like definitions, and the kernel features (steps, expressions, connectors, flows).
 
+use super::core::{eat_typed_by, feature_declaration, feature_specialization_part};
+use super::expressions::{expression, literal};
 use super::names::{body, identification, owned, qualified_name, qualified_name_or_chain};
-use super::root::misplaced_prefixes;
-use super::{at_qualified_name, Context};
+use super::root::{annotation, misplaced_prefixes};
+use super::{at_qualified_name, is_name, Context};
 use crate::kinds::SyntaxKind as K;
 use crate::parser::{Marker, Parser};
 
@@ -39,6 +39,32 @@ pub(super) fn package(p: &mut Parser, m: Marker) {
     m.complete(p, kind);
 }
 
+/// ElementFilterMember (KerML 8.2.5.13): `MemberPrefix 'filter' OwnedExpression ';'`, in a
+/// package body.
+pub(super) fn element_filter(p: &mut Parser, m: Marker, context: Context) {
+    misplaced_prefixes(p, "KerML 8.2.5.13");
+    if context != Context::Package {
+        p.error(
+            "syntax::misplaced-member",
+            "only a package can have an element filter",
+            Some("KerML 8.2.5.13"),
+        );
+    }
+    p.bump(); // `filter`
+    expression(p);
+    p.expect(K::Semicolon, "syntax::expected-token", "KerML 8.2.5.13");
+    m.complete(p, K::ElementFilterMember);
+}
+
+/// FilterPackageMember (KerML 8.2.3.4.2): `'[' OwnedExpression ']'`, after an import declaration.
+pub(super) fn filter_package_member(p: &mut Parser) {
+    let m = p.start();
+    p.bump(); // `[`
+    expression(p);
+    p.expect(K::RBracket, "syntax::expected-token", "KerML 8.2.3.4.2");
+    m.complete(p, K::FilterPackageMember);
+}
+
 /// PrefixMetadataMember and PrefixMetadataAnnotation (KerML 8.2.5.12): `'#' PrefixMetadataFeature`,
 /// where PrefixMetadataFeature is an OwnedFeatureTyping, `[QualifiedName] | FeatureChain`.
 pub(super) fn prefix_metadata(p: &mut Parser) {
@@ -56,6 +82,63 @@ pub(super) fn prefix_metadata_list(p: &mut Parser) -> bool {
         any = true;
     }
     any
+}
+
+/// MetadataFeature (KerML 8.2.5.12): `PrefixMetadataMember* ( '@' | 'metadata' )
+/// MetadataFeatureDeclaration ( 'about' Annotation ( ',' Annotation )* )? MetadataBody`, where
+/// MetadataFeatureDeclaration is `( Identification ( ':' | 'typed' 'by' ) )? OwnedFeatureTyping`.
+pub(super) fn metadata_feature(p: &mut Parser, m: Marker) {
+    prefix_metadata_list(p);
+    misplaced_prefixes(p, "KerML 8.2.5.12");
+    p.bump(); // `@` or `metadata`
+    let declared =
+        p.at(K::Lt) || (is_name(p.current()) && (p.nth_at(1, K::Colon) || p.nth_at(1, K::TypedKw)));
+    if declared {
+        identification(p);
+        eat_typed_by(p);
+    }
+    owned(p, K::OwnedFeatureTyping, true, "KerML 8.2.5.12");
+    if p.eat(K::AboutKw) {
+        annotation(p);
+        while p.eat(K::Comma) {
+            annotation(p);
+        }
+    }
+    body(p, Context::Metadata, "KerML 8.2.5.12");
+    m.complete(p, K::MetadataFeature);
+}
+
+/// MetadataBodyFeature (KerML 8.2.5.12): `'feature'? ( ':>>' | 'redefines' )? OwnedRedefinition
+/// FeatureSpecializationPart? ValuePart? MetadataBody`. A feature in a metadata body always
+/// redefines one.
+pub(super) fn metadata_body_feature(p: &mut Parser, m: Marker) {
+    misplaced_prefixes(p, "KerML 8.2.5.12");
+    p.eat(K::FeatureKw);
+    if p.at(K::ColonGtGt) || p.at(K::RedefinesKw) {
+        p.bump();
+    }
+    owned(p, K::OwnedRedefinition, true, "KerML 8.2.5.12");
+    feature_specialization_part(p);
+    feature_value(p);
+    body(p, Context::Metadata, "KerML 8.2.5.12");
+    m.complete(p, K::Feature);
+}
+
+/// FeatureValue (KerML 8.2.5.10): `( '=' | ':=' | 'default' ( '=' | ':=' )? ) OwnedExpression`.
+pub(super) fn feature_value(p: &mut Parser) {
+    if !(p.at(K::Eq) || p.at(K::ColonEq) || p.at(K::DefaultKw)) {
+        return;
+    }
+    let m = p.start();
+    if p.eat(K::DefaultKw) {
+        if p.at(K::Eq) || p.at(K::ColonEq) {
+            p.bump();
+        }
+    } else {
+        p.bump();
+    }
+    expression(p);
+    m.complete(p, K::FeatureValue);
 }
 
 /// Multiplicity (KerML 8.2.5.11): MultiplicitySubset, `'multiplicity' Identification Subsets
@@ -98,140 +181,41 @@ pub(super) fn multiplicity_bounds(p: &mut Parser) {
     m.complete(p, K::MultiplicityBounds);
 }
 
-/// MultiplicityExpressionMember (KerML 8.2.5.11): a LiteralExpression or a
-/// FeatureReferenceExpression. Literals are KerML 8.2.5.8.4; the feature reference is a
-/// qualified name (8.2.5.8.3).
+/// MultiplicityExpressionMember (KerML 8.2.5.11): a LiteralExpression (8.2.5.8.4) or a
+/// FeatureReferenceExpression (8.2.5.8.3), and nothing else.
 fn bound(p: &mut Parser) {
     let m = p.start();
-    let real_after = |p: &Parser, n| matches!(p.nth(n), K::DecimalValue | K::ExponentialValue);
-    let kind = match p.current() {
-        K::TrueKw | K::FalseKw => {
-            p.bump();
-            K::LiteralBoolean
-        }
-        K::StringValue => {
-            p.bump();
-            K::LiteralString
-        }
-        K::Star => {
-            p.bump();
-            K::LiteralInfinity
-        }
-        // RealValue: `DECIMAL_VALUE? '.' ( DECIMAL_VALUE | EXPONENTIAL_VALUE ) | EXPONENTIAL_VALUE`.
-        K::ExponentialValue => {
-            p.bump();
-            K::LiteralReal
-        }
-        K::DecimalValue if p.nth_at(1, K::Dot) && real_after(p, 2) => {
-            p.bump();
-            p.bump();
-            p.bump();
-            K::LiteralReal
-        }
-        K::Dot if real_after(p, 1) => {
-            p.bump();
-            p.bump();
-            K::LiteralReal
-        }
-        K::DecimalValue => {
-            p.bump();
-            K::LiteralInteger
-        }
-        _ if at_qualified_name(p, 0) => {
-            qualified_name(p, "KerML 8.2.5.8.3");
-            K::FeatureReferenceExpression
-        }
-        _ => {
-            m.abandon(p);
-            p.error(
-                "syntax::expected-bound",
-                "expected a multiplicity bound: a number, `*` or a feature",
-                Some("KerML 8.2.5.11"),
-            );
-            return;
-        }
+    let kind = if at_qualified_name(p, 0) {
+        qualified_name(p, "KerML 8.2.5.8.3");
+        K::FeatureReferenceExpression
+    } else if let Some(kind) = literal(p) {
+        kind
+    } else {
+        m.abandon(p);
+        p.error(
+            "syntax::expected-bound",
+            "expected a multiplicity bound: a number, `*` or a feature",
+            Some("KerML 8.2.5.11"),
+        );
+        return;
     };
     m.complete(p, kind);
     // A `;` or `{` right after the bound: the `]` is missing, which `multiplicity_bounds` reports.
     let missing_bracket = p.at(K::Semicolon) || p.at(K::LBrace);
     if !p.at(K::DotDot) && !p.at(K::RBracket) && !p.at_eof() && !missing_bracket {
-        // A longer expression (8.2.5.8), up to the `..` or `]`. A `;` or `{` ends it too: the `]`
-        // is missing (as while typing), and they belong to the feature.
+        // A longer expression, up to the `..` or `]`: the grammar allows only a literal or a
+        // feature reference.
         let e = p.start();
         p.error(
-            "syntax::not-yet-supported",
-            "expressions are not parsed yet, other than literals and feature references",
-            Some("KerML 8.2.5.8"),
+            "syntax::expected-bound",
+            "a multiplicity bound is a literal or a feature reference, not an expression",
+            Some("KerML 8.2.5.11"),
         );
         skip_balanced(p, |p| {
             p.at(K::DotDot) || p.at(K::RBracket) || p.at(K::Semicolon) || p.at(K::LBrace)
         });
         e.complete(p, K::Error);
     }
-}
-
-/// ValuePart (KerML 8.2.5.10): `= …`, `:= …` or `default …`, an expression (step 1a.4). Skipped
-/// up to the `;` or `{` of the feature's body.
-pub(super) fn value_part(p: &mut Parser) {
-    if !(p.at(K::Eq) || p.at(K::ColonEq) || p.at(K::DefaultKw)) {
-        return;
-    }
-    let m = p.start();
-    p.error(
-        "syntax::not-yet-supported",
-        "feature values are not parsed yet",
-        Some("KerML 8.2.5.10"),
-    );
-    // The body is the first `{` at the top level that follows a complete operand: a name, a
-    // literal or a closing bracket. After anything else (an operator, `?`, `else`, `(`, `,` …) a
-    // `{` is a body expression (8.2.5.8), and so is one after `-> name`.
-    let mut before = [K::Eof; 2];
-    loop {
-        let k = p.current();
-        let after_operand = matches!(
-            before[1],
-            K::BasicName
-                | K::UnrestrictedName
-                | K::DecimalValue
-                | K::ExponentialValue
-                | K::StringValue
-                | K::TrueKw
-                | K::FalseKw
-                | K::NullKw
-                | K::RParen
-                | K::RBracket
-                | K::RBrace
-        ) && before[0] != K::Arrow;
-        if p.at_eof() || k == K::Semicolon || k == K::RBrace || (k == K::LBrace && after_operand) {
-            break;
-        }
-        if let Some(close) = match k {
-            K::LParen => Some(K::RParen),
-            K::LBracket => Some(K::RBracket),
-            K::LBrace => Some(K::RBrace),
-            _ => None,
-        } {
-            // A whole group is one operand: what comes after it follows its closing bracket.
-            skip_group(p);
-            before = [before[1], close];
-        } else {
-            p.bump();
-            before = [before[1], k];
-        }
-    }
-    m.complete(p, K::Error);
-}
-
-/// FilterPackageMember (KerML 8.2.3.4.2) and other `[ … ]` expressions (step 1a.4).
-pub(super) fn not_yet_bracketed(p: &mut Parser, what: &str, clause: &'static str) {
-    let m = p.start();
-    p.error(
-        "syntax::not-yet-supported",
-        format!("{what} not parsed yet"),
-        Some(clause),
-    );
-    skip_group(p);
-    m.complete(p, K::Error);
 }
 
 /// Bump a bracketed group, `( … )`, `[ … ]` or `{ … }`, with the groups nested in it.
@@ -262,64 +246,314 @@ fn skip_balanced(p: &mut Parser, stop: impl Fn(&Parser) -> bool) {
     }
 }
 
-/// The Kernel constructs that step 1a.3 does not parse yet, by the keyword that starts them:
-/// what they are, and their clause.
-const NOT_YET: &[(K, &str, &str)] = &[
-    (K::DatatypeKw, "data types are", "KerML 8.2.5.1"),
-    (K::ClassKw, "classes are", "KerML 8.2.5.2"),
-    (K::StructKw, "structures are", "KerML 8.2.5.3"),
-    (K::AssocKw, "associations are", "KerML 8.2.5.4"),
-    (K::ConnectorKw, "connectors are", "KerML 8.2.5.5"),
-    (K::BindingKw, "binding connectors are", "KerML 8.2.5.5"),
-    (K::SuccessionKw, "successions are", "KerML 8.2.5.5"),
-    (K::BehaviorKw, "behaviors are", "KerML 8.2.5.6"),
-    (K::StepKw, "steps are", "KerML 8.2.5.6"),
-    (K::FunctionKw, "functions are", "KerML 8.2.5.7"),
-    (K::ExprKw, "expressions are", "KerML 8.2.5.7"),
-    (K::PredicateKw, "predicates are", "KerML 8.2.5.7"),
-    (K::BoolKw, "Boolean expressions are", "KerML 8.2.5.7"),
-    (K::InvKw, "invariants are", "KerML 8.2.5.7"),
-    (K::ReturnKw, "result parameters are", "KerML 8.2.5.7"),
-    (K::InteractionKw, "interactions are", "KerML 8.2.5.9"),
-    (K::FlowKw, "flows are", "KerML 8.2.5.9"),
-    (K::MetaclassKw, "metaclasses are", "KerML 8.2.5.12"),
-    (K::MetadataKw, "metadata features are", "KerML 8.2.5.12"),
-    (K::At, "metadata features are", "KerML 8.2.5.12"),
-    (K::FilterKw, "element filters are", "KerML 8.2.5.13"),
-];
-
-/// Whether a member starting with `kind` is a Kernel construct that is not parsed yet.
-pub(super) fn is_not_yet(kind: K) -> bool {
-    NOT_YET.iter().any(|(k, ..)| *k == kind)
+/// The classifier-like definitions by keyword: `TypePrefix keyword ClassifierDeclaration body`.
+/// The node kind, the body (a function body for functions and predicates), and the clause.
+pub(super) fn definition(keyword: K) -> Option<(K, Context, &'static str)> {
+    Some(match keyword {
+        K::ClassifierKw => (K::Classifier, Context::Type, "KerML 8.2.4.2.1"),
+        K::DatatypeKw => (K::DataType, Context::Type, "KerML 8.2.5.1"),
+        K::ClassKw => (K::Class, Context::Type, "KerML 8.2.5.2"),
+        K::StructKw => (K::Structure, Context::Type, "KerML 8.2.5.3"),
+        K::AssocKw => (K::Association, Context::Type, "KerML 8.2.5.4"),
+        K::BehaviorKw => (K::Behavior, Context::Type, "KerML 8.2.5.6.1"),
+        K::FunctionKw => (K::Function, Context::Function, "KerML 8.2.5.7.1"),
+        K::PredicateKw => (K::Predicate, Context::Function, "KerML 8.2.5.7.3"),
+        K::InteractionKw => (K::Interaction, Context::Type, "KerML 8.2.5.9.1"),
+        K::MetaclassKw => (K::Metaclass, Context::Type, "KerML 8.2.5.12"),
+        _ => return None,
+    })
 }
 
-/// A member that is a Kernel construct not parsed yet (`NOT_YET`): one diagnostic, and the whole
-/// member, up to its `;` or the `}` of its body, in an `Error` node.
-pub(super) fn not_yet(p: &mut Parser, m: Marker, kind: K) {
-    let (_, what, clause) = NOT_YET
-        .iter()
-        .find(|(k, ..)| *k == kind)
-        .copied()
-        .unwrap_or((kind, "these elements are", "KerML 8.2.5"));
-    p.error(
-        "syntax::not-yet-supported",
-        format!("{what} not parsed yet"),
-        Some(clause),
-    );
-    while !p.at_eof() && !p.at(K::RBrace) {
-        if p.at(K::LBrace) {
-            skip_group(p);
-            break;
-        }
-        let semicolon = p.at(K::Semicolon);
-        if matches!(p.current(), K::LParen | K::LBracket) {
-            skip_group(p);
-        } else {
+/// The keywords of the kernel features, which follow a FeaturePrefix (KerML 8.2.5.5–8.2.5.9).
+pub(super) const KERNEL_FEATURES: &[K] = &[
+    K::StepKw,
+    K::ExprKw,
+    K::BoolKw,
+    K::InvKw,
+    K::ConnectorKw,
+    K::BindingKw,
+    K::SuccessionKw,
+    K::FlowKw,
+];
+
+/// A kernel feature, at its keyword after the FeaturePrefix, which `m` already holds.
+pub(super) fn kernel_feature(p: &mut Parser, m: Marker) {
+    // The FeatureDeclaration is optional in each of these, as for `feature` (ADR 0015).
+    let kind = match p.current() {
+        // Step (8.2.5.6.2): `'step' FeatureDeclaration ValuePart? TypeBody`.
+        K::StepKw => {
             p.bump();
+            feature_declaration(p, false);
+            feature_value(p);
+            body(p, Context::Type, "KerML 8.2.5.6.2");
+            K::Step
         }
-        if semicolon {
-            break;
+        // Expression (8.2.5.7.2), BooleanExpression and Invariant (8.2.5.7.4):
+        // `keyword FeatureDeclaration ValuePart? FunctionBody`, `inv` with `true` or `false`.
+        K::ExprKw | K::BoolKw | K::InvKw => {
+            let kind = match p.current() {
+                K::ExprKw => K::Expression,
+                K::BoolKw => K::BooleanExpression,
+                _ => K::Invariant,
+            };
+            let invariant = p.at(K::InvKw);
+            p.bump();
+            if invariant && (p.at(K::TrueKw) || p.at(K::FalseKw)) {
+                p.bump();
+            }
+            feature_declaration(p, false);
+            feature_value(p);
+            body(p, Context::Function, "KerML 8.2.5.7");
+            kind
+        }
+        K::ConnectorKw => {
+            p.bump();
+            connector_declaration(p);
+            body(p, Context::Type, "KerML 8.2.5.5.1");
+            K::Connector
+        }
+        K::BindingKw => {
+            p.bump();
+            ends_declaration(p, K::OfKw, K::Eq, "KerML 8.2.5.5.2");
+            body(p, Context::Type, "KerML 8.2.5.5.2");
+            K::BindingConnector
+        }
+        K::SuccessionKw if p.nth_at(1, K::FlowKw) => {
+            p.bump();
+            p.bump();
+            flow_declaration(p);
+            body(p, Context::Type, "KerML 8.2.5.9.2");
+            K::SuccessionFlow
+        }
+        K::SuccessionKw => {
+            p.bump();
+            ends_declaration(p, K::FirstKw, K::ThenKw, "KerML 8.2.5.5.3");
+            body(p, Context::Type, "KerML 8.2.5.5.3");
+            K::Succession
+        }
+        _ => {
+            p.bump(); // `flow`
+            flow_declaration(p);
+            body(p, Context::Type, "KerML 8.2.5.9.2");
+            K::Flow
+        }
+    };
+    m.complete(p, kind);
+}
+
+/// The first of `targets` among the tokens ahead, outside brackets, before the declaration ends
+/// at `;`, `{` or `}`: it decides between the forms of a connector, binding, succession or flow.
+/// The end counts inside brackets too, since none of them is valid there: an unclosed `[` must
+/// not make the scan run on to the end of the file.
+fn first_ahead(p: &Parser, targets: &[K]) -> Option<K> {
+    let mut depth = 0u32;
+    let mut n = 0;
+    loop {
+        let k = p.peek(n);
+        if k == K::Eof || matches!(k, K::Semicolon | K::LBrace | K::RBrace) {
+            return None;
+        }
+        if depth == 0 && targets.contains(&k) {
+            return Some(k);
+        }
+        match k {
+            K::LParen | K::LBracket => depth += 1,
+            K::RParen | K::RBracket => depth = depth.saturating_sub(1),
+            _ => {}
+        }
+        n += 1;
+    }
+}
+
+/// ConnectorDeclaration (KerML 8.2.5.5.1), or `FeatureDeclaration? ValuePart?`:
+///
+/// ```text
+/// BinaryConnectorDeclaration = ( FeatureDeclaration? 'from' | 'all' 'from'? )?
+///                              ConnectorEndMember 'to' ConnectorEndMember
+/// NaryConnectorDeclaration   = FeatureDeclaration? '(' ConnectorEndMember ','
+///                              ConnectorEndMember ( ',' ConnectorEndMember )* ')'
+/// ```
+fn connector_declaration(p: &mut Parser) {
+    let clause = "KerML 8.2.5.5.1";
+    match first_ahead(
+        p,
+        &[
+            K::FromKw,
+            K::ToKw,
+            K::LParen,
+            K::Eq,
+            K::ColonEq,
+            K::DefaultKw,
+        ],
+    ) {
+        Some(K::FromKw) => {
+            if p.at(K::AllKw) && p.nth_at(1, K::FromKw) {
+                p.bump();
+            } else {
+                feature_declaration(p, false);
+            }
+            p.bump(); // `from`
+            connector_end(p);
+            p.expect(K::ToKw, "syntax::expected-token", clause);
+            connector_end(p);
+        }
+        Some(K::ToKw) => {
+            p.eat(K::AllKw);
+            connector_end(p);
+            p.bump(); // `to`
+            connector_end(p);
+        }
+        Some(K::LParen) => {
+            feature_declaration(p, false);
+            p.bump(); // `(`
+            connector_end(p);
+            p.expect(K::Comma, "syntax::expected-token", clause);
+            connector_end(p);
+            while p.eat(K::Comma) {
+                connector_end(p);
+            }
+            p.expect(K::RParen, "syntax::expected-token", clause);
+        }
+        _ => {
+            feature_declaration(p, false);
+            feature_value(p);
         }
     }
-    m.complete(p, K::Error);
+}
+
+/// BindingConnectorDeclaration (KerML 8.2.5.5.2) and SuccessionDeclaration (8.2.5.5.3), which
+/// have the same shape with `of … =` and `first … then`:
+///
+/// ```text
+///   FeatureDeclaration ( opener ConnectorEndMember separator ConnectorEndMember )?
+/// | 'all'? ( opener? ConnectorEndMember separator ConnectorEndMember )?
+/// ```
+fn ends_declaration(p: &mut Parser, opener: K, separator: K, clause: &'static str) {
+    match first_ahead(p, &[opener, separator]) {
+        Some(k) if k == opener => {
+            if p.at(K::AllKw) && p.nth_at(1, opener) {
+                p.bump();
+            } else {
+                feature_declaration(p, false);
+            }
+            p.bump(); // the opener
+            connector_end(p);
+            p.expect(separator, "syntax::expected-token", clause);
+            connector_end(p);
+        }
+        Some(_) => {
+            p.eat(K::AllKw);
+            connector_end(p);
+            p.bump(); // the separator
+            connector_end(p);
+        }
+        None => feature_declaration(p, false),
+    }
+}
+
+/// ConnectorEnd (KerML 8.2.5.5.1): `OwnedCrossMultiplicity? ( NAME REFERENCES )?
+/// OwnedReferenceSubsetting`, where the cross multiplicity is an OwnedMultiplicity.
+fn connector_end(p: &mut Parser) {
+    let m = p.start();
+    if p.at(K::LBracket) {
+        multiplicity_bounds(p);
+    }
+    if is_name(p.current()) && (p.nth_at(1, K::ColonColonGt) || p.nth_at(1, K::ReferencesKw)) {
+        p.bump();
+        p.bump();
+    }
+    owned(p, K::OwnedReferenceSubsetting, true, "KerML 8.2.5.5.1");
+    m.complete(p, K::ConnectorEnd);
+}
+
+/// FlowDeclaration (KerML 8.2.5.9.2):
+///
+/// ```text
+///   FeatureDeclaration ValuePart? ( 'of' PayloadFeatureMember )?
+///   ( 'from' FlowEndMember 'to' FlowEndMember )?
+/// | 'all'? FlowEndMember 'to' FlowEndMember
+/// ```
+fn flow_declaration(p: &mut Parser) {
+    let clause = "KerML 8.2.5.9.2";
+    if first_ahead(
+        p,
+        &[K::FromKw, K::OfKw, K::ToKw, K::Eq, K::ColonEq, K::DefaultKw],
+    ) == Some(K::ToKw)
+    {
+        p.eat(K::AllKw);
+        flow_end(p);
+        p.bump(); // `to`
+        flow_end(p);
+        return;
+    }
+    feature_declaration(p, false);
+    feature_value(p);
+    if p.eat(K::OfKw) {
+        payload_feature(p);
+    }
+    if p.eat(K::FromKw) {
+        flow_end(p);
+        p.expect(K::ToKw, "syntax::expected-token", clause);
+        flow_end(p);
+    }
+}
+
+/// FlowEnd (KerML 8.2.5.9.2): `( OwnedReferenceSubsetting '.' )? FlowFeatureMember`, written as
+/// one qualified name or feature chain whose last segment is the flow feature.
+fn flow_end(p: &mut Parser) {
+    if !at_qualified_name(p, 0) {
+        qualified_name(p, "KerML 8.2.5.9.2"); // reports the error
+        return;
+    }
+    let m = p.start();
+    qualified_name_or_chain(p, "KerML 8.2.5.9.2");
+    m.complete(p, K::FlowEnd);
+}
+
+/// PayloadFeature (KerML 8.2.5.9.2):
+///
+/// ```text
+///   Identification PayloadFeatureSpecializationPart ValuePart?
+/// | Identification ValuePart
+/// | OwnedFeatureTyping OwnedMultiplicity? | OwnedMultiplicity OwnedFeatureTyping?
+/// ```
+///
+/// A name followed by a specialization or a value is the payload's identification; otherwise it
+/// is the payload's type.
+fn payload_feature(p: &mut Parser) {
+    let m = p.start();
+    let identified = p.at(K::Lt)
+        || (is_name(p.current())
+            && matches!(
+                p.nth(1),
+                K::Colon
+                    | K::TypedKw
+                    | K::ColonGt
+                    | K::SubsetsKw
+                    | K::ColonColonGt
+                    | K::ReferencesKw
+                    | K::FatArrow
+                    | K::CrossesKw
+                    | K::ColonGtGt
+                    | K::RedefinesKw
+                    | K::Eq
+                    | K::ColonEq
+                    | K::DefaultKw
+            ));
+    if identified {
+        identification(p);
+        feature_specialization_part(p);
+        feature_value(p);
+    } else if p.at(K::LBracket) {
+        multiplicity_bounds(p);
+        if at_qualified_name(p, 0) {
+            owned(p, K::OwnedFeatureTyping, true, "KerML 8.2.5.9.2");
+        }
+    } else {
+        owned(p, K::OwnedFeatureTyping, true, "KerML 8.2.5.9.2");
+        if p.at(K::LBracket) {
+            multiplicity_bounds(p);
+        }
+    }
+    m.complete(p, K::PayloadFeature);
 }
