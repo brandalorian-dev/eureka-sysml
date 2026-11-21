@@ -1,6 +1,6 @@
 # Eureka SysML: Phase 1 execution plan
 
-Status: Draft v1.13 · 2026-11-21 · Covers PROJECT_PLAN v0.7 §6, Phases 1a and 1b (Release 0.1 "Language")
+Status: Draft v1.14 · 2026-11-21 · Covers PROJECT_PLAN v0.7 §6, Phases 1a and 1b (Release 0.1 "Language")
 
 This plan breaks Phase 1 into ordered steps, each small enough for one or a few pull requests. PROJECT_PLAN.md remains the source of truth for scope, architecture and budgets. Where this plan finds something the project plan does not settle, it is listed under [decisions](#24-decisions-and-their-recommended-defaults), and settled by the [decision methodology](#25-decision-methodology): each recommended default is evaluated during the step that first depends on it.
 
@@ -18,6 +18,7 @@ Change history:
 - v1.10: step 1a.6 done: the element graph and the lowering. All 36 KerML library files lower to the abstract syntax the pilot implementation built, element by element (ADR 0018).
 - v1.11: D2 adopted (ADR 0019), from the step 1a.7 incremental query spike.
 - v1.12: step 1a.7 done, with the owner-approved scope change: the implied specializations and redefinitions that name resolution needs are pulled forward from 1a.9. All 4003 names of the KerML libraries resolve to the element the pilot implementation resolved them to. ADR 0020 records the readings.
+- v1.14: D10 adopted (ADR 0022), from the step 1a.9 materialization spike, which also found and fixed a scaling bug in resolution (ADR 0020 decision 5a).
 - v1.13: step 1a.8 done, in four PRs: one per layer, and model-level evaluation in a fourth, as the owner chose. All 90 derive rules and 84 operations are implemented and tested, except `memberElementId`, which no constraint needs. ADR 0021 records the readings.
 
 ## 1. Executive summary
@@ -122,6 +123,7 @@ Each recommended default is a starting hypothesis, not a decision. It is evaluat
 | D7 | Library UUID oracle (§2.3) | 1a.0, **adopted** (ADR 0009) | The library serializations in the SysML-v2-Release repository, if they carry element ids. *Adopted at release 2025-02.* |
 | D8 | VS Code extension tooling. The extension is TypeScript, but PROJECT_PLAN v0.7 moved the pnpm/TypeScript workspace to Phase 3. | 1b.8 | A self-contained `editors/vscode` npm package: a thin `vscode-languageclient` wrapper, with its own lockfile and `npm audit` and an npm SBOM in its CI job. The pnpm workspace still waits for Phase 3. |
 | D9 | Release 0.1: which crates go to crates.io, their license (Apache-2.0, or MIT OR Apache-2.0 per PROJECT_PLAN §13.1), and whether to sign the 0.1 artifacts | 1b.10 (owner decision) | Publish nothing to crates.io at 0.1; ship binaries through GitHub Releases. Attach the SBOMs (§4.8 requires an SBOM for every release) and sign with Sigstore now, since that is cheap to do from the first release. |
+| D10 | How the implied relationships and elements of KerML 8.4.2 are materialized, given that each file's fragment is lowered before resolution (ADR 0019) and that ADR 0017 keeps implied relationships in the graph | 1a.9, **adopted** (ADR 0022) | An elaborated graph per file: the lowered fragment plus its implied relationships. *Adopted instead: an overlay per file, the implied part only, read with the lowered structure as one view. At 1M elements it adds 156 MiB, against 544 MiB for an elaborated graph and 21 MiB for records, which need a second read path in every reader. Edits cost the same with each, 9 ms per file.* |
 
 ### 2.5 Decision methodology
 
@@ -315,6 +317,7 @@ Each step below gives its goal, the spec clauses, what it delivers, the tests to
   - KerML 8.4.2 (the four kinds and the two redundancy rules)
   - the tables in 8.4.3.1 (Core) and 8.4.4.1 (Kernel)
   - the per-construct semantics in 8.4.3.2–8.4.3.4 and 8.4.4.2–8.4.4.14
+- **Evaluates:** D10 (how implied relationships are materialized). *Adopted (ADR 0022; evidence in `docs/proj-mgmt/evidence/1a.9-implied-materialization-spike.md`).*
 - **Work:** implement table by table: specialization constraints (59), then redefinition (8), type-featuring (6), and binding-connector (7) constraints. Implied relationships are kept apart from owned ones (D3). Step 1a.7 already computes the specializations and redefinitions that resolution needs, as queries (ADR 0020). This step materializes them, adds the rest, and keeps the 1a.7 pilot oracle passing.
 - **Tests first:**
   - One golden test per table row: a minimal model, and the implied relationships expected.
