@@ -1,0 +1,414 @@
+// SPDX-License-Identifier: Apache-2.0
+//! Model-level evaluation (KerML 8.4.4.9.8, 8.3.4.8; step 1a.8, ADR 0021): one test per rule and
+//! operation, from its OCL and the rules of 8.4.4.9.8, named after it
+//! (`tests/derived_inventory.rs` checks).
+
+mod common;
+
+use common::{model, model_with_library, Model};
+use sysml_semantics::derived::{self as d, Item, Natural};
+use sysml_semantics::Global;
+#[cfg(target_arch = "wasm32")]
+use wasm_bindgen_test::wasm_bindgen_test as test;
+
+/// The value expression of a top-level feature (its FeatureValue's).
+fn value(m: &Model, feature: &str) -> Global {
+    let l = sysml_semantics::lowered(&m.db, m.file).clone();
+    let f = m.get(feature);
+    let g = &l.graph;
+    let r = g
+        .owned_relationships(f.ix())
+        .iter()
+        .find(|r| g.metaclass(**r) == sysml_model::Metaclass::FeatureValue)
+        .unwrap_or_else(|| panic!("{feature} has no value"));
+    let e = g.owned_related_elements(*r)[0];
+    Global {
+        file: m.file,
+        index: e.index() as u32,
+    }
+}
+
+fn eval(m: &Model, feature: &str) -> Vec<Item> {
+    d::evaluate(&m.db, m.project, value(m, feature), None)
+}
+
+fn s(v: &str) -> Item {
+    Item::String(v.into())
+}
+
+// ---- null and literal expressions ----
+
+#[test]
+fn null_expression_evaluate() {
+    // NullExpression::evaluate(target) = Sequence{}
+    let m = model("feature n = null;");
+    assert!(eval(&m, "n").is_empty());
+}
+
+#[test]
+fn null_expression_model_level_evaluable() {
+    // NullExpression::modelLevelEvaluable(visited) = true
+    let m = model("feature n = null;");
+    assert!(d::model_level_evaluable(
+        &m.db,
+        m.project,
+        value(&m, "n"),
+        &[]
+    ));
+}
+
+#[test]
+fn literal_expression_evaluate() {
+    // LiteralExpression::evaluate(target) = Sequence{self}: a literal is its value
+    let m = model(
+        r#"feature a = 3; feature b = true; feature c = "s"; feature e = *; feature r = 1.5;"#,
+    );
+    assert_eq!(eval(&m, "a"), [Item::Integer(3)]);
+    assert_eq!(eval(&m, "b"), [Item::Boolean(true)]);
+    assert_eq!(eval(&m, "c"), [s("s")]);
+    assert_eq!(eval(&m, "e"), [Item::Infinity]);
+    assert_eq!(eval(&m, "r"), [Item::Rational(1.5)]);
+}
+
+#[test]
+fn literal_expression_model_level_evaluable() {
+    // LiteralExpression::modelLevelEvaluable(visited) = true
+    let m = model("feature a = 3;");
+    assert!(d::model_level_evaluable(
+        &m.db,
+        m.project,
+        value(&m, "a"),
+        &[]
+    ));
+}
+
+#[test]
+fn derive_literal_expression_is_model_level_evaluable() {
+    // isModelLevelEvaluable = true
+    let m = model("feature a = true;");
+    assert!(d::is_model_level_evaluable(
+        &m.db,
+        m.project,
+        value(&m, "a")
+    ));
+}
+
+// ---- feature references ----
+
+const REFERENCES: &str = "feature x = 5; feature y = x; feature z; feature w = z;
+    classifier T { feature f = 1; } classifier U specializes T { feature redefines f = 2; }
+    feature r = T::f; feature loop = loop;
+    metaclass M { feature level; } feature q = M::level;";
+
+#[test]
+fn feature_reference_expression_evaluate() {
+    // The value of the target's feature that is or redefines the referent; else, without
+    // featuring types, the referent's own value; else the referent, if not an Expression
+    let m = model(REFERENCES);
+    let (db, p) = (&m.db, m.project);
+    assert_eq!(eval(&m, "y"), [Item::Integer(5)]);
+    assert_eq!(eval(&m, "w"), [Item::Element(m.get("z"))]);
+    let on = |t: &str| d::evaluate(db, p, value(&m, "r"), Some(Item::Element(m.get(t))));
+    assert_eq!(on("U"), [Item::Integer(2)]);
+    assert_eq!(on("T"), [Item::Integer(1)]);
+    assert!(
+        eval(&m, "loop").is_empty(),
+        "a value that refers to itself has none"
+    );
+}
+
+#[test]
+fn feature_reference_expression_model_level_evaluable() {
+    // A reference to a feature without featuring types whose value is evaluable, or to a feature
+    // of a metaclass; not to a feature of an ordinary classifier
+    let m = model(REFERENCES);
+    let (db, p) = (&m.db, m.project);
+    assert!(d::model_level_evaluable(db, p, value(&m, "y"), &[]));
+    assert!(d::model_level_evaluable(db, p, value(&m, "q"), &[]));
+    assert!(!d::model_level_evaluable(db, p, value(&m, "r"), &[]));
+}
+
+// ---- invocations (Tables 5 and 7) ----
+
+const ARITHMETIC: &str = r#"
+    feature a = 1 + 2 * 3; feature b = 7 / 2; feature c = "a" + "b"; feature d = not true;
+    feature e = 1..3; feature f = if 1 < 2 ? "y" else "n"; feature g = null ?? 4;
+    feature h = true and false; feature i = 1 == 1.0; feature j = (1, 2, 3) # (2);
+    feature k = 2 ^ 3; feature l = -4; feature n = false or true; feature o = 5 % 3;
+    feature t = 3 istype ScalarValues::Natural; feature u = "x" @ ScalarValues::Integer;
+    function g { return r; } feature v = g();"#;
+
+#[test]
+fn invocation_expression_evaluate() {
+    // An application of the function to the evaluated arguments (8.4.4.9.8 rule 5)
+    let m = model_with_library(ARITHMETIC);
+    let cases: Vec<(&str, Vec<Item>)> = vec![
+        ("a", vec![Item::Integer(7)]),
+        ("b", vec![Item::Rational(3.5)]),
+        ("c", vec![s("ab")]),
+        ("d", vec![Item::Boolean(false)]),
+        (
+            "e",
+            vec![Item::Integer(1), Item::Integer(2), Item::Integer(3)],
+        ),
+        ("f", vec![s("y")]),
+        ("g", vec![Item::Integer(4)]),
+        ("h", vec![Item::Boolean(false)]),
+        ("i", vec![Item::Boolean(true)]),
+        ("j", vec![Item::Integer(2)]),
+        ("k", vec![Item::Integer(8)]),
+        ("l", vec![Item::Integer(-4)]),
+        ("n", vec![Item::Boolean(true)]),
+        ("o", vec![Item::Integer(2)]),
+        ("t", vec![Item::Boolean(true)]),
+        ("u", vec![Item::Boolean(false)]),
+    ];
+    for (f, expected) in cases {
+        assert_eq!(eval(&m, f), expected, "{f}");
+    }
+}
+
+#[test]
+fn invocation_expression_model_level_evaluable() {
+    // Its arguments are evaluable and it invokes an evaluable library function
+    let m = model_with_library(ARITHMETIC);
+    let (db, p) = (&m.db, m.project);
+    assert!(d::model_level_evaluable(db, p, value(&m, "a"), &[]));
+    assert!(
+        !d::model_level_evaluable(db, p, value(&m, "v"), &[]),
+        "a user function"
+    );
+}
+
+#[test]
+fn constructor_expression_model_level_evaluable() {
+    // ConstructorExpression::modelLevelEvaluable: its arguments are evaluable
+    let m = model_with_library(
+        "classifier T { feature a; } function g { return r; }
+        feature w = new T(a = 1); feature x = new T(a = g());",
+    );
+    let (db, p) = (&m.db, m.project);
+    assert!(d::model_level_evaluable(db, p, value(&m, "w"), &[]));
+    assert!(!d::model_level_evaluable(db, p, value(&m, "x"), &[]));
+}
+
+// ---- expressions ----
+
+const EXPRESSIONS: &str = "expr e { 1 + 1 } expr e2 { in x; x + 1 } function F; expr e3 : F { 1 }
+    feature c = 1 < 2; feature c1 = 1; feature c2 = (true, true);";
+
+#[test]
+fn expression_evaluate() {
+    // Expression::evaluate: the value of the first result expression
+    let m = model_with_library(EXPRESSIONS);
+    assert_eq!(
+        d::evaluate(&m.db, m.project, m.get("e"), None),
+        [Item::Integer(2)]
+    );
+}
+
+#[test]
+fn expression_model_level_evaluable() {
+    // Only implied specializations, inputs without features or values, and evaluable result
+    // expressions
+    let m = model_with_library(EXPRESSIONS);
+    let (db, p) = (&m.db, m.project);
+    assert!(d::model_level_evaluable(db, p, m.get("e"), &[]));
+    assert!(d::model_level_evaluable(db, p, m.get("e2"), &[]));
+    assert!(
+        !d::model_level_evaluable(db, p, m.get("e3"), &[]),
+        "a written typing"
+    );
+}
+
+#[test]
+fn derive_expression_is_model_level_evaluable() {
+    // isModelLevelEvaluable = modelLevelEvaluable(Set(Element){})
+    let m = model_with_library(EXPRESSIONS);
+    let (db, p) = (&m.db, m.project);
+    assert!(d::is_model_level_evaluable(db, p, m.get("e")));
+    assert!(!d::is_model_level_evaluable(db, p, m.get("e3")));
+}
+
+#[test]
+fn expression_check_condition() {
+    // checkCondition(target): it evaluates to the single value true
+    let m = model_with_library(EXPRESSIONS);
+    let (db, p) = (&m.db, m.project);
+    assert!(d::check_condition(db, p, value(&m, "c"), None));
+    assert!(
+        !d::check_condition(db, p, value(&m, "c1"), None),
+        "not a Boolean"
+    );
+    assert!(
+        !d::check_condition(db, p, value(&m, "c2"), None),
+        "two values"
+    );
+}
+
+// ---- metadata ----
+
+const METADATA: &str = "metaclass M { feature level : ScalarValues::Integer; }
+    classifier X { @M { level = 3; } } classifier Y;
+    feature m = X.metadata; feature k = X meta KerML::Classifier; feature j = X @@ M;";
+
+#[test]
+fn metadata_access_expression_evaluate() {
+    // The element's metadata features that annotate it, then its reflective metadata
+    let m = model_with_library(METADATA);
+    assert_eq!(
+        eval(&m, "m"),
+        [
+            Item::Element(m.get("X::MetadataFeature#1")),
+            Item::Reflective(m.get("X"))
+        ]
+    );
+    // `meta` and `@@` act on the metadata (7.4.9.2).
+    assert_eq!(eval(&m, "k"), [Item::Reflective(m.get("X"))]);
+    assert_eq!(eval(&m, "j"), [Item::Boolean(true)]);
+}
+
+#[test]
+fn metadata_access_expression_metaclass_feature() {
+    // metaclassFeature(): the reflective metadata of the referenced element
+    let m = model_with_library(METADATA);
+    let x = value(&m, "m");
+    assert_eq!(
+        d::metaclass_feature(&m.db, m.project, x),
+        Some(Item::Reflective(m.get("X")))
+    );
+}
+
+#[test]
+fn metadata_access_expression_model_level_evaluable() {
+    // MetadataAccessExpression::modelLevelEvaluable(visited) = true
+    let m = model_with_library(METADATA);
+    assert!(d::model_level_evaluable(
+        &m.db,
+        m.project,
+        value(&m, "m"),
+        &[]
+    ));
+}
+
+#[test]
+fn metadata_feature_syntax_element() {
+    // syntaxElement(): the element reflective metadata represents
+    let m = model_with_library(METADATA);
+    assert_eq!(
+        d::syntax_element(&Item::Reflective(m.get("X"))),
+        Some(m.get("X"))
+    );
+    assert_eq!(
+        d::syntax_element(&Item::Element(m.get("X::MetadataFeature#1"))),
+        None
+    );
+}
+
+#[test]
+fn metadata_feature_evaluate_feature() {
+    // evaluateFeature(baseFeature): the value of the feature that redefines it
+    let m = model_with_library(METADATA);
+    let (db, p) = (&m.db, m.project);
+    let mf = m.get("X::MetadataFeature#1");
+    assert_eq!(
+        d::evaluate_feature(db, p, mf, m.get("M::level")),
+        [Item::Integer(3)]
+    );
+    assert!(d::evaluate_feature(db, p, mf, m.get("X")).is_empty());
+}
+
+// ---- multiplicities ----
+
+// A bound is a literal or a feature reference (KerML 8.2.5.11, MultiplicityExpressionMember).
+const BOUNDS: &str = "feature n = 4; feature k[2..*]; feature j[n]; feature s[*]; feature o[3];
+    feature minus = -1; feature neg[0..minus];";
+
+fn range(m: &Model, f: &str) -> Global {
+    m.get(&format!("{f}::MultiplicityRange#1"))
+}
+
+#[test]
+fn multiplicity_range_value_of() {
+    // valueOf(bound): an evaluable bound's single value, a natural number or *
+    let m = model_with_library(BOUNDS);
+    let (db, p) = (&m.db, m.project);
+    let k = range(&m, "k");
+    assert_eq!(
+        d::value_of(db, p, d::lower_bound(db, p, k)),
+        Some(Natural::Value(2))
+    );
+    assert_eq!(
+        d::value_of(db, p, d::upper_bound(db, p, k)),
+        Some(Natural::Infinite)
+    );
+    let j = d::upper_bound(db, p, range(&m, "j"));
+    assert_eq!(d::value_of(db, p, j), Some(Natural::Value(4)));
+    let neg = d::upper_bound(db, p, range(&m, "neg"));
+    assert_eq!(d::value_of(db, p, neg), None, "negative");
+    assert_eq!(d::value_of(db, p, None), None);
+}
+
+#[test]
+fn multiplicity_range_has_bounds() {
+    // hasBounds(lower, upper): `[n]` means n..n, and `[*]` 0..*
+    let m = model_with_library(BOUNDS);
+    let (db, p) = (&m.db, m.project);
+    let (v, inf) = (Natural::Value, Natural::Infinite);
+    assert!(d::has_bounds(db, p, range(&m, "k"), v(2), inf));
+    assert!(d::has_bounds(db, p, range(&m, "o"), v(3), v(3)));
+    assert!(d::has_bounds(db, p, range(&m, "s"), v(0), inf));
+    assert!(!d::has_bounds(db, p, range(&m, "o"), v(0), v(3)));
+}
+
+// ---- packages and filters ----
+
+const FILTERS: &str = "metaclass Approved { feature level : ScalarValues::Integer; }
+    package D { class A { @Approved { level = 2; } } class B { @Approved { level = 0; } } class C; feature f; }
+    package P { private import D::*; filter @Approved; feature x : A; feature y : C; }
+    package Q { private import D::*[@Approved and Approved::level > 1]; feature x : A; feature y : B; }
+    package R { private import D::*[@KerML::Class]; }";
+
+#[test]
+fn package_include_as_member() {
+    // includeAsMember(element): every filter condition holds on some metadata of the element,
+    // its reflective metadata included (7.4.14)
+    let m = model_with_library(FILTERS);
+    let (db, p) = (&m.db, m.project);
+    let pkg = m.get("P");
+    assert!(d::include_as_member(db, p, pkg, m.get("D::A")));
+    assert!(!d::include_as_member(db, p, pkg, m.get("D::C")));
+    let r = m.get("R::Package#1");
+    assert!(
+        d::include_as_member(db, p, r, m.get("D::C")),
+        "every class is a KerML::Class"
+    );
+    assert!(!d::include_as_member(db, p, r, m.get("D::f")));
+}
+
+#[test]
+fn package_imported_memberships() {
+    // Package::importedMemberships: the imported memberships the filters include; resolution
+    // sees them the same way
+    let m = model_with_library(FILTERS);
+    let (db, p) = (&m.db, m.project);
+    let imported = m.labels(d::package_imported_memberships(db, p, m.get("P")));
+    assert_eq!(
+        imported,
+        ["OwningMembership(D::A)", "OwningMembership(D::B)"]
+    );
+    let q = m.labels(d::package_imported_memberships(
+        db,
+        p,
+        m.get("Q::Package#1"),
+    ));
+    assert_eq!(q, ["OwningMembership(D::A)"]);
+    let typing = |f: &str| {
+        let t = m.relationship(f, sysml_model::Metaclass::FeatureTyping, 1);
+        m.labels(d::target(db, p, t))
+    };
+    assert_eq!(typing("P::x"), ["D::A"]);
+    assert!(typing("P::y").is_empty(), "C has no Approved metadata");
+    assert_eq!(typing("Q::x"), ["D::A"]);
+    assert!(typing("Q::y").is_empty(), "B's level is 0");
+}

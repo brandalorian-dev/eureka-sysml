@@ -103,7 +103,8 @@
       "function": "owning_namespace"
     },
     "Expression::deriveExpressionIsModelLevelEvaluable": {
-      "status": "open"
+      "status": "done",
+      "function": "is_model_level_evaluable"
     },
     "Expression::deriveExpressionResult": {
       "status": "done",
@@ -202,7 +203,8 @@
       "function": "argument"
     },
     "LiteralExpression::deriveLiteralExpressionIsModelLevelEvaluable": {
-      "status": "open"
+      "status": "done",
+      "function": "is_model_level_evaluable"
     },
     "Membership::deriveMembershipMemberElementId": {
       "status": "deferred",
@@ -363,7 +365,8 @@
   },
   "operations": {
     "ConstructorExpression::modelLevelEvaluable": {
-      "status": "open"
+      "status": "done",
+      "function": "model_level_evaluable"
     },
     "Element::effectiveName": {
       "status": "done",
@@ -386,13 +389,16 @@
       "function": "path"
     },
     "Expression::checkCondition": {
-      "status": "open"
+      "status": "done",
+      "function": "check_condition"
     },
     "Expression::evaluate": {
-      "status": "open"
+      "status": "done",
+      "function": "evaluate"
     },
     "Expression::modelLevelEvaluable": {
-      "status": "open"
+      "status": "done",
+      "function": "model_level_evaluable"
     },
     "Feature::allRedefinedFeatures": {
       "status": "done",
@@ -471,10 +477,12 @@
       "function": "source_target_feature"
     },
     "FeatureReferenceExpression::evaluate": {
-      "status": "open"
+      "status": "done",
+      "function": "evaluate"
     },
     "FeatureReferenceExpression::modelLevelEvaluable": {
-      "status": "open"
+      "status": "done",
+      "function": "model_level_evaluable"
     },
     "Import::importedMemberships": {
       "status": "done",
@@ -485,20 +493,24 @@
       "function": "instantiated_type"
     },
     "InvocationExpression::evaluate": {
-      "status": "open"
+      "status": "done",
+      "function": "evaluate"
     },
     "InvocationExpression::modelLevelEvaluable": {
-      "status": "open"
+      "status": "done",
+      "function": "model_level_evaluable"
     },
     "LibraryPackage::libraryNamespace": {
       "status": "done",
       "function": "library_namespace"
     },
     "LiteralExpression::evaluate": {
-      "status": "open"
+      "status": "done",
+      "function": "evaluate"
     },
     "LiteralExpression::modelLevelEvaluable": {
-      "status": "open"
+      "status": "done",
+      "function": "model_level_evaluable"
     },
     "Membership::isDistinguishableFrom": {
       "status": "done",
@@ -509,16 +521,20 @@
       "function": "import_imported_memberships"
     },
     "MetadataAccessExpression::evaluate": {
-      "status": "open"
+      "status": "done",
+      "function": "evaluate"
     },
     "MetadataAccessExpression::metaclassFeature": {
-      "status": "open"
+      "status": "done",
+      "function": "metaclass_feature"
     },
     "MetadataAccessExpression::modelLevelEvaluable": {
-      "status": "open"
+      "status": "done",
+      "function": "model_level_evaluable"
     },
     "MetadataFeature::evaluateFeature": {
-      "status": "open"
+      "status": "done",
+      "function": "evaluate_feature"
     },
     "MetadataFeature::isSemantic": {
       "status": "done",
@@ -529,13 +545,16 @@
       "function": "is_syntactic"
     },
     "MetadataFeature::syntaxElement": {
-      "status": "open"
+      "status": "done",
+      "function": "syntax_element"
     },
     "MultiplicityRange::hasBounds": {
-      "status": "open"
+      "status": "done",
+      "function": "has_bounds"
     },
     "MultiplicityRange::valueOf": {
-      "status": "open"
+      "status": "done",
+      "function": "value_of"
     },
     "Namespace::importedMemberships": {
       "status": "done",
@@ -586,10 +605,12 @@
       "function": "import_imported_memberships"
     },
     "NullExpression::evaluate": {
-      "status": "open"
+      "status": "done",
+      "function": "evaluate"
     },
     "NullExpression::modelLevelEvaluable": {
-      "status": "open"
+      "status": "done",
+      "function": "model_level_evaluable"
     },
     "OperatorExpression::instantiatedType": {
       "status": "done",
@@ -600,10 +621,12 @@
       "function": "path"
     },
     "Package::importedMemberships": {
-      "status": "open"
+      "status": "done",
+      "function": "package_imported_memberships"
     },
     "Package::includeAsMember": {
-      "status": "open"
+      "status": "done",
+      "function": "include_as_member"
     },
     "ParameterMembership::parameterDirection": {
       "status": "done",
