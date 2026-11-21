@@ -14,8 +14,8 @@ use super::root::{membership_element, owned_member, owning_namespace, resolve_gl
 use super::{at, end, metaclass, owned_relationships_of, unique};
 use crate::implied::{implied_generals, implied_redefinitions, owning_type as owning_type_ix};
 use crate::resolve::{
-    member_element, redefined_features, settle_all_supertypes, settle_memberships, structure,
-    Entry, Global, Project,
+    member_element, redefined_features, settle_all_supertypes, settle_compatible,
+    settle_memberships, structure, Entry, Global, Project,
 };
 
 // ---- helpers ----
@@ -60,8 +60,10 @@ fn specializations(
     ty: Global,
     exclude_implied: bool,
 ) -> Vec<(M, Global)> {
+    // `ownedSpecialization->reject(isImplied)` when implied ones are excluded (KerML 8.3.3.1.10).
     let mut out: Vec<(M, Global)> = owned_specialization(db, project, ty)
         .into_iter()
+        .filter(|r| !(exclude_implied && flag(db, *r, Attr::IsImplied)))
         .filter_map(|r| Some((metaclass(db, r), first_end(db, project, r)?)))
         .collect();
     if !exclude_implied {
@@ -279,15 +281,34 @@ pub fn direction_of_excluding(
     feature: Global,
     excluded: &[Global],
 ) -> Option<Direction> {
+    let mut visited: HashSet<Global> = excluded.iter().copied().collect();
+    direction_in(db, project, ty, feature, &mut visited)
+}
+
+/// `directionOfExcluding`, with one set of the types visited for the whole search: a type that
+/// gave no direction on one path gives none on another, so each is visited once.
+fn direction_in(
+    db: &dyn salsa::Database,
+    project: Project,
+    ty: Global,
+    feature: Global,
+    visited: &mut HashSet<Global>,
+) -> Option<Direction> {
     if owning_type(db, project, feature) == Some(ty) {
         return direction(db, feature);
     }
-    let mut excluded_self = excluded.to_vec();
-    excluded_self.push(ty);
-    let d = supertypes(db, project, ty, false)
-        .into_iter()
-        .filter(|t| !excluded_self.contains(t))
-        .find_map(|t| direction_of_excluding(db, project, t, feature, &excluded_self))?;
+    visited.insert(ty);
+    let mut found = None;
+    for t in supertypes(db, project, ty, false) {
+        if visited.contains(&t) {
+            continue;
+        }
+        found = direction_in(db, project, t, feature, visited);
+        if found.is_some() {
+            break;
+        }
+    }
+    let d = found?;
     if !is_conjugated(db, project, ty) {
         return Some(d);
     }
@@ -393,10 +414,16 @@ pub fn specializes(
     ty: Global,
     supertype: Global,
 ) -> bool {
-    match original_type(db, project, ty) {
-        Some(original) if original != ty => specializes(db, project, original, supertype),
-        _ => all_supertypes(db, project, ty).contains(&supertype),
+    // A conjugated type specializes what its original type does; conjugations may be circular.
+    let mut x = ty;
+    let mut seen: HashSet<Global> = HashSet::from([ty]);
+    while let Some(original) = original_type(db, project, x) {
+        if !seen.insert(original) {
+            return false;
+        }
+        x = original;
     }
+    all_supertypes(db, project, x).contains(&supertype)
 }
 
 /// `specializesFromLibrary(libraryTypeName)` (KerML 8.3.3.1.10).
@@ -414,6 +441,9 @@ pub fn specializes_from_library(
 /// `isCompatibleWith(otherType)` for a Type (KerML 8.3.3.1.10): `specializes(otherType)`; and
 /// for a Feature (8.3.3.3.4), also two features without owned features that redefine a common
 /// feature and of which one can access the other (ADR 0021).
+///
+/// Compatibility, access and featuring may be circular: a fixpoint from false.
+#[salsa::tracked(returns(copy), cycle_initial = not_compatible, cycle_fn = settle_compatible)]
 pub fn is_compatible_with(
     db: &dyn salsa::Database,
     project: Project,
@@ -435,6 +465,16 @@ pub fn is_compatible_with(
                 .any(|f| theirs.contains(f))
         }
         && can_access(db, project, ty, other)
+}
+
+pub(crate) fn not_compatible(
+    _db: &dyn salsa::Database,
+    _id: salsa::Id,
+    _project: Project,
+    _ty: Global,
+    _other: Global,
+) -> bool {
+    false
 }
 
 /// `multiplicities()` (KerML 8.3.3.1.10): the type's multiplicity, else the multiplicities of the
@@ -469,9 +509,9 @@ pub fn multiplicities(db: &dyn salsa::Database, project: Project, ty: Global) ->
 
 /// `inheritedMemberships(excludedNamespaces, excludedTypes, excludeImplied)` (KerML
 /// 8.3.3.1.10): `removeRedefinedFeatures(inheritableMemberships(…))`, in the OCL's order: for
-/// each supertype its public memberships, its protected ones, then those it inherits. The
-/// excluded sets are not needed: circular specializations converge by fixpoint iteration (ADR
-/// 0019, ADR 0021).
+/// each supertype its public memberships, its protected ones, then those it inherits. Circular
+/// specializations converge by fixpoint iteration (ADR 0019); `inheritableMemberships` leaves
+/// out the type's own memberships, as the OCL's excluded types do (ADR 0021).
 #[salsa::tracked(returns(ref), cycle_initial = no_memberships, cycle_fn = settle_memberships)]
 pub fn type_inherited_memberships(
     db: &dyn salsa::Database,
@@ -501,10 +541,19 @@ pub fn inheritable_memberships(
     ty: Global,
     exclude_implied: bool,
 ) -> Vec<Global> {
+    // `excludedTypes->including(self)`: around a circular specialization, the type's own owned
+    // and imported memberships come back through its supertypes, and are left out.
+    let own: HashSet<Global> = super::root::memberships_of_visibility(db, project, ty, None)
+        .into_iter()
+        .collect();
     let mut out = Vec::new();
     for t in supertypes(db, project, ty, exclude_implied) {
         if t != ty {
-            out.extend(non_private_memberships(db, project, t, exclude_implied));
+            out.extend(
+                non_private_memberships(db, project, t, exclude_implied)
+                    .into_iter()
+                    .filter(|m| !own.contains(m)),
+            );
         }
     }
     unique(out)
@@ -707,6 +756,9 @@ pub fn owned_feature_inverting(
 /// `checkFeatureFeatureMembershipTypeFeaturing` implies (8.4.3.1, Table 9): the owning type, or
 /// for a variable feature of `Occurrences::Occurrence`, its `snapshots`. The other implied type
 /// featurings follow in step 1a.9 (ADR 0021).
+///
+/// Chains and featurings may be circular: a fixpoint from none.
+#[salsa::tracked(returns(ref), cycle_initial = no_featuring, cycle_fn = settle_all_supertypes)]
 pub fn featuring_type(db: &dyn salsa::Database, project: Project, f: Global) -> Vec<Global> {
     let mut out: Vec<Global> = owned_type_featuring(db, project, f)
         .into_iter()
@@ -723,10 +775,19 @@ pub fn featuring_type(db: &dyn salsa::Database, project: Project, f: Global) -> 
     }
     if let Some(first) = chaining_feature(db, project, f).first() {
         if *first != f {
-            out.extend(featuring_type(db, project, *first));
+            out.extend(featuring_type(db, project, *first).iter().copied());
         }
     }
     unique(out)
+}
+
+pub(crate) fn no_featuring(
+    _db: &dyn salsa::Database,
+    _id: salsa::Id,
+    _project: Project,
+    _f: Global,
+) -> Vec<Global> {
+    Vec::new()
 }
 
 /// `typingFeatures()` (KerML 8.3.3.3.4): the features a feature's types come from: those it
@@ -901,7 +962,7 @@ pub fn is_owned_cross_feature(db: &dyn salsa::Database, project: Project, f: Glo
 
 /// `isCartesianProduct()` (KerML 8.3.3.3.4).
 pub fn is_cartesian_product(db: &dyn salsa::Database, project: Project, f: Global) -> bool {
-    let featuring = featuring_type(db, project, f);
+    let featuring = featuring_type(db, project, f).clone();
     r#type(db, project, f).len() == 1
         && featuring.len() == 1
         && (owner_of(db, featuring[0]) != Some(f)
@@ -919,7 +980,7 @@ fn owner_of(db: &dyn salsa::Database, x: Global) -> Option<Global> {
 /// `asCartesianProduct()` (KerML 8.3.3.3.4): the featuring types not owned by the feature, those
 /// of the owned featuring features as cartesian products, then the feature's types.
 pub fn as_cartesian_product(db: &dyn salsa::Database, project: Project, f: Global) -> Vec<Global> {
-    let featuring = featuring_type(db, project, f);
+    let featuring = featuring_type(db, project, f).clone();
     let mut out: Vec<Global> = featuring
         .iter()
         .copied()
@@ -943,7 +1004,7 @@ pub fn is_featured_within(
     f: Global,
     ty: Option<Global>,
 ) -> bool {
-    let featuring = featuring_type(db, project, f);
+    let featuring = featuring_type(db, project, f).clone();
     let Some(ty) = ty else {
         let anything = library(db, project, "Base::Anything");
         return featuring.iter().all(|t| Some(*t) == anything);
@@ -969,13 +1030,13 @@ pub fn is_featured_within(
 /// without featuring types; ADR 0021).
 pub fn can_access(db: &dyn salsa::Database, project: Project, f: Global, other: Global) -> bool {
     let anything = library(db, project, "Base::Anything");
-    let mut all = featuring_type(db, project, f);
+    let mut all = featuring_type(db, project, f).clone();
     let mut seen: HashSet<Global> = all.iter().copied().collect();
     let mut i = 0;
     while i < all.len() {
         let t = all[i];
         if kind_of(db, t, M::Feature) {
-            let next = featuring_type(db, project, t);
+            let next = featuring_type(db, project, t).clone();
             let next = if next.is_empty() {
                 anything.into_iter().collect()
             } else {

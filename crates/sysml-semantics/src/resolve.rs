@@ -238,6 +238,7 @@ settle!(
     Vec<Global>,
     (Project, Global, bool)
 );
+settle!(pub(crate) settle_compatible, bool, (Project, Global, Global));
 settle!(
     pub(crate) settle_all_supertypes,
     Vec<Global>,
@@ -580,6 +581,7 @@ pub(crate) fn owned_generals(
     let l = structure(db, ty.file);
     let g = &l.graph();
     let mut out = Vec::new();
+    let mut original = None;
     let mut last_chaining = None;
     for r in g.owned_relationships(ty.ix()) {
         let m = g.metaclass(*r);
@@ -587,16 +589,31 @@ pub(crate) fn owned_generals(
             file: ty.file,
             index: r.index() as u32,
         };
-        if m.specializes(M::Specialization) || m == M::Conjugation {
+        // Only the owned specializations whose `special` is this type: one written in its body
+        // as `specialization … subtype B specializes A` specializes B.
+        let special = match g.source(*r).first() {
+            None => true,
+            Some(Endpoint::Element(e)) => *e == ty.ix(),
+            Some(Endpoint::Name(_)) => false,
+        };
+        if (m.specializes(M::Specialization) || m == M::Conjugation) && special {
             if let Some(e) = resolve_end(db, project, at, Slot::Target, 0)
                 .as_ref()
                 .and_then(|e| member_element(db, project, e))
             {
-                out.push(e);
+                if m == M::Conjugation {
+                    original.get_or_insert(e);
+                } else {
+                    out.push(e);
+                }
             }
         } else if m == M::FeatureChaining {
             last_chaining = Some(at);
         }
+    }
+    // KerML 8.3.3.1.10 `supertypes`: a conjugated type's supertype is its original type alone.
+    if let Some(o) = original {
+        out = vec![o];
     }
     if let Some(at) = last_chaining {
         if let Some(e) = resolve_end(db, project, at, Slot::Target, 0)

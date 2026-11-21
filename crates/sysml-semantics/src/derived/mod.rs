@@ -89,13 +89,13 @@ pub(crate) fn ends(
         .collect()
 }
 
-/// The owned relationships of an element that are of a metaclass, in order.
 /// The elements in order, each once.
 pub(crate) fn unique(xs: impl IntoIterator<Item = Global>) -> Vec<Global> {
     let mut seen = std::collections::HashSet::new();
     xs.into_iter().filter(|x| seen.insert(*x)).collect()
 }
 
+/// The owned relationships of an element that are of a metaclass, in order.
 pub(crate) fn owned_relationships_of(db: &dyn salsa::Database, x: Global, kind: M) -> Vec<Global> {
     let s = structure(db, x.file);
     let g = s.graph();
