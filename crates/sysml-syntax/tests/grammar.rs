@@ -1821,3 +1821,91 @@ fn token_soup_never_sticks_and_stays_lossless() {
         );
     }
 }
+
+// Recovery cases from the PR #12 review.
+
+/// The kinds of the root's child nodes.
+fn top_kinds(text: &str) -> Vec<K> {
+    parse(Language::KerML, text)
+        .syntax()
+        .children()
+        .map(|n| n.kind())
+        .collect()
+}
+
+#[test]
+fn a_body_with_only_a_visibility_keeps_its_closing_brace() {
+    // The `}` closes P's body; Q is a member of the root, not of P.
+    assert_eq!(
+        top_kinds("package P { public } package Q { }"),
+        [K::Package, K::Package]
+    );
+    assert_eq!(
+        codes("package P { public } package Q { }"),
+        ["syntax::expected-member"]
+    );
+    assert_eq!(
+        top_kinds("classifier C { private } classifier D;"),
+        [K::Classifier, K::Classifier]
+    );
+}
+
+#[test]
+fn a_missing_closing_bracket_stops_at_the_semicolon() {
+    // While typing `feature a[1`: the next features still parse.
+    let text = "feature a[1; feature b : T; feature c : U;";
+    assert_eq!(top_kinds(text), [K::Feature, K::Feature, K::Feature]);
+    assert_eq!(codes(text), ["syntax::expected-token"]);
+}
+
+#[test]
+fn recovery_stops_at_every_member_keyword() {
+    // A missing `;` before a member starting with any keyword that starts a member: the member
+    // still parses, so the missing `;` is the only diagnostic.
+    for (member, kind) in [
+        ("subtype A :> B;", K::Specialization),
+        ("subclassifier B specializes C;", K::Subclassification),
+        ("typing x : T;", K::FeatureTyping),
+        ("subset a :> b;", K::Subsetting),
+        ("redefinition a :>> b;", K::Redefinition),
+        ("conjugate a ~ b;", K::Conjugation),
+        ("disjoint a from b;", K::Disjoining),
+        ("inverse a of b;", K::FeatureInverting),
+        ("featuring f by T;", K::TypeFeaturing),
+        ("locale \"en\" /* c */", K::Comment),
+        ("language \"ocl\" /* c */", K::TextualRepresentation),
+        ("multiplicity m [1];", K::MultiplicityRange),
+    ] {
+        let text = format!("type T :> A ) {member}");
+        assert_eq!(top_kinds(&text), [K::Type, kind], "{text}");
+        assert_eq!(codes(&text), ["syntax::expected-body"], "{text}");
+    }
+}
+
+#[test]
+fn feature_values_with_body_expressions() {
+    // A `{` after an operator or a keyword such as `?` or `else` is a body expression (KerML
+    // 8.2.5.8), part of the value; only a `{` after a complete operand starts the feature's body.
+    let text =
+        "classifier C { feature x = if a ? {1} else {2}; feature y = 1 + {} { doc /* d */ } }";
+    assert_eq!(
+        codes(text),
+        ["syntax::not-yet-supported", "syntax::not-yet-supported"]
+    );
+    let p = parse(Language::KerML, text);
+    let body = p.syntax().first_child().unwrap().last_child().unwrap();
+    let features: Vec<_> = body.children().filter(|n| n.kind() == K::Feature).collect();
+    assert_eq!(features.len(), 2);
+    assert!(features[1]
+        .children()
+        .any(|n| n.kind() == K::Body && n.text().to_string().contains("doc")));
+}
+
+#[test]
+fn different_errors_at_the_same_token_are_both_reported() {
+    // `type T` has neither a specialization nor a body: two problems at the same `}`.
+    assert_eq!(
+        codes("classifier C { type T }"),
+        ["syntax::expected-body", "syntax::expected-specialization"]
+    );
+}

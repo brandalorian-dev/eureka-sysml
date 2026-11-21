@@ -61,10 +61,73 @@ fn deciding_token(p: &Parser) -> (K, bool) {
     }
 }
 
+/// The production a member is, from the token that decides it ([`deciding_token`]).
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+enum Production {
+    Namespace,
+    Package,
+    Dependency,
+    Comment,
+    Documentation,
+    TextualRepresentation,
+    Alias,
+    Import,
+    Type,
+    Classifier,
+    Specialization,
+    Conjugation,
+    Disjoining,
+    FeatureInverting,
+    TypeFeaturing,
+    Multiplicity,
+    /// A feature that starts with `feature` or a prefix.
+    Feature,
+    /// A feature that starts with its declaration: a name, `:`, `[`, `ordered` …
+    FeatureDeclaration,
+    /// A Kernel construct that step 1a.3 does not parse yet.
+    NotYet,
+}
+
+/// The production that `deciding` starts, if any. Both [`member`] and [`at_member_start`] use it,
+/// so that recovery stops at every member the parser can parse.
+fn production(deciding: K, prefixed: bool) -> Option<Production> {
+    use Production as P;
+    Some(match deciding {
+        K::NamespaceKw => P::Namespace,
+        K::PackageKw | K::StandardKw | K::LibraryKw => P::Package,
+        K::DependencyKw => P::Dependency,
+        K::CommentKw | K::LocaleKw | K::RegularComment => P::Comment,
+        K::DocKw => P::Documentation,
+        K::RepKw | K::LanguageKw => P::TextualRepresentation,
+        K::AliasKw => P::Alias,
+        K::ImportKw => P::Import,
+        K::TypeKw => P::Type,
+        K::ClassifierKw => P::Classifier,
+        K::SpecializationKw
+        | K::SubtypeKw
+        | K::SubclassifierKw
+        | K::TypingKw
+        | K::SubsetKw
+        | K::RedefinitionKw => P::Specialization,
+        K::ConjugationKw | K::ConjugateKw => P::Conjugation,
+        K::DisjoiningKw | K::DisjointKw => P::Disjoining,
+        K::InvertingKw | K::InverseKw => P::FeatureInverting,
+        K::FeaturingKw => P::TypeFeaturing,
+        K::MultiplicityKw => P::Multiplicity,
+        K::FeatureKw => P::Feature,
+        k if core::at_feature_declaration(k) => P::FeatureDeclaration,
+        // `#M;` or `in;`: prefixes with no keyword are a feature (8.2.4.3.1).
+        K::Semicolon | K::LBrace | K::Eq | K::ColonEq | K::DefaultKw if prefixed => P::Feature,
+        k if kernel::is_not_yet(k) => P::NotYet,
+        _ => return None,
+    })
+}
+
 /// A member of a body: NamespaceBodyElement (KerML 8.2.3.4.1), TypeBodyElement (8.2.4.1.1),
-/// a PackageBody element (8.2.5.13) or RelationshipOwnedElement (8.2.3.1). Always consumes a
-/// token.
+/// a PackageBody element (8.2.5.13) or RelationshipOwnedElement (8.2.3.1). Consumes a token
+/// unless it is at the `}` that closes the body.
 fn member(p: &mut Parser, context: Context) {
+    use Production as P;
     let m = p.start();
     // MemberPrefix (8.2.3.4.1).
     let visible = p.at_any(VISIBILITY);
@@ -79,14 +142,14 @@ fn member(p: &mut Parser, context: Context) {
         p.bump();
     }
     let (deciding, prefixed) = deciding_token(p);
-    match deciding {
-        K::NamespaceKw => namespace(p, m),
-        K::PackageKw | K::StandardKw | K::LibraryKw => kernel::package(p, m),
-        K::DependencyKw => dependency(p, m),
-        K::CommentKw | K::LocaleKw | K::RegularComment => comment(p, m),
-        K::DocKw => documentation(p, m),
-        K::RepKw | K::LanguageKw => textual_representation(p, m),
-        K::AliasKw | K::ImportKw if context == Context::Relationship => {
+    match production(deciding, prefixed) {
+        Some(P::Namespace) => namespace(p, m),
+        Some(P::Package) => kernel::package(p, m),
+        Some(P::Dependency) => dependency(p, m),
+        Some(P::Comment) => comment(p, m),
+        Some(P::Documentation) => documentation(p, m),
+        Some(P::TextualRepresentation) => textual_representation(p, m),
+        Some(P::Alias | P::Import) if context == Context::Relationship => {
             p.error(
                 "syntax::misplaced-member",
                 format!(
@@ -101,29 +164,19 @@ fn member(p: &mut Parser, context: Context) {
             );
             recover(p, m);
         }
-        K::AliasKw => alias_member(p, m),
-        K::ImportKw => import(p, m, visible),
-        K::TypeKw => core::type_(p, m),
-        K::ClassifierKw => core::classifier(p, m),
-        K::SpecializationKw
-        | K::SubtypeKw
-        | K::SubclassifierKw
-        | K::TypingKw
-        | K::SubsetKw
-        | K::RedefinitionKw => core::specialization(p, m),
-        K::ConjugationKw | K::ConjugateKw => core::conjugation(p, m),
-        K::DisjoiningKw | K::DisjointKw => core::disjoining(p, m),
-        K::InvertingKw | K::InverseKw => core::feature_inverting(p, m),
-        K::FeaturingKw => core::type_featuring(p, m),
-        K::MultiplicityKw => kernel::multiplicity(p, m),
-        K::FeatureKw => core::feature(p, m, context),
-        k if core::at_feature_declaration(k) => core::feature(p, m, context),
-        // `#M;` or `in;`: prefixes with no keyword are a feature (8.2.4.3.1).
-        K::Semicolon | K::LBrace | K::Eq | K::ColonEq | K::DefaultKw if prefixed => {
-            core::feature(p, m, context)
-        }
-        k if kernel::is_not_yet(k) => kernel::not_yet(p, m, k),
-        _ => {
+        Some(P::Alias) => alias_member(p, m),
+        Some(P::Import) => import(p, m, visible),
+        Some(P::Type) => core::type_(p, m),
+        Some(P::Classifier) => core::classifier(p, m),
+        Some(P::Specialization) => core::specialization(p, m),
+        Some(P::Conjugation) => core::conjugation(p, m),
+        Some(P::Disjoining) => core::disjoining(p, m),
+        Some(P::FeatureInverting) => core::feature_inverting(p, m),
+        Some(P::TypeFeaturing) => core::type_featuring(p, m),
+        Some(P::Multiplicity) => kernel::multiplicity(p, m),
+        Some(P::Feature | P::FeatureDeclaration) => core::feature(p, m, context),
+        Some(P::NotYet) => kernel::not_yet(p, m, deciding),
+        None => {
             p.error(
                 "syntax::expected-member",
                 "expected a namespace member",
@@ -134,46 +187,28 @@ fn member(p: &mut Parser, context: Context) {
     }
 }
 
-/// Whether a member can start at the current token: where recovery stops.
+/// Whether a member can start at the current token: where recovery stops. A member that starts
+/// with its feature declaration (a name, `:`, `[` …) is not a stop, since those tokens are as
+/// likely to be the rest of a broken member.
 pub(super) fn at_member_start(p: &Parser) -> bool {
     let k = p.current();
     VISIBILITY.contains(&k)
         || PREFIX.contains(&k)
-        || matches!(
-            k,
-            K::Hash
-                | K::RegularComment
-                | K::NamespaceKw
-                | K::PackageKw
-                | K::StandardKw
-                | K::LibraryKw
-                | K::DependencyKw
-                | K::CommentKw
-                | K::DocKw
-                | K::RepKw
-                | K::AliasKw
-                | K::ImportKw
-                | K::TypeKw
-                | K::ClassifierKw
-                | K::FeatureKw
-                | K::SpecializationKw
-                | K::ConjugationKw
-                | K::DisjoiningKw
-                | K::InvertingKw
-                | K::FeaturingKw
-                | K::MultiplicityKw
+        || k == K::Hash
+        || !matches!(
+            production(k, false),
+            None | Some(Production::FeatureDeclaration)
         )
-        || kernel::is_not_yet(k)
 }
 
 /// After an error at a member: put the member's tokens in an `Error` node, up to the start of the
-/// next member, a `}` that closes the body, or a `;` (included). Braces are skipped in pairs.
-/// Always consumes a token.
+/// next member, a `;` (included), or the `}` that closes the body (never included, also when it
+/// is the first token: the body owns it). Braces are skipped in pairs.
 pub(super) fn recover(p: &mut Parser, m: Marker) {
     let mut depth = 0u32;
     let mut first = true;
     while !p.at_eof() {
-        if depth == 0 && !first && (p.at(K::RBrace) || at_member_start(p)) {
+        if depth == 0 && (p.at(K::RBrace) || (!first && at_member_start(p))) {
             break;
         }
         first = false;

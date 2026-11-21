@@ -235,7 +235,7 @@ pub(crate) fn build(
     };
     let mut depth = 0usize;
     let mut parents = Vec::new();
-    let mut last_error: Option<TextRange> = None;
+    let mut last_error: Option<(TextRange, &'static str)> = None;
     for i in 0..events.len() {
         match std::mem::replace(&mut events[i], Event::Tombstone) {
             Event::Start {
@@ -301,14 +301,18 @@ pub(crate) fn build(
                 message,
                 clause,
             } => {
-                // One syntax error per position: the first is the cause, a second one at the same
-                // token (from the enclosing production's recovery) only repeats it.
+                // At a token that already has an error, the same error again, or the enclosing
+                // body's "expected a member" (its recovery of the same tokens), only repeats it.
+                // A different error is a different problem and is reported too.
                 let range = b.next_significant_range();
-                if last_error != Some(range) {
+                let repeat = last_error.is_some_and(|(r, c)| {
+                    r == range && (c == code || code == "syntax::expected-member")
+                });
+                if !repeat {
                     let mut d = Diagnostic::error(code, range, message);
                     d.clause = clause;
                     diagnostics.push(d);
-                    last_error = Some(range);
+                    last_error = Some((range, code));
                 }
             }
             Event::Tombstone => {}

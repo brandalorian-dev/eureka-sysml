@@ -152,15 +152,20 @@ fn bound(p: &mut Parser) {
         }
     };
     m.complete(p, kind);
-    if !p.at(K::DotDot) && !p.at(K::RBracket) && !p.at_eof() {
-        // A longer expression (8.2.5.8), up to the `..` or `]`.
+    // A `;` or `{` right after the bound: the `]` is missing, which `multiplicity_bounds` reports.
+    let missing_bracket = p.at(K::Semicolon) || p.at(K::LBrace);
+    if !p.at(K::DotDot) && !p.at(K::RBracket) && !p.at_eof() && !missing_bracket {
+        // A longer expression (8.2.5.8), up to the `..` or `]`. A `;` or `{` ends it too: the `]`
+        // is missing (as while typing), and they belong to the feature.
         let e = p.start();
         p.error(
             "syntax::not-yet-supported",
             "expressions are not parsed yet, other than literals and feature references",
             Some("KerML 8.2.5.8"),
         );
-        skip_balanced(p, |p| p.at(K::DotDot) || p.at(K::RBracket));
+        skip_balanced(p, |p| {
+            p.at(K::DotDot) || p.at(K::RBracket) || p.at(K::Semicolon) || p.at(K::LBrace)
+        });
         e.complete(p, K::Error);
     }
 }
@@ -177,25 +182,38 @@ pub(super) fn value_part(p: &mut Parser) {
         "feature values are not parsed yet",
         Some("KerML 8.2.5.10"),
     );
-    // The body is the first `{` at the top level that does not start an expression: an
-    // expression body comes right after an operator, a `(`, a `,` or `-> name`.
+    // The body is the first `{` at the top level that follows a complete operand: a name, a
+    // literal or a closing bracket. After anything else (an operator, `?`, `else`, `(`, `,` …) a
+    // `{` is a body expression (8.2.5.8), and so is one after `-> name`.
     let mut before = [K::Eof; 2];
     loop {
         let k = p.current();
-        let starts_expression = matches!(
+        let after_operand = matches!(
             before[1],
-            K::Eq | K::ColonEq | K::DefaultKw | K::LParen | K::Comma | K::Arrow
-        ) || before[0] == K::Arrow;
-        if p.at_eof()
-            || k == K::Semicolon
-            || k == K::RBrace
-            || (k == K::LBrace && !starts_expression)
-        {
+            K::BasicName
+                | K::UnrestrictedName
+                | K::DecimalValue
+                | K::ExponentialValue
+                | K::StringValue
+                | K::TrueKw
+                | K::FalseKw
+                | K::NullKw
+                | K::RParen
+                | K::RBracket
+                | K::RBrace
+        ) && before[0] != K::Arrow;
+        if p.at_eof() || k == K::Semicolon || k == K::RBrace || (k == K::LBrace && after_operand) {
             break;
         }
-        if matches!(k, K::LParen | K::LBracket | K::LBrace) {
+        if let Some(close) = match k {
+            K::LParen => Some(K::RParen),
+            K::LBracket => Some(K::RBracket),
+            K::LBrace => Some(K::RBrace),
+            _ => None,
+        } {
+            // A whole group is one operand: what comes after it follows its closing bracket.
             skip_group(p);
-            before = [before[1], k];
+            before = [before[1], close];
         } else {
             p.bump();
             before = [before[1], k];
