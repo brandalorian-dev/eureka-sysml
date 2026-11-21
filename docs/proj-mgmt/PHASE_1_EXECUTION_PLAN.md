@@ -1,6 +1,6 @@
 # Eureka SysML: Phase 1 execution plan
 
-Status: Draft v1.9 · 2026-11-20 · Covers PROJECT_PLAN v0.7 §6, Phases 1a and 1b (Release 0.1 "Language")
+Status: Draft v1.10 · 2026-11-20 · Covers PROJECT_PLAN v0.7 §6, Phases 1a and 1b (Release 0.1 "Language")
 
 This plan breaks Phase 1 into ordered steps, each small enough for one or a few pull requests. PROJECT_PLAN.md remains the source of truth for scope, architecture and budgets. Where this plan finds something the project plan does not settle, it is listed under [decisions](#24-decisions-and-their-recommended-defaults), and settled by the [decision methodology](#25-decision-methodology): each recommended default is evaluated during the step that first depends on it.
 
@@ -15,6 +15,7 @@ Change history:
 - v1.7: step 1a.4 done: the whole KerML grammar, including the expressions. All 36 KerML library files parse with zero diagnostics, and a mutation fuzzer ran 5 minutes without a failure. ADR 0015 records four readings of the Kernel grammar.
 - v1.8: step 1a.5 done: 923 spec snippets extracted from the PDFs by font (ADR 0016); the 191 valid KerML ones parse with zero diagnostics.
 - v1.9: D3 adopted (ADR 0017), from the step 1a.6 element graph spike.
+- v1.10: step 1a.6 done: the element graph and the lowering. All 36 KerML library files lower to the abstract syntax the pilot implementation built, element by element (ADR 0018).
 
 ## 1. Executive summary
 
@@ -246,6 +247,12 @@ Each step below gives its goal, the spec clauses, what it delivers, the tests to
 - **Effort:** 0.25–0.5
 
 #### 1a.6 Arena element graph and the mapping to the abstract syntax
+- **Status:** done 2026-11-21.
+  - **The graph:** `sysml-model` has the element graph of ADR 0017. Its build reads `KerML.xmi` for the 76 stored attributes and the core slot each is a view of. That follows the redefinitions, including the derived ones that hide an inherited end.
+  - **The lowering:** the new `sysml-semantics` crate lowers syntax trees into per-file fragments, with a span on every element. ADR 0018 records the readings.
+  - **The oracle:** all 36 KerML library files lower to the abstract syntax the OMG pilot built from them (its XMI, ADR 0009), element by element: 24,931 elements in all. Three documented differences remain. Name resolution (1a.7) will add the values of the ends to the comparison.
+  - **Tests:** 20 production tests, the element counts by metaclass, walking by ownership and by relationship, spans, and the 191 valid KerML snippets.
+  - **Speed:** lowering the library takes about 3.8 ms (`lower_kerml_library`).
 - **Goal:** turn syntax trees into model elements and relationships.
 - **Evaluates:** D3 (arena and ID design). *Adopted (ADR 0017; evidence in `docs/proj-mgmt/evidence/1a.6-element-graph-spike.md`).*
 - **Clauses:** KerML 8.3.2–8.3.4 (the abstract syntax), and the mapping notes on each production in 8.2.3–8.2.5.

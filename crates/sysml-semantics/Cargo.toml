@@ -1,0 +1,26 @@
+# SPDX-License-Identifier: Apache-2.0
+[package]
+name = "sysml-semantics"
+description = "Lowering, name resolution and the semantics of KerML and SysML models (PROJECT_PLAN §4.2)"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+authors.workspace = true
+
+[lints]
+workspace = true
+
+[dependencies]
+sysml-model.workspace = true
+sysml-syntax.workspace = true
+uuid.workspace = true
+
+[dev-dependencies]
+sysml-corpus.workspace = true
+expect-test.workspace = true
+
+[target.'cfg(target_arch = "wasm32")'.dev-dependencies]
+# Runs the tests as WebAssembly under Node (step 1a.1).
+wasm-bindgen-test.workspace = true

@@ -13,6 +13,9 @@ build = "build.rs"
 [lints]
 workspace = true
 
+[dependencies]
+uuid.workspace = true
+
 [build-dependencies]
 serde_json.workspace = true
 

@@ -37,6 +37,15 @@ pub fn is_corpus_file(path: &str) -> bool {
     is_library_archive(path) || Language::of_path(path).is_some()
 }
 
+/// The folder of the XMI serialization of the KerML libraries (the oracle of ADR 0009 and of the
+/// lowering tests, step 1a.6).
+pub const KERML_LIBRARY_XMI: &str = "SysML-v2-Release/2025-02/sysml.library.xmi/Kernel Libraries/";
+
+/// Whether a path is the XMI serialization of a KerML library file (`.kermlx`).
+pub fn is_kerml_library_xmi(path: &str) -> bool {
+    path.starts_with(KERML_LIBRARY_XMI) && path.ends_with(".kermlx")
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

@@ -77,13 +77,13 @@ cargo deny check                                     # licenses, advisories, sou
 
 A Rust core in `crates/` compiles natively (for the server) and to WASM (for the browser):
 - `sysml-syntax`: lossless, error-tolerant lexer and parser (ADR 0011; a leading byte-order mark is trivia, ADR 0013) and the `Diagnostic` type (ADR 0012). Since step 1a.4: the whole KerML grammar (8.2.3–8.2.5), with expressions as a Pratt parser over Table 6 (ADRs 0014, 0015). Grammar tests use inline `expect-test` snapshots: `UPDATE_EXPECT=1 cargo test -p sysml-syntax`, then review the diff. Long fuzz run: `cargo test -p sysml-syntax --test fuzz -- --ignored` (`FUZZ_SECONDS`, `FUZZ_SEED`)
-- `sysml-model`: generated metaclasses plus an arena element graph
+- `sysml-model`: generated metaclasses, and the arena element graph (ADR 0017): dense `ElementIx`, a UUID map, the stored core, and typed views of the 76 stored KerML attributes generated from `KerML.xmi`
 - `sysml-api-types`: API records (Project, Commit, DataVersion, Query, …) generated from the API `Schema.json`; spec corrections in ADR 0005
 - `sysml-synth` (test infrastructure): deterministic synthetic SysML models at any size (`Config::with_target_elements`), for benchmarks and scale tests
 - `sysml-wasm`: the `wasm-bindgen` interface the browser worker calls; a skeleton since step 1a.1 (ADR 0010)
 - `sysml-bench` (test infrastructure): the PROJECT_PLAN §7 budgets as data (`BUDGETS`, kept equal to the plan by a test) and the `divan` benchmarks; ADR 0007
 - `sysml-corpus` (test infrastructure): the standard libraries and example models from `docs/specs/`. Corpus tests use `sysml_corpus::Corpus::load()` and iterate `sources()`; library archive errata in ADR 0006. The spec snippets come from `sysml_corpus::snippets()`, with their expectations in `crates/sysml-corpus/snippets.json` (ADR 0016)
-- `sysml-semantics`: salsa-based incremental resolution and implied relationships
+- `sysml-semantics`: since step 1a.6, the lowering from syntax trees to the graph (`lower`, ADR 0018), tested element by element against the pilot's library XMI (`tests/oracle.rs`); salsa-based incremental resolution and implied relationships follow
 - `sysml-versioning`: API PIM commit, diff and merge rules
 - `sysml-store`: PostgreSQL
 - `sysml-server`: axum, the REST PSM, and `/x/…` extensions

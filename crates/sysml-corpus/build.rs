@@ -46,7 +46,10 @@ fn main() {
             .expect("specs.lock.json has no files")
         {
             let path = entry["path"].as_str().unwrap_or_default();
-            if !(files::is_corpus_file(path) || EXTRA.contains(&path)) {
+            if !(files::is_corpus_file(path)
+                || EXTRA.contains(&path)
+                || files::is_kerml_library_xmi(path))
+            {
                 continue;
             }
             let full = specs.join(path).canonicalize().unwrap_or_else(|e| {

@@ -611,8 +611,11 @@ dependencies = [
  "serde_json",
  "sysml-api-types",
  "sysml-corpus",
+ "sysml-model",
+ "sysml-semantics",
  "sysml-syntax",
  "sysml-synth",
+ "uuid",
  "wasm-bindgen-test",
 ]
 
@@ -633,6 +636,19 @@ name = "sysml-model"
 version = "0.0.1"
 dependencies = [
  "serde_json",
+ "uuid",
+ "wasm-bindgen-test",
+]
+
+[[package]]
+name = "sysml-semantics"
+version = "0.0.1"
+dependencies = [
+ "expect-test",
+ "sysml-corpus",
+ "sysml-model",
+ "sysml-syntax",
+ "uuid",
  "wasm-bindgen-test",
 ]
 

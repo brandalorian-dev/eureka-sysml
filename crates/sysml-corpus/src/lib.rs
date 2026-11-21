@@ -25,7 +25,14 @@ use std::path::PathBuf;
 
 mod files;
 use files::is_library_archive;
-pub use files::{is_corpus_file, Language};
+pub use files::{is_corpus_file, is_kerml_library_xmi, Language, KERML_LIBRARY_XMI};
+
+/// The path of the XMI serialization of a KerML library source, by its id
+/// (`Kernel Semantic Library/Base.kerml` gives `…/Kernel Libraries/Kernel Semantic Library/Base.kermlx`):
+/// the abstract syntax the OMG pilot implementation built from it, used as a test oracle.
+pub fn kerml_library_xmi(source_id: &str) -> String {
+    format!("{KERML_LIBRARY_XMI}{source_id}x")
+}
 
 /// The local spec folder: `EUREKA_SPECS_DIR` if set, otherwise `docs/specs/` in this repository.
 pub fn specs_dir() -> PathBuf {
