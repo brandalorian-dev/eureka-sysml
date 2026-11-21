@@ -1,6 +1,6 @@
 # Eureka SysML: Phase 1 execution plan
 
-Status: Draft v1.8 · 2026-11-20 · Covers PROJECT_PLAN v0.7 §6, Phases 1a and 1b (Release 0.1 "Language")
+Status: Draft v1.9 · 2026-11-20 · Covers PROJECT_PLAN v0.7 §6, Phases 1a and 1b (Release 0.1 "Language")
 
 This plan breaks Phase 1 into ordered steps, each small enough for one or a few pull requests. PROJECT_PLAN.md remains the source of truth for scope, architecture and budgets. Where this plan finds something the project plan does not settle, it is listed under [decisions](#24-decisions-and-their-recommended-defaults), and settled by the [decision methodology](#25-decision-methodology): each recommended default is evaluated during the step that first depends on it.
 
@@ -14,6 +14,7 @@ Change history:
 - v1.6: step 1a.3 done, with the owner-approved scope change: the Kernel parts the Root and Core layers need first (packages, multiplicities with literal and feature-reference bounds, prefix metadata) are pulled forward from 1a.4, and the library criterion is restated as measurable. ADR 0014 records two readings of the grammar.
 - v1.7: step 1a.4 done: the whole KerML grammar, including the expressions. All 36 KerML library files parse with zero diagnostics, and a mutation fuzzer ran 5 minutes without a failure. ADR 0015 records four readings of the Kernel grammar.
 - v1.8: step 1a.5 done: 923 spec snippets extracted from the PDFs by font (ADR 0016); the 191 valid KerML ones parse with zero diagnostics.
+- v1.9: D3 adopted (ADR 0017), from the step 1a.6 element graph spike.
 
 ## 1. Executive summary
 
@@ -110,7 +111,7 @@ Each recommended default is a starting hypothesis, not a decision. It is evaluat
 |---|---|---|---|
 | D1 | Parser architecture: hand-written recursive descent producing a `rowan` lossless tree, or a parser generator | 1a.2, **adopted** (ADR 0011) | Hand-written recursive descent with `rowan`, the rust-analyzer approach PROJECT_PLAN §4.2 names. It gives the best error recovery and full control over trivia. *1a.0 spike: `rowan` 0.17.0, the newest stable release, meets the constraints; 0.18 is still alpha.* *Adopted, with a hand-written lexer: `logos` was faster but silent on an unterminated comment; tree-sitter does not build for wasm32 without clang and needs Rust 1.90; `pest` reports only the first error and gives no tree.* |
 | D2 | `salsa` version and the boundaries of the incremental query graph (file → tree → elements → resolution → semantics) | 1a.7 | The current `salsa` release, provided the 1a.0 spike shows it builds for wasm32 and on Rust 1.89. *1a.0 spike: `salsa` 0.28.5 builds and works on wasm32 and on Rust 1.89, with the minimal features `macros` and `inventory`. It needs `Zlib` in `deny.toml` (for `foldhash`, which cannot be turned off). The owner approved adding `Zlib` on 2026-11-20, so the license policy no longer blocks D2.* |
-| D3 | Arena and ID design for the element graph: element ids as API `DataIdentity` ids (PROJECT_PLAN §4.3), and storage of implied versus owned relationships | 1a.6 | Interned dense indices in an arena, mapped to UUIDs. Implied relationships are kept apart from owned ones, so serialization can include or omit them (KerML 10.3 `includesImplied`). |
+| D3 | Arena and ID design for the element graph: element ids as API `DataIdentity` ids (PROJECT_PLAN §4.3), and storage of implied versus owned relationships | 1a.6, **adopted** (ADR 0017) | Interned dense indices in an arena, mapped to UUIDs. Implied relationships are kept apart from owned ones, so serialization can include or omit them (KerML 10.3 `includesImplied`). *Adopted: the graph stores the canonical core of the abstract syntax, since all 30 relationship-end attributes redefine `source` or `target`; the typed properties are views generated from `KerML.xmi`. Against a property bag keyed by UUID it is 3 times smaller and 35–65 times faster to walk.* |
 | D4 | Diagnostics model: codes, severity, spans, the constraint name and the spec clause | 1a.2, **adopted** (ADR 0012) | One diagnostic type across the parser, resolver and validator. Every semantic diagnostic names its constraint, for example `validateFeatureMultiplicityDomain`. *Adopted: works as a `salsa` query result; ranges are bytes, converted to UTF-16 columns at the Language Server Protocol boundary.* |
 | D5 | Snapshot format for the pre-resolved libraries | 1a.11 | A versioned binary format through a serde-compatible crate such as `postcard`, keyed by metamodel IRI, library version and crate version |
 | D6 | How CI gates timings (ADR 0007): a dedicated runner or instruction counts | 1a.11 | Instruction counts on GitHub-hosted runners (for example a Cachegrind-based harness), with wall-clock budgets measured but not gated until a dedicated runner exists |
@@ -246,7 +247,7 @@ Each step below gives its goal, the spec clauses, what it delivers, the tests to
 
 #### 1a.6 Arena element graph and the mapping to the abstract syntax
 - **Goal:** turn syntax trees into model elements and relationships.
-- **Evaluates:** D3 (arena and ID design).
+- **Evaluates:** D3 (arena and ID design). *Adopted (ADR 0017; evidence in `docs/proj-mgmt/evidence/1a.6-element-graph-spike.md`).*
 - **Clauses:** KerML 8.3.2–8.3.4 (the abstract syntax), and the mapping notes on each production in 8.2.3–8.2.5.
 - **Delivers:**
   - the element graph in `sysml-model` (D3), with typed access to the properties of all 82 KerML metaclasses through the generated descriptors
