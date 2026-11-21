@@ -71,9 +71,11 @@ The step's "done when" is therefore a test: all three layers complete.
 `derived/evaluate.rs` implements `evaluate`, `modelLevelEvaluable` and the operations that use them, by the rules of 8.4.4.9.8 and the OCL of 8.3.4.8. These readings are needed:
 
 - **Values.** KerML evaluates to Elements: LiteralExpressions, and Features that are not Expressions. A value that evaluation computes, such as the `7` of `1 + 2 * 3`, is not in the model, so an evaluation gives `Item`s: a literal as its value (Boolean, Integer, Rational, String, `*`), a model element, or an element's reflective metadata. "A LiteralExpression evaluates to itself" is read as evaluating to its value.
-- **Feature references** follow the text of 8.4.4.9.8 rule 3:
-  - The value is that of the target's feature that is or redefines the referent. Otherwise, for a referent without featuring types, it is that of the referent's own FeatureValue. Otherwise it is the referent itself, if the referent is not an Expression. The OCL instead gives the referent, not its value, when it has no featuring types; the text is followed.
-  - A reference to `Anything::self` gives the target.
+- **Feature references** follow 8.4.4.9.8 rule 3, and the OCL where the text is silent:
+  - If the target has a feature that is or redefines the referent, the value is that feature's value, or the referent if it has no value.
+  - Otherwise, a referent with featuring types has no value: the OCL's `else Sequence{}`. The text would give the referent itself, which would make a filter's `Approved::level` a value on every element's metadata.
+  - Otherwise, for a referent without featuring types, the value is that of its own FeatureValue, or the referent itself if it is not an Expression. The OCL gives the referent, not its value, here; the text is followed.
+  - A reference to `Anything::self`, or to a feature that specializes it (`conformsTo`), gives the target. The same test decides that it is evaluable.
   - On reflective metadata, a reference to a feature of the KerML library model gives the MOF property of that name.
   - A value that refers to itself evaluates to nothing.
 - **The evaluable functions** are those that Tables 5 and 7 (8.2.5.8.1, 8.2.5.8.2) mark as model-level evaluable, by qualified name. That is what `Function::isModelLevelEvaluable` (8.3.4.7.4) means for the library, and every other function has false.
@@ -82,12 +84,21 @@ The step's "done when" is therefore a test: all three layers complete.
 - **Classification and casts.** An omitted first operand of `istype`, `hastype`, `@` or `as` is `Anything::self`, the target (7.4.9.2). `@@` and `meta` act on the metadata of their operand.
   - An element value is classified by its types, and reflective metadata by its metaclass in the KerML library (`KerML::<metaclass>`, 9.2.17).
   - A literal value is classified by its ScalarValues type: Boolean, String, Rational, and Positive, Natural or Integer for an integer by its sign. `*` is read as a Positive.
-- **Data functions.** Integers and rationals compare as numbers, so `1 == 1.0`. `/` gives a Rational. `%` is the Euclidean remainder. `^` of integers with a non-negative exponent is an Integer. `+` concatenates strings. `..` gives the integers from its first operand to its second. `#` indexes from 1. An operation that overflows, or divides by zero, has no value.
+- **Data functions.** Integers and rationals compare as numbers, so `1 == 1.0`.
+  - `/` gives a Rational, and `%` is the Euclidean remainder.
+  - `^` of integers with a non-negative exponent is an Integer (IntegerFunctions). With a negative one it is a Rational (RationalFunctions), so `2 ^ -1` is `0.5`.
+  - `+` concatenates strings.
+  - `..` gives the integers from its first operand to its second, at most `MAX_RANGE` (100,000) of them. A longer range has no value, so that an evaluation, which resolution performs for filters, stays bounded.
+  - `#` indexes from 1. An index beyond the platform's `usize` has no value, natively and on WASM alike.
+  - An operation that overflows, or divides by zero, has no value; none panics.
+  - `null` (no value) follows `BaseFunctions::'=='`: two values are equal if both are null or both are equal. So `null != 0` holds.
 - **Metadata.** An element's metadata is the MetadataFeatures among its owned elements that annotate it, then its reflective metadata (8.4.4.9.8 rule 4).
   - The reflective metadata's MOF properties are the element's stored attributes (written values, or the metamodel's default for a flag). Its derived properties `name`, `shortName`, `qualifiedName`, `owner`, `owningNamespace`, `ownedElement`, `ownedMember`, `feature`, `ownedFeature` and `type` are included too.
   - An element-valued property gives the elements' reflective metadata, so that a chain such as `(x meta KerML::Feature).owner.name` goes on.
+  - An enumeration-valued property gives the literal of the library model's enumeration, such as `KerML::FeatureDirectionKind::'in'`, so that it compares with it.
+  - An element's metadata lists each metadata feature once.
   - `metaclassFeature()` and `syntaxElement()` have no OCL. The first is the reflective metadata of the referenced element; the second is the element that reflective metadata represents, and none for a written metadata feature.
-- **`includeAsMember`** tests the element's metadata, as defined above. The OCL takes `element.ownedAnnotation.annotatingElement`, which misses metadata written as a member (`@M;` in a body). It also leaves out the reflective metadata that 7.4.14 gives every element for filter conditions.
+- **`includeAsMember`** tests the element's metadata, as defined above. Because every element has reflective metadata, and `null != 0` holds, a condition such as `Approved::level != 0` holds on every element. A filter tests the metadata first, as in `@Approved and Approved::level != 0`. The OCL takes `element.ownedAnnotation.annotatingElement`, which misses metadata written as a member (`@M;` in a body). It also leaves out the reflective metadata that 7.4.14 gives every element for filter conditions.
 - **`valueOf`** evaluates a bound on the type that owns the multiplicity. The OCL's `owningType` of a MultiplicityRange is null, because a multiplicity is not owned through a FeatureMembership, and a bound such as `[n]` needs the type whose feature `n` is.
 - **Typos:** `checkCondition`'s `result->size()` is read as `results->size()`, and `evaluateFeature`'s `ownedMember->selectAsKind(FeatureValue)` as `ownedMembership`.
 - **Filters in resolution.** `Package::importedMemberships` filters a package's imports by its `filter` conditions, and a filtered import by its FilterPackage's conditions. Resolution follows it (ADR 0020 decision 7). A condition that names an element of the package it filters may depend on what it filters, which 7.4.14 warns of. Such a cycle settles like any other (ADR 0020 decision 6).
