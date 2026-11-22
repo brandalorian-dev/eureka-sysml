@@ -1082,6 +1082,10 @@ pub fn implied_redefinitions(
                 }
             }
         }
+        let written_redefinition = g
+            .owned_relationships(x)
+            .iter()
+            .any(|r| g.metaclass(*r) == M::Redefinition);
         if let Some(p) = owning_type(g, x) {
             // KerML 8.3.4.8.4 checkFeatureChainExpressionTargetRedefinition and
             // checkFeatureChainExpressionSourceTargetRedefinition: the sourceTargetFeature
@@ -1105,7 +1109,9 @@ pub fn implied_redefinitions(
             // KerML 8.3.4.8.3 checkConstructorExpressionResultFeatureRedefinition: a feature of
             // the result of `new T(…)` without a written redefinition redefines the public feature
             // of T at its position (8.4.4.1 Table 11 Note 6).
-            if is_result(g, p) && redefined.is_empty() {
+            // Any written redefinition counts, resolved or not: a named argument whose name does
+            // not resolve is an error, not a positional argument.
+            if is_result(g, p) && !written_redefinition {
                 if let Some(c) =
                     owning_type(g, p).filter(|c| g.metaclass(*c) == M::ConstructorExpression)
                 {

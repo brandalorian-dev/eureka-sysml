@@ -937,6 +937,17 @@ fn check_feature_parameter_redefinition() {
         .iter()
         .any(|s| s.starts_with("Redefinition")));
     assert!(holds(&m, c::check_feature_parameter_redefinition, named));
+    // a general that is no Behavior or Step has no parameters to redefine (Table 9; ADR 0020)
+    let m = model_with_library(
+        "feature f { in x; } behavior B { in y; } step s : B subsets f { in z; }",
+    );
+    assert!(has(&m, m.get("s::z"), "Redefinition B::y"));
+    assert!(!has(&m, m.get("s::z"), "Redefinition f::x"));
+    assert!(holds(
+        &m,
+        c::check_feature_parameter_redefinition,
+        m.get("s::z")
+    ));
 }
 
 #[test]
@@ -1013,6 +1024,19 @@ fn check_constructor_expression_result_feature_redefinition() {
         c::check_constructor_expression_result_feature_redefinition,
         y
     ));
+    // a named argument whose name does not resolve is not taken as positional: it violates
+    let m = model_with_library("class T { feature a; } feature g = new T(c = 3);");
+    let (db, p) = (&m.db, m.project);
+    let y = m.get("g::ConstructorExpression#1");
+    let named = d::owned_feature(db, p, d::result(db, p, y).unwrap())[0];
+    assert!(!implied(&m, named)
+        .iter()
+        .any(|s| s.starts_with("Redefinition")));
+    assert!(!holds(
+        &m,
+        c::check_constructor_expression_result_feature_redefinition,
+        y
+    ));
 }
 
 const CHAIN: &str = "classifier C { feature d; } feature c : C; feature e = c.d;";
@@ -1029,6 +1053,13 @@ fn check_feature_chain_expression_source_target_redefinition() {
         &m,
         c::check_feature_chain_expression_source_target_redefinition,
         x
+    ));
+    // without a target feature, nothing is redefined: it violates
+    let m = model_with_library("classifier C; feature c : C; feature e = c.zzz;");
+    assert!(!holds(
+        &m,
+        c::check_feature_chain_expression_source_target_redefinition,
+        m.get("e::FeatureChainExpression#1")
     ));
 }
 

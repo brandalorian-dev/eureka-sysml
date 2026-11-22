@@ -713,7 +713,8 @@ pub fn check_feature_end_redefinition(
 
 /// KerML 8.3.3.3.4 checkFeatureParameterRedefinition: the i-th parameter of a Behavior or Step,
 /// other than its result, redefines the i-th parameter of each general of its owning type's owned
-/// specializations; for an InvocationExpression, unless it has a written redefinition.
+/// specializations that is a Behavior or a Step (KerML 8.4.3.1 Table 9; ADR 0020); for an
+/// InvocationExpression, unless it has a written redefinition.
 pub fn check_feature_parameter_redefinition(
     db: &dyn salsa::Database,
     project: Project,
@@ -740,11 +741,16 @@ pub fn check_feature_parameter_redefinition(
     else {
         return true;
     };
-    owned_generals(db, project, t).into_iter().all(|s| {
-        owned_parameters(db, project, s)
-            .get(i)
-            .is_none_or(|p| d::redefines(db, project, x, *p))
-    })
+    // The generals that are Behaviors or Steps, whose parameters Table 9 names (ADR 0020).
+    let behavior = |s: &Global| is(db, project, *s, M::Behavior) || is(db, project, *s, M::Step);
+    owned_generals(db, project, t)
+        .into_iter()
+        .filter(behavior)
+        .all(|s| {
+            owned_parameters(db, project, s)
+                .get(i)
+                .is_none_or(|p| d::redefines(db, project, x, *p))
+        })
 }
 
 /// KerML 8.3.3.3.4 checkFeatureResultRedefinition: the result of a Function or Expression
@@ -1211,7 +1217,8 @@ pub fn check_feature_chain_expression_source_target_redefinition(
     let Some(stf) = d::source_target_feature(db, project, x) else {
         return false;
     };
-    d::chain_target_feature(db, project, x).is_none_or(|t| d::redefines(db, project, stf, t))
+    // Without a target feature there is nothing to redefine, and the OCL's `redefines` is false.
+    d::chain_target_feature(db, project, x).is_some_and(|t| d::redefines(db, project, stf, t))
 }
 
 /// KerML 8.3.4.8.4 checkFeatureChainExpressionTargetRedefinition: the sourceTargetFeature

@@ -18,10 +18,10 @@ Change history:
 - v1.10: step 1a.6 done: the element graph and the lowering. All 36 KerML library files lower to the abstract syntax the pilot implementation built, element by element (ADR 0018).
 - v1.11: D2 adopted (ADR 0019), from the step 1a.7 incremental query spike.
 - v1.12: step 1a.7 done, with the owner-approved scope change: the implied specializations and redefinitions that name resolution needs are pulled forward from 1a.9. All 4003 names of the KerML libraries resolve to the element the pilot implementation resolved them to. ADR 0020 records the readings.
-- v1.14: D10 adopted (ADR 0022), from the step 1a.9 materialization spike, which also found and fixed a scaling bug in resolution (ADR 0020 decision 5a).
-- v1.16: step 1a.9: all 59 specialization and 8 redefinition constraints done, and the KerML libraries satisfy them.
-- v1.15: step 1a.9 in progress: the overlay and the view of ADR 0022, and 58 of the 59 specialization constraints, which the KerML libraries satisfy. ADRs 0020 and 0022 record the readings and the implied elements.
 - v1.13: step 1a.8 done, in four PRs: one per layer, and model-level evaluation in a fourth, as the owner chose. All 90 derive rules and 84 operations are implemented and tested, except `memberElementId`, which no constraint needs. ADR 0021 records the readings.
+- v1.14: D10 adopted (ADR 0022), from the step 1a.9 materialization spike, which also found and fixed a scaling bug in resolution (ADR 0020 decision 5a).
+- v1.15: step 1a.9 in progress: the overlay and the view of ADR 0022, and 58 of the 59 specialization constraints, which the KerML libraries satisfy. ADRs 0020 and 0022 record the readings and the implied elements.
+- v1.16: step 1a.9: all 59 specialization and 8 redefinition constraints done, and the KerML libraries satisfy them.
 
 ## 1. Executive summary
 
