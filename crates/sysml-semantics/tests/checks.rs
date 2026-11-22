@@ -865,7 +865,9 @@ fn check_metadata_feature_specialization() {
 }
 
 const SEMANTIC: &str = "classifier Kind; feature kinds : Kind[*];
-    metaclass K specializes Metaobjects::SemanticMetadata { :>> baseType = kinds meta KerML::Feature; }
+    metaclass K specializes Metaobjects::SemanticMetadata {
+        :>> baseType = kinds meta KerML::Feature;
+    }
     #K classifier C; #K feature g;";
 
 #[test]
@@ -1353,7 +1355,8 @@ fn a_written_snapshots_featuring_satisfies_a_variable_feature() {
     // s redefines snapshots and is featured by K through its implied featuring: v needs no
     // constructed one
     let m = model_with_library(
-        "class K { feature s redefines Occurrences::Occurrence::snapshots; var feature v featured by s; }",
+        "class K { feature s redefines Occurrences::Occurrence::snapshots;
+            var feature v featured by s; }",
     );
     let (db, p) = (&m.db, m.project);
     assert_eq!(m.labels(d::featuring_type(db, p, m.get("K::v"))), ["K::s"]);
@@ -1464,7 +1467,7 @@ fn check_feature_value_binding_connector() {
     // the feature is bound to the chain of the value and its result, featured as the feature is;
     // for an initial value, by that.startShot; for a default, there is none
     let text = "classifier C { feature a; feature b = a; }
-        class K { var feature v := 1; } classifier D { feature e default = 1; }";
+        class K { feature a; var feature v := a; } classifier D { feature e default = 1; }";
     let m = model_with_library(text);
     let (db, p) = (&m.db, m.project);
     let b = m.get("C::b");
@@ -1481,6 +1484,11 @@ fn check_feature_value_binding_connector() {
     assert_eq!(bindings(&m, v).len(), 1);
     let fv = m.relationship("K::v", Metaclass::FeatureValue, 1);
     assert!(holds(&m, c::check_feature_value_binding_connector, fv));
+    // without the libraries there is no that.startShot to feature the initial value's binding,
+    // which the result of `a` still implies
+    let bare = model(text);
+    let fv = bare.relationship("K::v", Metaclass::FeatureValue, 1);
+    assert!(!holds(&bare, c::check_feature_value_binding_connector, fv));
     // default
     assert!(bindings(&m, m.get("D::e")).is_empty());
     let fv = m.relationship("D::e", Metaclass::FeatureValue, 1);

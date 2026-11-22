@@ -921,13 +921,15 @@ pub fn model_level_evaluable(
         .iter()
         .all(|r| g.flag(r.ix(), Attr::IsImplied));
     let result = super::kernel::result(db, project, x);
-    // The owned features as written: the binding connector that checkExpressionResultBindingConnector
-    // implies is an owned feature too, which the OCL, like its `ownedSpecialization->forAll(isImplied)`,
-    // does not count (ADR 0021).
+    // Not the binding connectors that the binding-connector constraints imply: they are owned
+    // features too, which the OCL, like its `ownedSpecialization->forAll(isImplied)`, does not
+    // count (ADR 0021). Any other implied owned feature is counted.
     written
         && owned_feature(db, project, x)
             .into_iter()
-            .filter(|f| !g.is_implied(f.ix()))
+            .filter(|f| {
+                !(g.is_implied(f.ix()) && g.metaclass(f.ix()).specializes(M::BindingConnector))
+            })
             .all(|f| {
                 let fg = view(db, project, f.file);
                 let input = matches!(
