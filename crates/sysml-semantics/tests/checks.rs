@@ -10,7 +10,7 @@
 mod common;
 
 use common::{model, model_with_library, Model};
-use sysml_model::Attr;
+use sysml_model::{Attr, Metaclass};
 use sysml_semantics::checks::{self as c, Check};
 use sysml_semantics::derived as d;
 use sysml_semantics::Global;
@@ -1248,6 +1248,136 @@ fn check_connector_type_featuring() {
             "{path}"
         );
     }
+}
+
+// ---- type featurings: the cases the review of PR #27 found ----
+
+#[test]
+fn a_copied_featuring_follows_a_connector_default() {
+    // the multiplicity of a connector featured by its defaultFeaturingType has the same
+    let m = model_with_library(
+        "classifier C { feature x; feature y; } connector k[1] from C::x to C::y;",
+    );
+    let (db, p) = (&m.db, m.project);
+    let mult = m.get("k::MultiplicityRange#1");
+    assert_eq!(m.labels(d::featuring_type(db, p, m.get("k"))), ["C"]);
+    assert_eq!(m.labels(d::featuring_type(db, p, mult)), ["C"]);
+    assert!(holds(&m, c::check_multiplicity_type_featuring, mult));
+}
+
+#[test]
+fn a_connector_featuring_another_feature_still_gets_its_default() {
+    // a featuring of another feature in the connector's body is no featuring of the connector:
+    // the textual notation owns it through a membership, and an owned TypeFeaturing counts only
+    // when its featureOfType is the connector (written_featurings)
+    let m = model_with_library(
+        "classifier C { feature x; feature y; }
+        connector k from C::x to C::y { featuring C::x by C; }",
+    );
+    assert_eq!(
+        m.labels(d::featuring_type(&m.db, m.project, m.get("k"))),
+        ["C"]
+    );
+    assert!(holds(&m, c::check_connector_type_featuring, m.get("k")));
+}
+
+#[test]
+fn the_other_ends_include_the_inherited_ones() {
+    // B's own end a2 redefines a, and B inherits b: b is the other end of a2
+    let m = model_with_library(
+        "classifier T; classifier U;
+        assoc A { end feature a : T; end feature b : U; }
+        assoc B specializes A { end [1] feature a2 redefines a; }",
+    );
+    let (db, p) = (&m.db, m.project);
+    let cross = d::owned_cross_feature(db, p, m.get("B::a2")).unwrap();
+    assert_eq!(m.labels(d::featuring_type(db, p, cross)), ["U"]);
+    assert!(holds(
+        &m,
+        c::check_feature_owned_cross_feature_type_featuring,
+        cross
+    ));
+}
+
+#[test]
+fn a_product_of_ends_with_several_types() {
+    // the product has every type of each other end, in order
+    let m = model_with_library(
+        "classifier T; classifier U; classifier W; classifier V;
+        assoc A { end [1] feature a : T; end feature b : U, W; end feature c : V; }",
+    );
+    let (db, p) = (&m.db, m.project);
+    let cross = d::owned_cross_feature(db, p, m.get("A::a")).unwrap();
+    let product = d::featuring_type(db, p, cross)[0];
+    assert_eq!(
+        m.labels(d::as_cartesian_product(db, p, product)),
+        ["U", "W", "V"]
+    );
+    assert!(holds(
+        &m,
+        c::check_feature_owned_cross_feature_type_featuring,
+        cross
+    ));
+}
+
+#[test]
+fn every_implied_relationship_has_its_ends() {
+    // without the libraries an end of a ternary association is untyped, so no product can be
+    // built, and no TypeFeaturing or FeatureTyping is left without a target
+    for text in [
+        IMPLIED,
+        "assoc A { end [1] feature a; end feature b; end feature c; }",
+    ] {
+        for m in [model(text), model_with_library(text)] {
+            let (db, p) = (&m.db, m.project);
+            let v = sysml_semantics::view(db, p, m.file);
+            for index in m.graph().graph.len() as u32..v.len() as u32 {
+                let x = Global {
+                    file: m.file,
+                    index,
+                };
+                let k = v.metaclass(x.ix());
+                if k.specializes(Metaclass::Specialization)
+                    || k == Metaclass::TypeFeaturing
+                    || k == Metaclass::FeatureChaining
+                {
+                    assert!(!d::target(db, p, x).is_empty(), "{k:?} {}", name(&m, x));
+                }
+            }
+        }
+    }
+}
+
+#[test]
+fn a_written_snapshots_featuring_satisfies_a_variable_feature() {
+    // s redefines snapshots and is featured by K through its implied featuring: v needs no
+    // constructed one
+    let m = model_with_library(
+        "class K { feature s redefines Occurrences::Occurrence::snapshots; var feature v featured by s; }",
+    );
+    let (db, p) = (&m.db, m.project);
+    assert_eq!(m.labels(d::featuring_type(db, p, m.get("K::v"))), ["K::s"]);
+    assert!(holds(
+        &m,
+        c::check_feature_feature_membership_type_featuring,
+        m.get("K::v")
+    ));
+}
+
+#[test]
+fn a_chain_that_gives_the_owning_type_needs_no_featuring() {
+    // x's chain starts with a, which C features, so x is featured by C already
+    let m = model_with_library("classifier C { feature a { feature b; } feature x chains a.b; }");
+    let x = m.get("C::x");
+    assert!(!implied(&m, x)
+        .iter()
+        .any(|s| s.starts_with("TypeFeaturing")));
+    assert_eq!(m.labels(d::featuring_type(&m.db, m.project, x)), ["C"]);
+    assert!(holds(
+        &m,
+        c::check_feature_feature_membership_type_featuring,
+        x
+    ));
 }
 
 // ---- KerML 8.4.2: the redundancy rules ----

@@ -38,6 +38,9 @@ pub struct Overlay {
     /// feature of a variable feature, or the Cartesian product of an owned cross feature (KerML
     /// 8.4.4.3, 8.4.4.5.1), as a file index.
     constructed: HashMap<u32, u32>,
+    /// The default featuring type of a connector of the fragment, by its index (KerML 8.4.4.1
+    /// Table 11 Note 2).
+    defaults: HashMap<u32, Global>,
 }
 
 impl PartialEq for Overlay {
@@ -47,6 +50,7 @@ impl PartialEq for Overlay {
             && self.owner == o.owner
             && self.ends == o.ends
             && self.constructed == o.constructed
+            && self.defaults == o.defaults
             && self.graph.same_structure(&o.graph)
     }
 }
@@ -94,6 +98,7 @@ pub fn overlay(db: &dyn salsa::Database, project: Project, file: SourceFile) -> 
             owner: HashMap::new(),
             ends: HashMap::new(),
             constructed: HashMap::new(),
+            defaults: HashMap::new(),
         },
         pending: Vec::new(),
     };
@@ -115,60 +120,50 @@ pub fn overlay(db: &dyn salsa::Database, project: Project, file: SourceFile) -> 
             b.end(r, Slot::Target, general);
         }
         for f in implied_featurings(db, project, file, x) {
+            if let Featuring::Default(y) = *f {
+                // The connector's own default featuring type, which it may not have.
+                if y == here {
+                    let Some(t) = crate::derived::default_featuring_type(db, project, here) else {
+                        continue;
+                    };
+                    b.o.defaults.insert(x, t);
+                } else if b.default_of(db, project, y).is_none() {
+                    continue;
+                }
+            }
             let r = b.relationship(Owner::Fragment(x), M::TypeFeaturing, here, None);
             match *f {
                 Featuring::Snapshots(y) if y == here => b.snapshots(db, project, x, r),
                 Featuring::Product(y) if y == here => b.product(db, project, x, r),
+                Featuring::Default(y) if y == here => b.end(r, Slot::Target, b.o.defaults[&x]),
                 f => b.featuring(r, Slot::Target, f),
             }
-        }
-        if let Some(t) = connector_featuring(db, project, here) {
-            let r = b.relationship(Owner::Fragment(x), M::TypeFeaturing, here, None);
-            b.end(r, Slot::Target, t);
         }
     }
     // The ends that name a constructed featuring type, once all of this file's are built.
     for (r, slot, f) in std::mem::take(&mut b.pending) {
-        let (Featuring::Snapshots(y) | Featuring::Product(y)) = f else {
-            continue;
-        };
-        let at = if y.file == file {
-            b.o.constructed(y.index)
-        } else {
-            overlay(db, project, y.file).constructed(y.index)
-        };
-        if let Some(i) = at {
-            b.end(
-                r,
-                slot,
-                Global {
+        let end = match f {
+            Featuring::Snapshots(y) | Featuring::Product(y) => {
+                let at = if y.file == file {
+                    b.o.constructed(y.index)
+                } else {
+                    overlay(db, project, y.file).constructed(y.index)
+                };
+                at.map(|i| Global {
                     file: y.file,
                     index: i,
-                },
-            );
+                })
+            }
+            Featuring::Default(y) => b.default_of(db, project, y),
+            Featuring::Type(t) => Some(t),
+        };
+        // Every pending end names an element that is built: a product exists whenever the
+        // constraint implies it (`product_types`), and a default is checked before it is copied.
+        if let Some(e) = end {
+            b.end(r, slot, e);
         }
     }
     b.o
-}
-
-/// KerML 8.3.4.5.3 checkConnectorTypeFeaturing (8.4.4.1 Table 11 Note 2): a connector without an
-/// owning type or a written featuring is featured by its `defaultFeaturingType`, when it has one.
-/// That needs the derived featuring types of its related features, and so the view: such a
-/// connector enters a fixpoint cycle with the overlay (ADR 0022).
-fn connector_featuring(db: &dyn salsa::Database, project: Project, c: Global) -> Option<Global> {
-    let g = structure(db, c.file).graph();
-    let x = c.ix();
-    if !g.metaclass(x).specializes(M::Connector) || crate::implied::owning_type(g, x).is_some() {
-        return None;
-    }
-    let written = g
-        .owned_relationships(x)
-        .iter()
-        .any(|r| g.metaclass(*r) == M::TypeFeaturing);
-    if written {
-        return None;
-    }
-    crate::derived::default_featuring_type(db, project, c)
 }
 
 /// Where an implied relationship is owned: by an element of the fragment, or by an implied
@@ -249,6 +244,16 @@ impl Build {
         r
     }
 
+    /// The default featuring type of a connector, from this overlay or another file's.
+    fn default_of(&self, db: &dyn salsa::Database, project: Project, c: Global) -> Option<Global> {
+        if c.file == self.file {
+            // A connector of this file comes before the elements it owns that copy it.
+            self.o.defaults.get(&c.index).copied()
+        } else {
+            overlay(db, project, c.file).defaults.get(&c.index).copied()
+        }
+    }
+
     /// An end that is a featuring type: a type now, or a constructed one once it is built.
     fn featuring(&mut self, r: u32, slot: Slot, f: Featuring) {
         match f {
@@ -299,17 +304,10 @@ impl Build {
             file: self.file,
             index: x,
         };
-        let types: Vec<Global> = crate::implied::other_ends(db, project, cross)
-            .into_iter()
-            .filter_map(|o| {
-                crate::implied::feature_type(db, project, o)
-                    .first()
-                    .copied()
-            })
-            .collect();
-        if types.len() < 2 {
+        // `implied_featurings` implies a product only when it can be built.
+        let Some(types) = crate::implied::product_types(db, project, cross) else {
             return;
-        }
+        };
         let p = self.cartesian(db, project, r, &types);
         let pg = self.global(p);
         self.o.constructed.insert(x, pg.index);
@@ -427,15 +425,14 @@ impl Build {
             file: self.file,
             index: t.index() as u32,
         }) {
-            let ends = crate::implied::end_features(db, project, t.file, t.index);
-            let others: Vec<Global> = ends.iter().copied().filter(|e| *e != end).collect();
+            let others = crate::implied::other_ends(db, project, cross);
             let types = match others[..] {
                 [other] => crate::implied::feature_type(db, project, other),
                 _ => Vec::new(),
             };
             // For more ends, the featuring type of the cross feature is the product the overlay
-            // constructs for it (KerML 8.4.4.5.1).
-            if others.len() > 1 {
+            // constructs for it, when it can (KerML 8.4.4.5.1).
+            if crate::implied::product_types(db, project, cross).is_some() {
                 let typing =
                     self.relationship(Owner::Implied(first), M::FeatureTyping, first_g, None);
                 self.featuring(typing, Slot::Target, Featuring::Product(cross));
@@ -552,6 +549,7 @@ fn no_overlay(
         owner: HashMap::new(),
         ends: HashMap::new(),
         constructed: HashMap::new(),
+        defaults: HashMap::new(),
     }
 }
 
