@@ -36,13 +36,16 @@ macro_rules! settle {
     };
 }
 
+pub mod checks;
 pub mod derived;
 mod implied;
 mod lower;
+mod materialize;
 mod resolve;
 
 pub use implied::{implied_generals, implied_redefinitions, Implied};
 pub use lower::{lower, Lowered};
+pub use materialize::{overlay, view, Overlay, View, ViewEnd};
 pub use resolve::{
     effective_names, global_namespace, imported_memberships, inherited_memberships, lowered,
     member_element, memberships, owned_memberships, parsed, resolve_end, resolved_names, structure,

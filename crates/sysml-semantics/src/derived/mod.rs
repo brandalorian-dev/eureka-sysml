@@ -22,7 +22,8 @@ pub use types::*;
 
 use sysml_model::{ElementIx, Endpoint, Metaclass as M, Slot};
 
-use crate::resolve::{member_element, resolve_end, structure, Global, Project};
+use crate::materialize::{view, ViewEnd};
+use crate::resolve::{member_element, resolve_end, Global, Project};
 
 pub(crate) fn at(file: crate::SourceFile, e: ElementIx) -> Global {
     Global {
@@ -31,8 +32,8 @@ pub(crate) fn at(file: crate::SourceFile, e: ElementIx) -> Global {
     }
 }
 
-pub(crate) fn metaclass(db: &dyn salsa::Database, x: Global) -> M {
-    structure(db, x.file).graph().metaclass(x.ix())
+pub(crate) fn metaclass(db: &dyn salsa::Database, project: Project, x: Global) -> M {
+    view(db, project, x.file).metaclass(x.ix())
 }
 
 /// The element an end of a relationship identifies: the element written there, or the member
@@ -44,15 +45,11 @@ pub(crate) fn end(
     slot: Slot,
     i: usize,
 ) -> Option<Global> {
-    let s = structure(db, rel.file);
-    let ends = match slot {
-        Slot::Source => s.graph().source(rel.ix()),
-        _ => s.graph().target(rel.ix()),
-    };
+    let s = view(db, project, rel.file);
+    let ends = s.ends(rel.ix(), slot);
     // An end whose stored attribute is typed Membership, as `MembershipImport::importedMembership`
     // (KerML 8.3.2.4.4), is the membership itself (8.2.3.4.2, Note 1), not its member element.
     let membership = s
-        .graph()
         .metaclass(rel.ix())
         .stored_attributes()
         .iter()
@@ -65,8 +62,10 @@ pub(crate) fn end(
             _ => false,
         });
     match ends.get(i)? {
-        Endpoint::Element(e) => Some(at(rel.file, *e)),
-        Endpoint::Name(_) => {
+        // An end of an implied relationship (ADR 0022).
+        ViewEnd::Implied(g) => Some(*g),
+        ViewEnd::Written(Endpoint::Element(e)) => Some(at(rel.file, *e)),
+        ViewEnd::Written(Endpoint::Name(_)) => {
             let entry = resolve_end(db, project, rel, slot, i as u32).clone()?;
             if membership {
                 Some(entry.membership)
@@ -83,11 +82,7 @@ pub(crate) fn ends(
     rel: Global,
     slot: Slot,
 ) -> Vec<Global> {
-    let s = structure(db, rel.file);
-    let n = match slot {
-        Slot::Source => s.graph().source(rel.ix()).len(),
-        _ => s.graph().target(rel.ix()).len(),
-    };
+    let n = view(db, project, rel.file).ends(rel.ix(), slot).len();
     (0..n)
         .filter_map(|i| end(db, project, rel, slot, i))
         .collect()
@@ -100,9 +95,13 @@ pub(crate) fn unique(xs: impl IntoIterator<Item = Global>) -> Vec<Global> {
 }
 
 /// The owned relationships of an element that are of a metaclass, in order.
-pub(crate) fn owned_relationships_of(db: &dyn salsa::Database, x: Global, kind: M) -> Vec<Global> {
-    let s = structure(db, x.file);
-    let g = s.graph();
+pub(crate) fn owned_relationships_of(
+    db: &dyn salsa::Database,
+    project: Project,
+    x: Global,
+    kind: M,
+) -> Vec<Global> {
+    let g = view(db, project, x.file);
     g.all_owned_relationships(x.ix())
         .filter(|r| g.metaclass(*r).specializes(kind))
         .map(|r| at(x.file, r))

@@ -12,39 +12,39 @@ use sysml_model::{Attr, Metaclass as M, Slot, Value};
 
 use super::root::{membership_element, owned_member, owning_namespace, resolve_global, source};
 use super::{at, end, metaclass, owned_relationships_of, unique};
-use crate::implied::{implied_generals, implied_redefinitions, owning_type as owning_type_ix};
+use crate::materialize::view;
 use crate::resolve::{
     member_element, redefined_features, settle_all_supertypes, settle_compatible,
-    settle_memberships, structure, Entry, Global, Project,
+    settle_memberships, Entry, Global, Project,
 };
 
 // ---- helpers ----
 
-fn kind_of(db: &dyn salsa::Database, x: Global, m: M) -> bool {
-    metaclass(db, x).specializes(m)
+fn kind_of(db: &dyn salsa::Database, project: Project, x: Global, m: M) -> bool {
+    metaclass(db, project, x).specializes(m)
 }
 
-fn flag(db: &dyn salsa::Database, x: Global, a: Attr) -> bool {
-    structure(db, x.file).graph().flag(x.ix(), a)
+fn flag(db: &dyn salsa::Database, project: Project, x: Global, a: Attr) -> bool {
+    view(db, project, x.file).flag(x.ix(), a)
 }
 
 fn first_end(db: &dyn salsa::Database, project: Project, rel: Global) -> Option<Global> {
     end(db, project, rel, Slot::Target, 0)
 }
 
-/// The member element of the first membership of the library element with this name.
-pub(crate) fn library(db: &dyn salsa::Database, project: Project, name: &str) -> Option<Global> {
+/// The library element with a qualified name: `resolveGlobal(name).memberElement`, as
+/// `specializesFromLibrary` reads it (KerML 8.3.3.1.10).
+pub fn library(db: &dyn salsa::Database, project: Project, name: &str) -> Option<Global> {
     let m = resolve_global(db, project, name)?;
-    let s = structure(db, m.file);
+    let s = view(db, project, m.file);
     let entry = Entry {
         name: None,
         short_name: None,
         membership: m,
         owned_element: s
-            .graph()
             .owned_related_elements(m.ix())
             .first()
-            .filter(|_| s.graph().metaclass(m.ix()).specializes(M::OwningMembership))
+            .filter(|_| s.metaclass(m.ix()).specializes(M::OwningMembership))
             .map(|e| at(m.file, *e)),
         visibility: crate::Visibility::Public,
         hidden: false,
@@ -52,8 +52,8 @@ pub(crate) fn library(db: &dyn salsa::Database, project: Project, name: &str) ->
     member_element(db, project, &entry)
 }
 
-/// The specializations of a type as (kind, general): the owned ones in the graph, then, unless
-/// `exclude_implied`, the implied ones (KerML 8.4.2; ADR 0020).
+/// The specializations of a type as (kind, general): its owned specializations in the view,
+/// written then implied (ADR 0022), without the implied ones when `exclude_implied`.
 fn specializations(
     db: &dyn salsa::Database,
     project: Project,
@@ -63,16 +63,12 @@ fn specializations(
     // `ownedSpecialization->reject(isImplied)` when implied ones are excluded (KerML 8.3.3.1.10).
     let mut out: Vec<(M, Global)> = owned_specialization(db, project, ty)
         .into_iter()
-        .filter(|r| !(exclude_implied && flag(db, *r, Attr::IsImplied)))
-        .filter_map(|r| Some((metaclass(db, r), first_end(db, project, r)?)))
+        .filter(|r| !(exclude_implied && flag(db, project, *r, Attr::IsImplied)))
+        .filter_map(|r| Some((metaclass(db, project, r), first_end(db, project, r)?)))
         .collect();
-    if !exclude_implied {
-        for i in implied_generals(db, project, ty.file, ty.index) {
-            if !out.iter().any(|(_, g)| *g == i.general) {
-                out.push((i.kind, i.general));
-            }
-        }
-    }
+    // A written specialization and an implied one with the same general count once.
+    let mut seen = HashSet::new();
+    out.retain(|(_, g)| seen.insert(*g));
     out
 }
 
@@ -81,15 +77,15 @@ fn specializations(
 /// `ownedSpecialization` (deriveTypeOwnedSpecialization): the owned Specializations whose
 /// `special` (source) is this type.
 pub fn owned_specialization(db: &dyn salsa::Database, project: Project, ty: Global) -> Vec<Global> {
-    owned_relationships_of(db, ty, M::Specialization)
+    owned_relationships_of(db, project, ty, M::Specialization)
         .into_iter()
         .filter(|r| source(db, project, *r) == [ty])
         .collect()
 }
 
 /// `ownedConjugator` (deriveTypeOwnedConjugator): the first owned Conjugation.
-pub fn owned_conjugator(db: &dyn salsa::Database, _project: Project, ty: Global) -> Option<Global> {
-    owned_relationships_of(db, ty, M::Conjugation)
+pub fn owned_conjugator(db: &dyn salsa::Database, project: Project, ty: Global) -> Option<Global> {
+    owned_relationships_of(db, project, ty, M::Conjugation)
         .into_iter()
         .next()
 }
@@ -104,23 +100,23 @@ fn original_type(db: &dyn salsa::Database, project: Project, ty: Global) -> Opti
 }
 
 /// `ownedUnioning` (deriveTypeOwnedUnioning).
-pub fn owned_unioning(db: &dyn salsa::Database, _project: Project, ty: Global) -> Vec<Global> {
-    owned_relationships_of(db, ty, M::Unioning)
+pub fn owned_unioning(db: &dyn salsa::Database, project: Project, ty: Global) -> Vec<Global> {
+    owned_relationships_of(db, project, ty, M::Unioning)
 }
 
 /// `ownedIntersecting` (deriveTypeOwnedIntersecting).
-pub fn owned_intersecting(db: &dyn salsa::Database, _project: Project, ty: Global) -> Vec<Global> {
-    owned_relationships_of(db, ty, M::Intersecting)
+pub fn owned_intersecting(db: &dyn salsa::Database, project: Project, ty: Global) -> Vec<Global> {
+    owned_relationships_of(db, project, ty, M::Intersecting)
 }
 
 /// `ownedDifferencing` (deriveTypeOwnedDifferencing).
-pub fn owned_differencing(db: &dyn salsa::Database, _project: Project, ty: Global) -> Vec<Global> {
-    owned_relationships_of(db, ty, M::Differencing)
+pub fn owned_differencing(db: &dyn salsa::Database, project: Project, ty: Global) -> Vec<Global> {
+    owned_relationships_of(db, project, ty, M::Differencing)
 }
 
 /// `ownedDisjoining` (deriveTypeOwnedDisjoining).
-pub fn owned_disjoining(db: &dyn salsa::Database, _project: Project, ty: Global) -> Vec<Global> {
-    owned_relationships_of(db, ty, M::Disjoining)
+pub fn owned_disjoining(db: &dyn salsa::Database, project: Project, ty: Global) -> Vec<Global> {
+    owned_relationships_of(db, project, ty, M::Disjoining)
 }
 
 /// `unioningType` (deriveTypeUnioningType): `ownedUnioning.unioningType`.
@@ -150,16 +146,15 @@ pub fn differencing_type(db: &dyn salsa::Database, project: Project, ty: Global)
 /// `ownedFeatureMembership` (deriveTypeOwnedFeatureMembership).
 pub fn owned_feature_membership(
     db: &dyn salsa::Database,
-    _project: Project,
+    project: Project,
     ty: Global,
 ) -> Vec<Global> {
-    owned_relationships_of(db, ty, M::FeatureMembership)
+    owned_relationships_of(db, project, ty, M::FeatureMembership)
 }
 
-fn owned_member_of(db: &dyn salsa::Database, m: Global) -> Option<Global> {
-    let s = structure(db, m.file);
-    s.graph()
-        .owned_related_elements(m.ix())
+fn owned_member_of(db: &dyn salsa::Database, project: Project, m: Global) -> Option<Global> {
+    let s = view(db, project, m.file);
+    s.owned_related_elements(m.ix())
         .first()
         .map(|e| at(m.file, *e))
 }
@@ -168,7 +163,7 @@ fn owned_member_of(db: &dyn salsa::Database, m: Global) -> Option<Global> {
 pub fn owned_feature(db: &dyn salsa::Database, project: Project, ty: Global) -> Vec<Global> {
     let ms = owned_feature_membership(db, project, ty);
     ms.into_iter()
-        .filter_map(|m| owned_member_of(db, m))
+        .filter_map(|m| owned_member_of(db, project, m))
         .collect()
 }
 
@@ -183,8 +178,8 @@ pub fn inherited_membership(db: &dyn salsa::Database, project: Project, ty: Glob
 pub fn inherited_feature(db: &dyn salsa::Database, project: Project, ty: Global) -> Vec<Global> {
     inherited_membership(db, project, ty)
         .into_iter()
-        .filter(|m| kind_of(db, *m, M::FeatureMembership))
-        .filter_map(|m| owned_member_of(db, m))
+        .filter(|m| kind_of(db, project, *m, M::FeatureMembership))
+        .filter_map(|m| owned_member_of(db, project, m))
         .collect()
 }
 
@@ -195,7 +190,7 @@ pub fn feature_membership(db: &dyn salsa::Database, project: Project, ty: Global
     out.extend(
         inherited_membership(db, project, ty)
             .into_iter()
-            .filter(|m| kind_of(db, *m, M::FeatureMembership)),
+            .filter(|m| kind_of(db, project, *m, M::FeatureMembership)),
     );
     unique(out)
 }
@@ -204,7 +199,7 @@ pub fn feature_membership(db: &dyn salsa::Database, project: Project, ty: Global
 pub fn feature(db: &dyn salsa::Database, project: Project, ty: Global) -> Vec<Global> {
     let ms = feature_membership(db, project, ty);
     ms.into_iter()
-        .filter_map(|m| owned_member_of(db, m))
+        .filter_map(|m| owned_member_of(db, project, m))
         .collect()
 }
 
@@ -212,7 +207,7 @@ pub fn feature(db: &dyn salsa::Database, project: Project, ty: Global) -> Vec<Gl
 pub fn end_feature(db: &dyn salsa::Database, project: Project, ty: Global) -> Vec<Global> {
     let fs = feature(db, project, ty);
     fs.into_iter()
-        .filter(|f| flag(db, *f, Attr::IsEnd))
+        .filter(|f| flag(db, project, *f, Attr::IsEnd))
         .collect()
 }
 
@@ -220,7 +215,7 @@ pub fn end_feature(db: &dyn salsa::Database, project: Project, ty: Global) -> Ve
 pub fn owned_end_feature(db: &dyn salsa::Database, project: Project, ty: Global) -> Vec<Global> {
     let fs = owned_feature(db, project, ty);
     fs.into_iter()
-        .filter(|f| flag(db, *f, Attr::IsEnd))
+        .filter(|f| flag(db, project, *f, Attr::IsEnd))
         .collect()
 }
 
@@ -228,7 +223,7 @@ pub fn owned_end_feature(db: &dyn salsa::Database, project: Project, ty: Global)
 pub fn multiplicity(db: &dyn salsa::Database, project: Project, ty: Global) -> Option<Global> {
     owned_member(db, project, ty)
         .into_iter()
-        .find(|m| kind_of(db, *m, M::Multiplicity))
+        .find(|m| kind_of(db, project, *m, M::Multiplicity))
 }
 
 /// A feature direction (KerML 8.3.3.3.5 FeatureDirectionKind).
@@ -242,9 +237,8 @@ pub enum Direction {
     Inout,
 }
 
-fn direction(db: &dyn salsa::Database, f: Global) -> Option<Direction> {
-    match structure(db, f.file)
-        .graph()
+fn direction(db: &dyn salsa::Database, project: Project, f: Global) -> Option<Direction> {
+    match view(db, project, f.file)
         .values(f.ix(), Attr::Direction)
         .next()
     {
@@ -256,9 +250,15 @@ fn direction(db: &dyn salsa::Database, f: Global) -> Option<Direction> {
 }
 
 /// `owningType` (KerML 8.3.3.3.4): the type that owns the feature through a FeatureMembership.
-pub fn owning_type(db: &dyn salsa::Database, _project: Project, f: Global) -> Option<Global> {
-    let s = structure(db, f.file);
-    owning_type_ix(s.graph(), f.ix()).map(|t| at(f.file, t))
+pub fn owning_type(db: &dyn salsa::Database, project: Project, f: Global) -> Option<Global> {
+    let s = view(db, project, f.file);
+    let r = s.owning_relationship(f.ix())?;
+    if !s.metaclass(r).specializes(M::FeatureMembership) {
+        return None;
+    }
+    s.owning_related_element(r)
+        .filter(|t| s.metaclass(*t).specializes(M::Type))
+        .map(|t| at(f.file, t))
 }
 
 /// `directionOf(feature)` (KerML 8.3.3.1.10): `directionOfExcluding(feature, Set{})`.
@@ -295,7 +295,7 @@ fn direction_in(
     visited: &mut HashSet<Global>,
 ) -> Option<Direction> {
     if owning_type(db, project, feature) == Some(ty) {
-        return direction(db, feature);
+        return direction(db, project, feature);
     }
     visited.insert(ty);
     let mut found = None;
@@ -370,7 +370,7 @@ pub fn supertypes(
         let s = specializations(db, project, ty, exclude_implied);
         s.into_iter().map(|(_, g)| g).collect()
     };
-    if kind_of(db, ty, M::Feature) {
+    if kind_of(db, project, ty, M::Feature) {
         let target = feature_target(db, project, ty);
         if target != ty {
             out.push(target);
@@ -434,7 +434,7 @@ pub fn specializes_from_library(
     library_type_name: &str,
 ) -> bool {
     library(db, project, library_type_name)
-        .filter(|t| kind_of(db, *t, M::Type))
+        .filter(|t| kind_of(db, project, *t, M::Type))
         .is_some_and(|t| specializes(db, project, ty, t))
 }
 
@@ -453,7 +453,7 @@ pub fn is_compatible_with(
     if specializes(db, project, ty, other) {
         return true;
     }
-    if !kind_of(db, ty, M::Feature) || !kind_of(db, other, M::Feature) {
+    if !kind_of(db, project, ty, M::Feature) || !kind_of(db, project, other, M::Feature) {
         return false;
     }
     owned_feature(db, project, ty).is_empty()
@@ -592,7 +592,7 @@ pub fn all_redefined_features_of(
     membership: Global,
 ) -> Vec<Global> {
     match membership_element(db, project, membership) {
-        Some(e) if kind_of(db, e, M::Feature) => all_redefined_features(db, project, e),
+        Some(e) if kind_of(db, project, e, M::Feature) => all_redefined_features(db, project, e),
         _ => Vec::new(),
     }
 }
@@ -642,7 +642,7 @@ pub fn owned_subclassification(
 ) -> Vec<Global> {
     owned_specialization(db, project, c)
         .into_iter()
-        .filter(|r| kind_of(db, *r, M::Subclassification))
+        .filter(|r| kind_of(db, project, *r, M::Subclassification))
         .collect()
 }
 
@@ -653,7 +653,7 @@ pub fn owned_subclassification(
 pub fn owned_subsetting(db: &dyn salsa::Database, project: Project, f: Global) -> Vec<Global> {
     owned_specialization(db, project, f)
         .into_iter()
-        .filter(|r| kind_of(db, *r, M::Subsetting))
+        .filter(|r| kind_of(db, project, *r, M::Subsetting))
         .collect()
 }
 
@@ -661,7 +661,7 @@ pub fn owned_subsetting(db: &dyn salsa::Database, project: Project, f: Global) -
 pub fn owned_redefinition(db: &dyn salsa::Database, project: Project, f: Global) -> Vec<Global> {
     owned_subsetting(db, project, f)
         .into_iter()
-        .filter(|r| kind_of(db, *r, M::Redefinition))
+        .filter(|r| kind_of(db, project, *r, M::Redefinition))
         .collect()
 }
 
@@ -669,7 +669,7 @@ pub fn owned_redefinition(db: &dyn salsa::Database, project: Project, f: Global)
 pub fn owned_typing(db: &dyn salsa::Database, project: Project, f: Global) -> Vec<Global> {
     owned_specialization(db, project, f)
         .into_iter()
-        .filter(|r| kind_of(db, *r, M::FeatureTyping))
+        .filter(|r| kind_of(db, project, *r, M::FeatureTyping))
         .collect()
 }
 
@@ -682,7 +682,7 @@ pub fn owned_reference_subsetting(
 ) -> Option<Global> {
     owned_subsetting(db, project, f)
         .into_iter()
-        .find(|r| kind_of(db, *r, M::ReferenceSubsetting))
+        .find(|r| kind_of(db, project, *r, M::ReferenceSubsetting))
 }
 
 /// `ownedCrossSubsetting` (deriveFeatureOwnedCrossSubsetting): the first owned CrossSubsetting.
@@ -693,16 +693,16 @@ pub fn owned_cross_subsetting(
 ) -> Option<Global> {
     owned_subsetting(db, project, f)
         .into_iter()
-        .find(|r| kind_of(db, *r, M::CrossSubsetting))
+        .find(|r| kind_of(db, project, *r, M::CrossSubsetting))
 }
 
 /// `ownedFeatureChaining` (deriveFeatureOwnedFeatureChaining).
 pub fn owned_feature_chaining(
     db: &dyn salsa::Database,
-    _project: Project,
+    project: Project,
     f: Global,
 ) -> Vec<Global> {
-    owned_relationships_of(db, f, M::FeatureChaining)
+    owned_relationships_of(db, project, f, M::FeatureChaining)
 }
 
 /// `chainingFeature` (deriveFeatureChainingFeature): `ownedFeatureChaining.chainingFeature`.
@@ -731,7 +731,7 @@ pub fn cross_feature(db: &dyn salsa::Database, project: Project, f: Global) -> O
 /// `ownedTypeFeaturing` (deriveFeatureOwnedTypeFeaturing): the owned TypeFeaturings whose
 /// `featureOfType` (source) is the feature.
 pub fn owned_type_featuring(db: &dyn salsa::Database, project: Project, f: Global) -> Vec<Global> {
-    owned_relationships_of(db, f, M::TypeFeaturing)
+    owned_relationships_of(db, project, f, M::TypeFeaturing)
         .into_iter()
         .filter(|r| source(db, project, *r) == [f])
         .collect()
@@ -744,7 +744,7 @@ pub fn owned_feature_inverting(
     project: Project,
     f: Global,
 ) -> Vec<Global> {
-    owned_relationships_of(db, f, M::FeatureInverting)
+    owned_relationships_of(db, project, f, M::FeatureInverting)
         .into_iter()
         .filter(|r| source(db, project, *r) == [f])
         .collect()
@@ -766,7 +766,7 @@ pub fn featuring_type(db: &dyn salsa::Database, project: Project, f: Global) -> 
         .collect();
     if let Some(t) = owning_type(db, project, f) {
         if !out.iter().any(|x| is_featuring_type(db, project, f, *x)) {
-            if !flag(db, f, Attr::IsVariable) {
+            if !flag(db, project, f, Attr::IsVariable) {
                 out.push(t);
             } else if library(db, project, "Occurrences::Occurrence") == Some(t) {
                 out.extend(library(db, project, "Occurrences::Occurrence::snapshots"));
@@ -796,7 +796,7 @@ pub(crate) fn no_featuring(
 pub fn typing_features(db: &dyn salsa::Database, project: Project, f: Global) -> Vec<Global> {
     if is_conjugated(db, project, f) {
         return original_type(db, project, f)
-            .filter(|t| kind_of(db, *t, M::Feature))
+            .filter(|t| kind_of(db, project, *t, M::Feature))
             .into_iter()
             .collect();
     }
@@ -856,28 +856,18 @@ pub fn direction_for(
 }
 
 /// `namingFeature()` (KerML 8.3.3.3.4): the redefined feature of the first owned redefinition,
-/// written or implied (ADR 0020).
+/// the written ones before the implied ones (ADR 0022).
 pub fn naming_feature(db: &dyn salsa::Database, project: Project, f: Global) -> Option<Global> {
-    match owned_redefinition(db, project, f).first() {
-        Some(r) => first_end(db, project, *r),
-        None => implied_redefinitions(db, project, f.file, f.index)
-            .first()
-            .map(|i| i.general),
-    }
+    first_end(db, project, *owned_redefinition(db, project, f).first()?)
 }
 
 /// The features a feature redefines directly: its owned redefinitions', written or implied.
 fn direct_redefined(db: &dyn salsa::Database, project: Project, f: Global) -> Vec<Global> {
-    let mut out: Vec<Global> = owned_redefinition(db, project, f)
-        .into_iter()
-        .filter_map(|r| first_end(db, project, r))
-        .collect();
-    out.extend(
-        implied_redefinitions(db, project, f.file, f.index)
-            .iter()
-            .map(|i| i.general),
-    );
-    unique(out)
+    unique(
+        owned_redefinition(db, project, f)
+            .into_iter()
+            .filter_map(|r| first_end(db, project, r)),
+    )
 }
 
 /// `redefines(redefinedFeature)` (KerML 8.3.3.3.4): whether an owned redefinition redefines it.
@@ -893,7 +883,7 @@ pub fn redefines_from_library(
     library_feature_name: &str,
 ) -> bool {
     library(db, project, library_feature_name)
-        .filter(|x| kind_of(db, *x, M::Feature))
+        .filter(|x| kind_of(db, project, *x, M::Feature))
         .is_some_and(|x| redefines(db, project, f, x))
 }
 
@@ -920,7 +910,7 @@ pub fn subsets_chain(
 ) -> bool {
     all_supertypes(db, project, f)
         .iter()
-        .filter(|s| kind_of(db, **s, M::Feature))
+        .filter(|s| kind_of(db, project, **s, M::Feature))
         .any(|s| {
             let c = chaining_feature(db, project, *s);
             let n = c.len();
@@ -936,11 +926,10 @@ pub fn owned_cross_feature(
     project: Project,
     f: Global,
 ) -> Option<Global> {
-    if !flag(db, f, Attr::IsEnd) || owning_type(db, project, f).is_none() {
+    if !flag(db, project, f, Attr::IsEnd) || owning_type(db, project, f).is_none() {
         return None;
     }
-    let s = structure(db, f.file);
-    let g = s.graph();
+    let g = view(db, project, f.file);
     owned_member(db, project, f).into_iter().find(|m| {
         let k = g.metaclass(m.ix());
         k.specializes(M::Feature)
@@ -956,7 +945,7 @@ pub fn owned_cross_feature(
 /// its owning namespace.
 pub fn is_owned_cross_feature(db: &dyn salsa::Database, project: Project, f: Global) -> bool {
     owning_namespace(db, project, f)
-        .filter(|n| kind_of(db, *n, M::Feature))
+        .filter(|n| kind_of(db, project, *n, M::Feature))
         .is_some_and(|n| owned_cross_feature(db, project, n) == Some(f))
 }
 
@@ -965,14 +954,13 @@ pub fn is_cartesian_product(db: &dyn salsa::Database, project: Project, f: Globa
     let featuring = featuring_type(db, project, f).clone();
     r#type(db, project, f).len() == 1
         && featuring.len() == 1
-        && (owner_of(db, featuring[0]) != Some(f)
-            || (kind_of(db, featuring[0], M::Feature)
+        && (owner_of(db, project, featuring[0]) != Some(f)
+            || (kind_of(db, project, featuring[0], M::Feature)
                 && is_cartesian_product(db, project, featuring[0])))
 }
 
-fn owner_of(db: &dyn salsa::Database, x: Global) -> Option<Global> {
-    structure(db, x.file)
-        .graph()
+fn owner_of(db: &dyn salsa::Database, project: Project, x: Global) -> Option<Global> {
+    view(db, project, x.file)
         .owner(x.ix())
         .map(|o| at(x.file, o))
 }
@@ -984,10 +972,10 @@ pub fn as_cartesian_product(db: &dyn salsa::Database, project: Project, f: Globa
     let mut out: Vec<Global> = featuring
         .iter()
         .copied()
-        .filter(|t| owner_of(db, *t) != Some(f))
+        .filter(|t| owner_of(db, project, *t) != Some(f))
         .collect();
     for t in featuring {
-        if owner_of(db, t) == Some(f) && kind_of(db, t, M::Feature) && t != f {
+        if owner_of(db, project, t) == Some(f) && kind_of(db, project, t, M::Feature) && t != f {
             out.extend(as_cartesian_product(db, project, t));
         }
     }
@@ -1016,7 +1004,7 @@ pub fn is_featured_within(
         return true;
     }
     let variable_in = |x: Global| {
-        flag(db, x, Attr::IsVariable)
+        flag(db, project, x, Attr::IsVariable)
             && owning_type(db, project, x).is_some_and(|o| specializes(db, project, ty, o))
     };
     variable_in(f)
@@ -1035,7 +1023,7 @@ pub fn can_access(db: &dyn salsa::Database, project: Project, f: Global, other: 
     let mut i = 0;
     while i < all.len() {
         let t = all[i];
-        if kind_of(db, t, M::Feature) {
+        if kind_of(db, project, t, M::Feature) {
             let next = featuring_type(db, project, t).clone();
             let next = if next.is_empty() {
                 anything.into_iter().collect()
@@ -1067,13 +1055,13 @@ pub fn is_featuring_type(
     let Some(owner) = owning_type(db, project, f) else {
         return false;
     };
-    if !flag(db, f, Attr::IsVariable) {
+    if !flag(db, project, f, Attr::IsVariable) {
         return ty == owner;
     }
     if library(db, project, "Occurrences::Occurrence") == Some(owner) {
         return library(db, project, "Occurrences::Occurrence::snapshots") == Some(ty);
     }
-    kind_of(db, ty, M::Feature)
+    kind_of(db, project, ty, M::Feature)
         && featuring_type(db, project, ty).contains(&owner)
         && redefines_from_library(db, project, ty, "Occurrences::Occurrence::snapshots")
 }

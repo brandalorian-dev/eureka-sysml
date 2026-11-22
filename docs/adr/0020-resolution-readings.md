@@ -33,13 +33,18 @@ Readings of the constraint text:
 - **`endFeature`.** For the binary-association and binary-connector constraints (`connectorEnd` is the connector's `endFeature`) and the positions of end redefinitions, a type's end features are its owned ends or, with none, those of its first owned general that has ends. Implied generals are not consulted, which keeps this query out of a cycle with them. Every library type these constraints name owns its ends.
 - **Library lookup.** A library element is found by its qualified name (`specializesFromLibrary` resolves it globally): the first segment in the global namespace and each later one among the owned memberships of the one before. Every element the constraints name is declared there. Every root namespace with the first segment's name is tried, in project order, until the whole name resolves, so a user package named `Links` does not hide the library's `Links`. Operators are found in the same way (8.3.4.8.17).
 
-Deferred to step 1a.9, because no library name depends on them:
-- the type-featuring and binding-connector constraints;
-- the constraints whose source is an implied element that the fragments do not contain: the result specializations of expressions (8.3.4.8), `checkFeatureValuationSpecialization`, and the source-target redefinitions of FeatureChainExpressions. A ConstructorExpression's result is written, and its specialization is included since step 1a.8 (ADR 0021);
-- the cross-feature constraints;
-- `checkMetadataFeatureSemanticSpecialization`, which needs model-level evaluation.
+Added in step 1a.9 (ADR 0022), and computed here because most of them change what a type inherits:
+- the result specializations of expressions, whose results the grammar writes (8.2.5.8, EmptyResultMember): a FeatureReferenceExpression's result subsets its referent, the result of an invocation of a type that is not a Function specializes it, and the results of Select and Index expressions subset the first argument's result (an Index's unless that result specializes `Collections::Array`);
+- `checkFeatureValuationSpecialization`: a feature without a direction or a written specialization subsets the result of each of its values;
+- the cross-feature constraints: an owned cross feature specializes the types of its end and subsets the cross features of the features its end redefines, and an end with an owned cross feature crosses it (`checkFeatureCrossingSpecialization`), through a feature chain that the overlay builds.
 
-Step 1a.9 materializes all of them and tests them table by table.
+Still to come in step 1a.9: the type-featuring and binding-connector constraints, and the source-target redefinitions of FeatureChainExpressions, which need an implied `sourceTargetFeature`, with the result specialization that depends on it. `checkMetadataFeatureSemanticSpecialization` needs model-level evaluation, which reads the view, so it is computed in the overlay, not here (ADR 0022).
+
+More readings, from step 1a.9:
+- **Owned, not only implied.** `checkFeatureCrossingSpecialization` reads `crossFeature`, and `checkFeatureOwnedCrossFeatureRedefinitionSpecialization` reads `ownedSubsetting`: both need the relationship to be owned, not implied by a supertype. The redundancy rules of 8.4.2 would drop one whose target a supertype already has, so they do not apply to these two, as they do not to redefinitions.
+- **`ownedTyping`, with the implied typings.** The data-value, occurrence, object, suboccurrence, subobject and portion constraints read `ownedTyping`, which includes the implied FeatureTypings (8.3.3.3.4). An owned cross feature typed by its end's class, or a result typed by the invoked behavior, is thus a feature typed by a class.
+- **`checkFlowWithEndsSpecialization`.** Its OCL asks for `ownedEndFeatures`. KerML 8.4.4.10.2 says "if the Flow has ownedEndFeatures (see below)" and goes on to describe the FlowEnds of `flow … from … to …`. The library's own flows, `Transfers::transfers`, `messageTransfers` and `transfersBefore`, declare plain end features. Read literally, the constraint would make `messageTransfers` subset `flowTransfers`, and `transfers` subset `flowTransfers`, which subsets `transfers`; that cycle made the redundancy rules drop every implied specialization of a user flow. The end features are read as the flow's FlowEnds.
+- **A body expression's referent.** The referent of a FeatureReferenceExpression is the member element of its first membership that is not a ParameterMembership (8.3.4.8.5). For a body expression, the grammar's BodyExpressionMember is a FeatureMembership, so the referent is the expression it owns.
 
 - **Already redefined.** A redefinition constraint implies a Redefinition unless the feature already redefines that target with an owned Redefinition. Other relationships to the target, such as a subsetting, do not count, since the OCL asks for `redefines`.
 

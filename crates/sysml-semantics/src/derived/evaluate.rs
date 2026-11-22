@@ -21,6 +21,7 @@ use super::types::{
     specializes,
 };
 use super::{at, metaclass};
+use crate::materialize::view;
 use crate::resolve::{structure, Global, Project};
 
 /// A value of model-level evaluation.
@@ -52,8 +53,8 @@ pub enum Natural {
     Infinite,
 }
 
-fn kind_of(db: &dyn salsa::Database, x: Global, m: M) -> bool {
-    metaclass(db, x).specializes(m)
+fn kind_of(db: &dyn salsa::Database, project: Project, x: Global, m: M) -> bool {
+    metaclass(db, project, x).specializes(m)
 }
 
 fn qualified(db: &dyn salsa::Database, project: Project, x: Global) -> Option<Arc<str>> {
@@ -61,9 +62,8 @@ fn qualified(db: &dyn salsa::Database, project: Project, x: Global) -> Option<Ar
 }
 
 /// The value Expression of a feature's FeatureValue (KerML 8.3.4.10).
-fn valuation(db: &dyn salsa::Database, f: Global) -> Option<Global> {
-    let s = structure(db, f.file);
-    let g = s.graph();
+fn valuation(db: &dyn salsa::Database, project: Project, f: Global) -> Option<Global> {
+    let g = view(db, project, f.file);
     let r = g
         .all_owned_relationships(f.ix())
         .find(|r| g.metaclass(*r).specializes(M::FeatureValue))?;
@@ -137,13 +137,12 @@ enum Operand {
 /// `OwnedExpressionReference` (KerML 8.2.5.8.1), a FeatureReferenceExpression that owns its
 /// referent.
 fn body_of(db: &dyn salsa::Database, project: Project, value: Global) -> Option<Global> {
-    if !kind_of(db, value, M::FeatureReferenceExpression) {
+    if !kind_of(db, project, value, M::FeatureReferenceExpression) {
         return None;
     }
     let r = referent(db, project, value).or_else(|| {
         // The referent of an owned body need not be a Feature: it is an Expression.
-        let s = structure(db, value.file);
-        let g = s.graph();
+        let g = view(db, project, value.file);
         g.all_owned_relationships(value.ix())
             .find(|m| g.metaclass(*m) == M::FeatureMembership)
             .and_then(|m| {
@@ -152,17 +151,15 @@ fn body_of(db: &dyn salsa::Database, project: Project, value: Global) -> Option<
                     .map(|e| at(value.file, *e))
             })
     })?;
-    let owned = structure(db, r.file)
-        .graph()
+    let owned = view(db, project, r.file)
         .owner(r.ix())
         .map(|o| at(r.file, o))
         == Some(value);
-    (owned && kind_of(db, r, M::Expression)).then_some(r)
+    (owned && kind_of(db, project, r, M::Expression)).then_some(r)
 }
 
 fn operands(db: &dyn salsa::Database, project: Project, x: Global) -> Vec<Operand> {
-    let s = structure(db, x.file);
-    let g = s.graph();
+    let g = view(db, project, x.file);
     let mut out = Vec::new();
     for r in g.all_owned_relationships(x.ix()) {
         let m = g.metaclass(r);
@@ -172,7 +169,7 @@ fn operands(db: &dyn salsa::Database, project: Project, x: Global) -> Vec<Operan
         let Some(p) = g.owned_related_elements(r).first().map(|e| at(x.file, *e)) else {
             continue;
         };
-        out.push(match valuation(db, p) {
+        out.push(match valuation(db, project, p) {
             Some(v) => match body_of(db, project, v) {
                 Some(b) => Operand::Body(b),
                 None => Operand::Value(v),
@@ -194,8 +191,7 @@ fn written_type(db: &dyn salsa::Database, project: Project, p: Global) -> Option
 /// The type of a cast, written as the result's typing (`as`, `meta`: KerML 8.2.5.8.1,
 /// TypeResultMember).
 fn cast_type(db: &dyn salsa::Database, project: Project, x: Global) -> Option<Global> {
-    let s = structure(db, x.file);
-    let g = s.graph();
+    let g = view(db, project, x.file);
     let r = g
         .all_owned_relationships(x.ix())
         .find(|r| g.metaclass(*r).specializes(M::ReturnParameterMembership))?;
@@ -255,12 +251,12 @@ impl Evaluation<'_> {
 
     fn evaluate_once(&mut self, x: Global, target: &Option<Item>) -> Vec<Item> {
         let (db, project) = (self.db, self.project);
-        let m = metaclass(db, x);
+        let m = metaclass(db, project, x);
         if m.specializes(M::NullExpression) {
             return Vec::new();
         }
         if m.specializes(M::LiteralExpression) {
-            return literal(db, x).into_iter().collect();
+            return literal(db, project, x).into_iter().collect();
         }
         if m.specializes(M::FeatureReferenceExpression) {
             let Some(r) = referent(db, project, x) else {
@@ -277,8 +273,7 @@ impl Evaluation<'_> {
             return self.invoke(x, target);
         }
         // Expression::evaluate: the first result expression's value (KerML 8.3.4.7.3).
-        let s = structure(db, x.file);
-        let g = s.graph();
+        let g = view(db, project, x.file);
         let result = g
             .all_owned_relationships(x.ix())
             .find(|r| g.metaclass(*r).specializes(M::ResultExpressionMembership))
@@ -309,15 +304,15 @@ impl Evaluation<'_> {
                     .map(|n| reflective_property(db, project, *e, &n))
                     .unwrap_or_default();
             }
-            Some(Item::Element(t)) if kind_of(db, *t, M::Type) => {
+            Some(Item::Element(t)) if kind_of(db, project, *t, M::Type) => {
                 let found = feature(db, project, *t)
                     .into_iter()
                     .find(|f| all_redefined_features(db, project, *f).contains(&r));
                 if let Some(f) = found {
                     // That feature's value; without one, the referent (8.4.4.9.8 rule 3).
-                    return match valuation(db, f) {
+                    return match valuation(db, project, f) {
                         Some(v) => self.evaluate(v, target),
-                        None if !kind_of(db, r, M::Expression) => vec![Item::Element(r)],
+                        None if !kind_of(db, project, r, M::Expression) => vec![Item::Element(r)],
                         None => Vec::new(),
                     };
                 }
@@ -329,10 +324,10 @@ impl Evaluation<'_> {
         if !featuring_type(db, project, r).is_empty() {
             return Vec::new();
         }
-        if let Some(v) = valuation(db, r) {
+        if let Some(v) = valuation(db, project, r) {
             return self.evaluate(v, target);
         }
-        if kind_of(db, r, M::Expression) {
+        if kind_of(db, project, r, M::Expression) {
             Vec::new()
         } else {
             vec![Item::Element(r)]
@@ -349,8 +344,7 @@ impl Evaluation<'_> {
     /// Evaluate a body with its first input parameter bound to an item.
     fn apply(&mut self, body: Global, item: Item, target: &Option<Item>) -> Vec<Item> {
         let (db, project) = (self.db, self.project);
-        let s = structure(db, body.file);
-        let g = s.graph();
+        let g = view(db, project, body.file);
         let param = owned_feature(db, project, body).into_iter().find(|f| {
             matches!(
                 g.values(f.ix(), Attr::Direction).next(),
@@ -375,7 +369,7 @@ impl Evaluation<'_> {
         let Some(q) = qualified(db, project, function) else {
             return Vec::new();
         };
-        let ops: Vec<Operand> = if kind_of(db, x, M::OperatorExpression) {
+        let ops: Vec<Operand> = if kind_of(db, project, x, M::OperatorExpression) {
             operands(db, project, x)
         } else {
             argument(db, project, x)
@@ -497,9 +491,8 @@ impl Evaluation<'_> {
 }
 
 /// A literal's value (KerML 8.3.4.8.9–8.3.4.8.14).
-fn literal(db: &dyn salsa::Database, x: Global) -> Option<Item> {
-    let s = structure(db, x.file);
-    let g = s.graph();
+fn literal(db: &dyn salsa::Database, project: Project, x: Global) -> Option<Item> {
+    let g = view(db, project, x.file);
     if g.metaclass(x.ix()).specializes(M::LiteralInfinity) {
         return Some(Item::Infinity);
     }
@@ -535,7 +528,7 @@ fn metadata_of(db: &dyn salsa::Database, project: Project, e: Global) -> Vec<Ite
                 .into_iter()
                 .filter_map(|a| super::root::owned_annotating_element(db, project, a)),
         )
-        .filter(|m| kind_of(db, *m, M::MetadataFeature))
+        .filter(|m| kind_of(db, project, *m, M::MetadataFeature))
         .filter(|m| super::root::annotated_element(db, project, *m).contains(&e))
         .map(Item::Element)
         .collect();
@@ -547,7 +540,11 @@ fn metadata_of(db: &dyn salsa::Database, project: Project, e: Global) -> Vec<Ite
 
 /// The metaclass of an element in the KerML library model (`KerML::Classifier` …, 9.2.17).
 fn reflective_metaclass(db: &dyn salsa::Database, project: Project, e: Global) -> Option<Global> {
-    library(db, project, &format!("KerML::{}", metaclass(db, e).name()))
+    library(
+        db,
+        project,
+        &format!("KerML::{}", metaclass(db, project, e).name()),
+    )
 }
 
 /// The library type of a literal value (ScalarValues, 9.3.2): Boolean, String, Rational, and for
@@ -614,8 +611,7 @@ pub fn reflective_property(
         "type" => return elements(r#type(db, project, e)),
         _ => {}
     }
-    let s = structure(db, e.file);
-    let g = s.graph();
+    let g = view(db, project, e.file);
     let m = g.metaclass(e.ix());
     let Some(a) = m.stored_attributes().iter().find(|a| a.name == property) else {
         return Vec::new();
@@ -868,7 +864,7 @@ pub fn model_level_evaluable(
     x: Global,
     visited: &[Global],
 ) -> bool {
-    let m = metaclass(db, x);
+    let m = metaclass(db, project, x);
     if m.specializes(M::NullExpression)
         || m.specializes(M::LiteralExpression)
         || m.specializes(M::MetadataAccessExpression)
@@ -907,8 +903,7 @@ pub fn model_level_evaluable(
     }
     // Expression::modelLevelEvaluable: only implied specializations, and owned features that are
     // inputs or the result without features or values, or result expressions that are evaluable.
-    let s = structure(db, x.file);
-    let g = s.graph();
+    let g = view(db, project, x.file);
     let written = super::types::owned_specialization(db, project, x)
         .iter()
         .all(|r| g.flag(r.ix(), Attr::IsImplied));
@@ -923,7 +918,7 @@ pub fn model_level_evaluable(
             );
             let plain = (input || Some(f) == result)
                 && owned_feature(db, project, f).is_empty()
-                && valuation(db, f).is_none();
+                && valuation(db, project, f).is_none();
             let result_expression = fg
                 .owning_relationship(f.ix())
                 .is_some_and(|r| fg.metaclass(r).specializes(M::ResultExpressionMembership))
@@ -951,24 +946,24 @@ fn feature_reference_evaluable(
     }
     let mut visited = visited.to_vec();
     visited.push(r);
-    if kind_of(db, r, M::Expression) {
+    if kind_of(db, project, r, M::Expression) {
         return model_level_evaluable(db, project, r, &visited);
     }
     if let Some(t) = owning_type(db, project, r) {
-        if kind_of(db, t, M::Metaclass) || kind_of(db, t, M::MetadataFeature) {
+        if kind_of(db, project, t, M::Metaclass) || kind_of(db, project, t, M::MetadataFeature) {
             return true;
         }
-        let s = structure(db, r.file);
+        let s = view(db, project, r.file);
         let input = matches!(
-            s.graph().values(r.ix(), Attr::Direction).next(),
+            s.values(r.ix(), Attr::Direction).next(),
             Some(Value::Enumeration("in"))
         );
-        if input && kind_of(db, t, M::Expression) {
+        if input && kind_of(db, project, t, M::Expression) {
             return true;
         }
     }
     featuring_type(db, project, r).is_empty()
-        && valuation(db, r).is_none_or(|v| model_level_evaluable(db, project, v, &visited))
+        && valuation(db, project, r).is_none_or(|v| model_level_evaluable(db, project, v, &visited))
 }
 
 /// `isModelLevelEvaluable` (deriveExpressionIsModelLevelEvaluable, and
@@ -1011,7 +1006,7 @@ pub fn evaluate_feature(
     };
     let Some(value) = all_redefined_features(db, project, selected)
         .into_iter()
-        .find_map(|f| valuation(db, f))
+        .find_map(|f| valuation(db, project, f))
     else {
         return Vec::new();
     };
@@ -1030,8 +1025,7 @@ pub fn value_of(
     if !is_model_level_evaluable(db, project, bound) {
         return None;
     }
-    let range = structure(db, bound.file)
-        .graph()
+    let range = view(db, project, bound.file)
         .owner(bound.ix())
         .map(|o| at(bound.file, o));
     let target = range
