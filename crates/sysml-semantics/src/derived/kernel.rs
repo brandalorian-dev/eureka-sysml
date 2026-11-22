@@ -11,27 +11,26 @@ use super::types::{
     owned_reference_subsetting, r#type, redefines, specializes_from_library, Direction,
 };
 use super::{at, end, metaclass, unique};
-use crate::resolve::{structure, Global, Project};
+use crate::materialize::view;
+use crate::resolve::{Global, Project};
 
-fn kind_of(db: &dyn salsa::Database, x: Global, m: M) -> bool {
-    metaclass(db, x).specializes(m)
+fn kind_of(db: &dyn salsa::Database, project: Project, x: Global, m: M) -> bool {
+    metaclass(db, project, x).specializes(m)
 }
 
-fn owned_element_of(db: &dyn salsa::Database, rel: Global) -> Option<Global> {
-    let s = structure(db, rel.file);
-    s.graph()
-        .owned_related_elements(rel.ix())
+fn owned_element_of(db: &dyn salsa::Database, project: Project, rel: Global) -> Option<Global> {
+    let s = view(db, project, rel.file);
+    s.owned_related_elements(rel.ix())
         .first()
         .map(|e| at(rel.file, *e))
 }
 
 /// The value Expression of a feature's FeatureValue (`valuation.value`, KerML 8.3.4.10), if any.
-fn valuation_value(db: &dyn salsa::Database, f: Global) -> Option<Global> {
-    let s = structure(db, f.file);
-    let g = s.graph();
+fn valuation_value(db: &dyn salsa::Database, project: Project, f: Global) -> Option<Global> {
+    let g = view(db, project, f.file);
     g.all_owned_relationships(f.ix())
         .find(|r| g.metaclass(*r).specializes(M::FeatureValue))
-        .and_then(|r| owned_element_of(db, at(f.file, r)))
+        .and_then(|r| owned_element_of(db, project, at(f.file, r)))
 }
 
 /// The member element of the first owned membership that is not of a kind.
@@ -43,7 +42,7 @@ fn first_member_not(
 ) -> Option<Global> {
     owned_membership(db, project, x)
         .into_iter()
-        .find(|m| !kind_of(db, *m, not))
+        .find(|m| !kind_of(db, project, *m, not))
         .and_then(|m| membership_element(db, project, m))
 }
 
@@ -53,7 +52,7 @@ fn first_member_not(
 pub fn step(db: &dyn salsa::Database, project: Project, b: Global) -> Vec<Global> {
     let fs = feature(db, project, b);
     fs.into_iter()
-        .filter(|f| kind_of(db, *f, M::Step))
+        .filter(|f| kind_of(db, project, *f, M::Step))
         .collect()
 }
 
@@ -61,14 +60,14 @@ pub fn step(db: &dyn salsa::Database, project: Project, b: Global) -> Vec<Global
 pub fn behavior(db: &dyn salsa::Database, project: Project, s: Global) -> Vec<Global> {
     let ts = r#type(db, project, s);
     ts.into_iter()
-        .filter(|t| kind_of(db, *t, M::Behavior))
+        .filter(|t| kind_of(db, project, *t, M::Behavior))
         .collect()
 }
 
 /// `parameterDirection()`: `in` for a ParameterMembership (KerML 8.3.4.6.4), `out` for a
 /// ReturnParameterMembership (8.3.4.7.8).
-pub fn parameter_direction(db: &dyn salsa::Database, _project: Project, m: Global) -> Direction {
-    if kind_of(db, m, M::ReturnParameterMembership) {
+pub fn parameter_direction(db: &dyn salsa::Database, project: Project, m: Global) -> Direction {
+    if kind_of(db, project, m, M::ReturnParameterMembership) {
         Direction::Out
     } else {
         Direction::In
@@ -82,8 +81,8 @@ pub fn parameter_direction(db: &dyn salsa::Database, _project: Project, m: Globa
 pub fn result(db: &dyn salsa::Database, project: Project, x: Global) -> Option<Global> {
     feature_membership(db, project, x)
         .into_iter()
-        .find(|m| kind_of(db, *m, M::ReturnParameterMembership))
-        .and_then(|m| owned_element_of(db, m))
+        .find(|m| kind_of(db, project, *m, M::ReturnParameterMembership))
+        .and_then(|m| owned_element_of(db, project, m))
 }
 
 /// `instantiatedType()`: for an InstantiationExpression (KerML 8.3.4.8.7), the member element of
@@ -108,7 +107,7 @@ pub fn argument(db: &dyn salsa::Database, project: Project, x: Global) -> Vec<Gl
             owned
                 .iter()
                 .filter(|f| redefines(db, project, **f, inp))
-                .filter_map(|f| valuation_value(db, *f))
+                .filter_map(|f| valuation_value(db, project, *f))
                 .collect::<Vec<_>>()
         })
         .collect()
@@ -127,7 +126,7 @@ pub fn constructor_argument(db: &dyn salsa::Database, project: Project, x: Globa
             owned
                 .iter()
                 .filter(|o| redefines(db, project, **o, f))
-                .filter_map(|o| valuation_value(db, *o))
+                .filter_map(|o| valuation_value(db, project, *o))
                 .collect::<Vec<_>>()
         })
         .collect()
@@ -137,7 +136,8 @@ pub fn constructor_argument(db: &dyn salsa::Database, project: Project, x: Globa
 /// (deriveFeatureChainExpressionTargetFeature): the member element of the first owned membership
 /// that is not a ParameterMembership, if it is a Feature.
 pub fn referent(db: &dyn salsa::Database, project: Project, x: Global) -> Option<Global> {
-    first_member_not(db, project, x, M::ParameterMembership).filter(|e| kind_of(db, *e, M::Feature))
+    first_member_not(db, project, x, M::ParameterMembership)
+        .filter(|e| kind_of(db, project, *e, M::Feature))
 }
 
 /// `targetFeature` of a FeatureChainExpression (deriveFeatureChainExpressionTargetFeature): the
@@ -158,8 +158,7 @@ pub fn source_target_feature(
     project: Project,
     x: Global,
 ) -> Option<Global> {
-    let s = structure(db, x.file);
-    let g = s.graph();
+    let g = view(db, project, x.file);
     let input = owned_feature(db, project, x).into_iter().find(|f| {
         matches!(
             g.values(f.ix(), sysml_model::Attr::Direction).next(),
@@ -203,7 +202,7 @@ fn featuring_closure(db: &dyn salsa::Database, project: Project, xs: &[Global]) 
     let mut out: Vec<Global> = Vec::new();
     let mut frontier: Vec<Global> = xs.to_vec();
     while let Some(x) = frontier.pop() {
-        if !kind_of(db, x, M::Feature) {
+        if !kind_of(db, project, x, M::Feature) {
             continue;
         }
         for t in featuring_type(db, project, x) {
@@ -266,7 +265,7 @@ pub fn target_type(db: &dyn salsa::Database, project: Project, a: Global) -> Vec
 pub fn flow_end(db: &dyn salsa::Database, project: Project, f: Global) -> Vec<Global> {
     let ends = end_feature(db, project, f);
     ends.into_iter()
-        .filter(|e| kind_of(db, *e, M::FlowEnd))
+        .filter(|e| kind_of(db, project, *e, M::FlowEnd))
         .collect()
 }
 
@@ -274,7 +273,7 @@ pub fn flow_end(db: &dyn salsa::Database, project: Project, f: Global) -> Vec<Gl
 pub fn payload_feature(db: &dyn salsa::Database, project: Project, f: Global) -> Option<Global> {
     owned_feature(db, project, f)
         .into_iter()
-        .find(|x| kind_of(db, *x, M::PayloadFeature))
+        .find(|x| kind_of(db, project, *x, M::PayloadFeature))
 }
 
 /// `payloadType` (deriveFlowPayloadType): the types of the payload feature.
@@ -310,7 +309,7 @@ pub fn target_input_feature(
 fn owned_expressions(db: &dyn salsa::Database, project: Project, m: Global) -> Vec<Global> {
     owned_member(db, project, m)
         .into_iter()
-        .filter(|e| kind_of(db, *e, M::Expression))
+        .filter(|e| kind_of(db, project, *e, M::Expression))
         .collect()
 }
 
@@ -348,7 +347,7 @@ pub fn bound(db: &dyn salsa::Database, project: Project, m: Global) -> Vec<Globa
 pub fn metaclass_of(db: &dyn salsa::Database, project: Project, mf: Global) -> Option<Global> {
     r#type(db, project, mf)
         .into_iter()
-        .find(|t| kind_of(db, *t, M::Metaclass))
+        .find(|t| kind_of(db, project, *t, M::Metaclass))
 }
 
 /// `isSemantic()` (KerML 8.3.4.12.3): `specializesFromLibrary('Metaobjects::SemanticMetadata')`.
@@ -368,7 +367,7 @@ pub fn is_syntactic(db: &dyn salsa::Database, project: Project, mf: Global) -> b
 pub fn filter_condition(db: &dyn salsa::Database, project: Project, p: Global) -> Vec<Global> {
     owned_membership(db, project, p)
         .into_iter()
-        .filter(|m| kind_of(db, *m, M::ElementFilterMembership))
-        .filter_map(|m| owned_element_of(db, m))
+        .filter(|m| kind_of(db, project, *m, M::ElementFilterMembership))
+        .filter_map(|m| owned_element_of(db, project, m))
         .collect()
 }

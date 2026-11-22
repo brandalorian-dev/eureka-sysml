@@ -56,6 +56,12 @@ impl Global {
     }
 }
 
+/// Whether an index is an element of a file's lowered fragment, not an implied element of its
+/// overlay (ADR 0022).
+pub(crate) fn in_fragment(db: &dyn salsa::Database, file: SourceFile, index: u32) -> bool {
+    (index as usize) < structure(db, file).graph().len()
+}
+
 fn ix(i: u32) -> ElementIx {
     ElementIx::from_index(i as usize)
 }
@@ -179,6 +185,10 @@ pub fn effective_names(
     file: SourceFile,
     element: u32,
 ) -> (Option<Arc<str>>, Option<Arc<str>>) {
+    // An implied element (ADR 0022) has no names, memberships or generals of its own here.
+    if !crate::resolve::in_fragment(db, file, element) {
+        return Default::default();
+    }
     let l = structure(db, file);
     let g = &l.graph();
     let e = ix(element);
@@ -273,6 +283,10 @@ pub fn owned_memberships(
     file: SourceFile,
     ns: u32,
 ) -> Vec<Entry> {
+    // An implied element (ADR 0022) has no names, memberships or generals of its own here.
+    if !crate::resolve::in_fragment(db, file, ns) {
+        return Default::default();
+    }
     let l = structure(db, file);
     let g = &l.graph();
     let mut out = Vec::new();
@@ -328,6 +342,10 @@ struct ImportDecl {
 
 #[salsa::tracked(returns(ref))]
 fn imports(db: &dyn salsa::Database, file: SourceFile, ns: u32) -> Vec<ImportDecl> {
+    // An implied element (ADR 0022) has no names, memberships or generals of its own here.
+    if !crate::resolve::in_fragment(db, file, ns) {
+        return Default::default();
+    }
     let l = structure(db, file);
     let g = &l.graph();
     let mut out = Vec::new();
@@ -378,7 +396,7 @@ pub fn imported_memberships(
         .graph()
         .metaclass(here.ix())
         .specializes(M::Package)
-        && !crate::derived::filter_condition(db, project, here).is_empty();
+        && has_filter_conditions(structure(db, file).graph(), here.ix());
     for decl in imports(db, file, ns) {
         let found = decl_memberships(db, project, file, decl);
         for mut e in found {
@@ -462,6 +480,15 @@ pub(crate) fn collide(a: &Entry, ka: Option<M>, b: &Entry, kb: Option<M>) -> boo
         .flatten()
         .any(|n| names(b).iter().flatten().any(|m| m == n));
     shared && (ka.specializes(kb) || kb.specializes(ka))
+}
+
+/// Whether a namespace owns filter conditions (KerML 8.3.4.13.4, ElementFilterMembership).
+/// They are written, never implied, so resolution reads them from the fragment and not from the
+/// view (ADR 0022): only a package that has some evaluates them, which reads the view.
+fn has_filter_conditions(g: &Graph, ns: ElementIx) -> bool {
+    g.owned_relationships(ns)
+        .iter()
+        .any(|r| g.metaclass(*r).specializes(M::ElementFilterMembership))
 }
 
 /// The memberships one import brings (KerML 8.3.2.4.2 `Import::importedMemberships`), before the
@@ -605,6 +632,10 @@ pub(crate) fn owned_generals(
     project: Project,
     ty: Global,
 ) -> Vec<Global> {
+    // An implied element (ADR 0022) has no names, memberships or generals of its own here.
+    if !crate::resolve::in_fragment(db, ty.file, ty.index) {
+        return Default::default();
+    }
     let l = structure(db, ty.file);
     let g = &l.graph();
     let mut out = Vec::new();
@@ -694,6 +725,10 @@ pub fn inherited_memberships(
     ty: u32,
     exclude_implied: bool,
 ) -> Vec<Entry> {
+    // An implied element (ADR 0022) has no names, memberships or generals of its own here.
+    if !crate::resolve::in_fragment(db, file, ty) {
+        return Default::default();
+    }
     let here = Global { file, index: ty };
     let l = structure(db, file);
     let g = l.graph();
@@ -775,6 +810,10 @@ pub fn redefined_in(
     ty: Global,
     exclude_implied: bool,
 ) -> std::collections::HashSet<Global> {
+    // An implied element (ADR 0022) has no names, memberships or generals of its own here.
+    if !crate::resolve::in_fragment(db, ty.file, ty.index) {
+        return Default::default();
+    }
     let l = structure(db, ty.file);
     let g = l.graph();
     let mut out = std::collections::HashSet::new();
@@ -848,6 +887,10 @@ settle!(
 /// The features a feature redefines directly: its owned Redefinitions' targets and its implied
 /// redefinitions (KerML 8.4.2).
 fn direct_redefinitions(db: &dyn salsa::Database, project: Project, f: Global) -> Vec<Global> {
+    // An implied element (ADR 0022) has no names, memberships or generals of its own here.
+    if !crate::resolve::in_fragment(db, f.file, f.index) {
+        return Default::default();
+    }
     let l = structure(db, f.file);
     let g = l.graph();
     if !g.metaclass(f.ix()).specializes(M::Feature) {
@@ -965,6 +1008,10 @@ pub(crate) fn outside_memberships(
     level: u8,
     exclude_implied: bool,
 ) -> Vec<Entry> {
+    // An implied element (ADR 0022) has no names, memberships or generals of its own here.
+    if !crate::resolve::in_fragment(db, file, ns) {
+        return Default::default();
+    }
     let here = Global { file, index: ns };
     let mut out: Vec<Entry> = owned_memberships(db, project, file, ns)
         .iter()
@@ -975,7 +1022,7 @@ pub(crate) fn outside_memberships(
         .graph()
         .metaclass(here.ix())
         .specializes(M::Package)
-        && !crate::derived::filter_condition(db, project, here).is_empty();
+        && has_filter_conditions(structure(db, file).graph(), here.ix());
     for decl in imports(db, file, ns) {
         if !shows(level, decl.visibility) {
             continue;

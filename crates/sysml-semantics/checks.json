@@ -1,0 +1,406 @@
+{
+  "version": 1,
+  "about": "Every check\u2026 semantic constraint of the KerML metaclasses (KerML.xmi), with its status in sysml-semantics (step 1a.9; KerML 8.4.2). Kept equal to KerML.xmi by tests/checks_inventory.rs. table: the kind of implied relationship (KerML 8.4.2: Specialization, Redefinition, TypeFeaturing, BindingConnector). done: implemented by the function in sysml_semantics::checks, listed in CHECKS, and tested by the test of the same name in tests/checks.rs; open: not yet, with what it waits for; deferred: with the reason.",
+  "checks": {
+    "Association::checkAssociationBinarySpecialization": {
+      "status": "done",
+      "table": "Specialization",
+      "function": "check_association_binary_specialization"
+    },
+    "Association::checkAssociationSpecialization": {
+      "status": "done",
+      "table": "Specialization",
+      "function": "check_association_specialization"
+    },
+    "AssociationStructure::checkAssociationStructureBinarySpecialization": {
+      "status": "done",
+      "table": "Specialization",
+      "function": "check_association_structure_binary_specialization"
+    },
+    "AssociationStructure::checkAssociationStructureSpecialization": {
+      "status": "done",
+      "table": "Specialization",
+      "function": "check_association_structure_specialization"
+    },
+    "Behavior::checkBehaviorSpecialization": {
+      "status": "done",
+      "table": "Specialization",
+      "function": "check_behavior_specialization"
+    },
+    "BindingConnector::checkBindingConnectorSpecialization": {
+      "status": "done",
+      "table": "Specialization",
+      "function": "check_binding_connector_specialization"
+    },
+    "BooleanExpression::checkBooleanExpressionSpecialization": {
+      "status": "done",
+      "table": "Specialization",
+      "function": "check_boolean_expression_specialization"
+    },
+    "Class::checkClassSpecialization": {
+      "status": "done",
+      "table": "Specialization",
+      "function": "check_class_specialization"
+    },
+    "Connector::checkConnectorBinaryObjectSpecialization": {
+      "status": "done",
+      "table": "Specialization",
+      "function": "check_connector_binary_object_specialization"
+    },
+    "Connector::checkConnectorBinarySpecialization": {
+      "status": "done",
+      "table": "Specialization",
+      "function": "check_connector_binary_specialization"
+    },
+    "Connector::checkConnectorObjectSpecialization": {
+      "status": "done",
+      "table": "Specialization",
+      "function": "check_connector_object_specialization"
+    },
+    "Connector::checkConnectorSpecialization": {
+      "status": "done",
+      "table": "Specialization",
+      "function": "check_connector_specialization"
+    },
+    "Connector::checkConnectorTypeFeaturing": {
+      "status": "open",
+      "table": "TypeFeaturing",
+      "pending": "step 1a.9, with the type-featuring constraints"
+    },
+    "ConstructorExpression::checkConstructorExpressionResultDefaultValueBindingConnector": {
+      "status": "deferred",
+      "table": "BindingConnector",
+      "reason": "KerML 1.0 gives no OCL for it (TBD), so there is nothing to check"
+    },
+    "ConstructorExpression::checkConstructorExpressionResultFeatureRedefinition": {
+      "status": "open",
+      "table": "Redefinition",
+      "pending": "step 1a.9, with the redefinition constraints"
+    },
+    "ConstructorExpression::checkConstructorExpressionResultSpecialization": {
+      "status": "done",
+      "table": "Specialization",
+      "function": "check_constructor_expression_result_specialization"
+    },
+    "ConstructorExpression::checkConstructorExpressionSpecialization": {
+      "status": "done",
+      "table": "Specialization",
+      "function": "check_constructor_expression_specialization"
+    },
+    "DataType::checkDataTypeSpecialization": {
+      "status": "done",
+      "table": "Specialization",
+      "function": "check_data_type_specialization"
+    },
+    "Expression::checkExpressionResultBindingConnector": {
+      "status": "open",
+      "table": "BindingConnector",
+      "pending": "step 1a.9, with the binding-connector constraints"
+    },
+    "Expression::checkExpressionSpecialization": {
+      "status": "done",
+      "table": "Specialization",
+      "function": "check_expression_specialization"
+    },
+    "Expression::checkExpressionTypeFeaturing": {
+      "status": "open",
+      "table": "TypeFeaturing",
+      "pending": "step 1a.9, with the type-featuring constraints"
+    },
+    "Feature::checkFeatureCrossingSpecialization": {
+      "status": "done",
+      "table": "Specialization",
+      "function": "check_feature_crossing_specialization"
+    },
+    "Feature::checkFeatureDataValueSpecialization": {
+      "status": "done",
+      "table": "Specialization",
+      "function": "check_feature_data_value_specialization"
+    },
+    "Feature::checkFeatureEndRedefinition": {
+      "status": "open",
+      "table": "Redefinition",
+      "pending": "step 1a.9, with the redefinition constraints"
+    },
+    "Feature::checkFeatureEndSpecialization": {
+      "status": "done",
+      "table": "Specialization",
+      "function": "check_feature_end_specialization"
+    },
+    "Feature::checkFeatureFeatureMembershipTypeFeaturing": {
+      "status": "open",
+      "table": "TypeFeaturing",
+      "pending": "step 1a.9, with the type-featuring constraints"
+    },
+    "Feature::checkFeatureFlowFeatureRedefinition": {
+      "status": "open",
+      "table": "Redefinition",
+      "pending": "step 1a.9, with the redefinition constraints"
+    },
+    "Feature::checkFeatureObjectSpecialization": {
+      "status": "done",
+      "table": "Specialization",
+      "function": "check_feature_object_specialization"
+    },
+    "Feature::checkFeatureOccurrenceSpecialization": {
+      "status": "done",
+      "table": "Specialization",
+      "function": "check_feature_occurrence_specialization"
+    },
+    "Feature::checkFeatureOwnedCrossFeatureRedefinitionSpecialization": {
+      "status": "done",
+      "table": "Specialization",
+      "function": "check_feature_owned_cross_feature_redefinition_specialization"
+    },
+    "Feature::checkFeatureOwnedCrossFeatureSpecialization": {
+      "status": "done",
+      "table": "Specialization",
+      "function": "check_feature_owned_cross_feature_specialization"
+    },
+    "Feature::checkFeatureOwnedCrossFeatureTypeFeaturing": {
+      "status": "open",
+      "table": "TypeFeaturing",
+      "pending": "step 1a.9, with the type-featuring constraints"
+    },
+    "Feature::checkFeatureParameterRedefinition": {
+      "status": "open",
+      "table": "Redefinition",
+      "pending": "step 1a.9, with the redefinition constraints"
+    },
+    "Feature::checkFeaturePortionSpecialization": {
+      "status": "done",
+      "table": "Specialization",
+      "function": "check_feature_portion_specialization"
+    },
+    "Feature::checkFeatureResultRedefinition": {
+      "status": "open",
+      "table": "Redefinition",
+      "pending": "step 1a.9, with the redefinition constraints"
+    },
+    "Feature::checkFeatureSpecialization": {
+      "status": "done",
+      "table": "Specialization",
+      "function": "check_feature_specialization"
+    },
+    "Feature::checkFeatureSubobjectSpecialization": {
+      "status": "done",
+      "table": "Specialization",
+      "function": "check_feature_subobject_specialization"
+    },
+    "Feature::checkFeatureSuboccurrenceSpecialization": {
+      "status": "done",
+      "table": "Specialization",
+      "function": "check_feature_suboccurrence_specialization"
+    },
+    "Feature::checkFeatureValuationSpecialization": {
+      "status": "done",
+      "table": "Specialization",
+      "function": "check_feature_valuation_specialization"
+    },
+    "FeatureChainExpression::checkFeatureChainExpressionResultSpecialization": {
+      "status": "open",
+      "table": "Specialization",
+      "pending": "needs the implied sourceTargetFeature, which the redefinition constraints of step 1a.9 add"
+    },
+    "FeatureChainExpression::checkFeatureChainExpressionSourceTargetRedefinition": {
+      "status": "open",
+      "table": "Redefinition",
+      "pending": "step 1a.9, with the redefinition constraints"
+    },
+    "FeatureChainExpression::checkFeatureChainExpressionTargetRedefinition": {
+      "status": "open",
+      "table": "Redefinition",
+      "pending": "step 1a.9, with the redefinition constraints"
+    },
+    "FeatureReferenceExpression::checkFeatureReferenceExpressionBindingConnector": {
+      "status": "open",
+      "table": "BindingConnector",
+      "pending": "step 1a.9, with the binding-connector constraints"
+    },
+    "FeatureReferenceExpression::checkFeatureReferenceExpressionResultSpecialization": {
+      "status": "done",
+      "table": "Specialization",
+      "function": "check_feature_reference_expression_result_specialization"
+    },
+    "FeatureValue::checkFeatureValueBindingConnector": {
+      "status": "open",
+      "table": "BindingConnector",
+      "pending": "step 1a.9, with the binding-connector constraints"
+    },
+    "Flow::checkFlowSpecialization": {
+      "status": "done",
+      "table": "Specialization",
+      "function": "check_flow_specialization"
+    },
+    "Flow::checkFlowWithEndsSpecialization": {
+      "status": "done",
+      "table": "Specialization",
+      "function": "check_flow_with_ends_specialization"
+    },
+    "Function::checkFunctionResultBindingConnector": {
+      "status": "open",
+      "table": "BindingConnector",
+      "pending": "step 1a.9, with the binding-connector constraints"
+    },
+    "Function::checkFunctionSpecialization": {
+      "status": "done",
+      "table": "Specialization",
+      "function": "check_function_specialization"
+    },
+    "IndexExpression::checkIndexExpressionResultSpecialization": {
+      "status": "done",
+      "table": "Specialization",
+      "function": "check_index_expression_result_specialization"
+    },
+    "Invariant::checkInvariantSpecialization": {
+      "status": "done",
+      "table": "Specialization",
+      "function": "check_invariant_specialization"
+    },
+    "InvocationExpression::checkInvocationExpressionBehaviorBindingConnector": {
+      "status": "open",
+      "table": "BindingConnector",
+      "pending": "step 1a.9, with the binding-connector constraints"
+    },
+    "InvocationExpression::checkInvocationExpressionBehaviorResultSpecialization": {
+      "status": "done",
+      "table": "Specialization",
+      "function": "check_invocation_expression_behavior_result_specialization"
+    },
+    "InvocationExpression::checkInvocationExpressionDefaultValueBindingConnector": {
+      "status": "deferred",
+      "table": "BindingConnector",
+      "reason": "KerML 1.0 gives no OCL for it (TBD), so there is nothing to check"
+    },
+    "InvocationExpression::checkInvocationExpressionSpecialization": {
+      "status": "done",
+      "table": "Specialization",
+      "function": "check_invocation_expression_specialization"
+    },
+    "LiteralBoolean::checkLiteralBooleanSpecialization": {
+      "status": "done",
+      "table": "Specialization",
+      "function": "check_literal_boolean_specialization"
+    },
+    "LiteralExpression::checkLiteralExpressionSpecialization": {
+      "status": "done",
+      "table": "Specialization",
+      "function": "check_literal_expression_specialization"
+    },
+    "LiteralInfinity::checkLiteralInfinitySpecialization": {
+      "status": "done",
+      "table": "Specialization",
+      "function": "check_literal_infinity_specialization"
+    },
+    "LiteralInteger::checkLiteralIntegerSpecialization": {
+      "status": "done",
+      "table": "Specialization",
+      "function": "check_literal_integer_specialization"
+    },
+    "LiteralRational::checkLiteralRationalSpecialization": {
+      "status": "done",
+      "table": "Specialization",
+      "function": "check_literal_rational_specialization"
+    },
+    "LiteralString::checkLiteralStringSpecialization": {
+      "status": "done",
+      "table": "Specialization",
+      "function": "check_literal_string_specialization"
+    },
+    "Metaclass::checkMetaclassSpecialization": {
+      "status": "done",
+      "table": "Specialization",
+      "function": "check_metaclass_specialization"
+    },
+    "MetadataAccessExpression::checkMetadataAccessExpressionSpecialization": {
+      "status": "done",
+      "table": "Specialization",
+      "function": "check_metadata_access_expression_specialization"
+    },
+    "MetadataFeature::checkMetadataFeatureSemanticSpecialization": {
+      "status": "done",
+      "table": "Specialization",
+      "function": "check_metadata_feature_semantic_specialization"
+    },
+    "MetadataFeature::checkMetadataFeatureSpecialization": {
+      "status": "done",
+      "table": "Specialization",
+      "function": "check_metadata_feature_specialization"
+    },
+    "Multiplicity::checkMultiplicitySpecialization": {
+      "status": "done",
+      "table": "Specialization",
+      "function": "check_multiplicity_specialization"
+    },
+    "Multiplicity::checkMultiplicityTypeFeaturing": {
+      "status": "open",
+      "table": "TypeFeaturing",
+      "pending": "step 1a.9, with the type-featuring constraints"
+    },
+    "MultiplicityRange::checkMultiplicityRangeExpressionTypeFeaturing": {
+      "status": "open",
+      "table": "TypeFeaturing",
+      "pending": "step 1a.9, with the type-featuring constraints"
+    },
+    "NullExpression::checkNullExpressionSpecialization": {
+      "status": "done",
+      "table": "Specialization",
+      "function": "check_null_expression_specialization"
+    },
+    "PayloadFeature::checkPayloadFeatureRedefinition": {
+      "status": "open",
+      "table": "Redefinition",
+      "pending": "step 1a.9, with the redefinition constraints"
+    },
+    "Predicate::checkPredicateSpecialization": {
+      "status": "done",
+      "table": "Specialization",
+      "function": "check_predicate_specialization"
+    },
+    "SelectExpression::checkSelectExpressionResultSpecialization": {
+      "status": "done",
+      "table": "Specialization",
+      "function": "check_select_expression_result_specialization"
+    },
+    "Step::checkStepEnclosedPerformanceSpecialization": {
+      "status": "done",
+      "table": "Specialization",
+      "function": "check_step_enclosed_performance_specialization"
+    },
+    "Step::checkStepOwnedPerformanceSpecialization": {
+      "status": "done",
+      "table": "Specialization",
+      "function": "check_step_owned_performance_specialization"
+    },
+    "Step::checkStepSpecialization": {
+      "status": "done",
+      "table": "Specialization",
+      "function": "check_step_specialization"
+    },
+    "Step::checkStepSubperformanceSpecialization": {
+      "status": "done",
+      "table": "Specialization",
+      "function": "check_step_subperformance_specialization"
+    },
+    "Structure::checkStructureSpecialization": {
+      "status": "done",
+      "table": "Specialization",
+      "function": "check_structure_specialization"
+    },
+    "Succession::checkSuccessionSpecialization": {
+      "status": "done",
+      "table": "Specialization",
+      "function": "check_succession_specialization"
+    },
+    "SuccessionFlow::checkSuccessionFlowSpecialization": {
+      "status": "done",
+      "table": "Specialization",
+      "function": "check_succession_flow_specialization"
+    },
+    "Type::checkTypeSpecialization": {
+      "status": "done",
+      "table": "Specialization",
+      "function": "check_type_specialization"
+    }
+  }
+}

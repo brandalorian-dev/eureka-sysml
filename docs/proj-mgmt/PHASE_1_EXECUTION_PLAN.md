@@ -1,6 +1,6 @@
 # Eureka SysML: Phase 1 execution plan
 
-Status: Draft v1.14 · 2026-11-21 · Covers PROJECT_PLAN v0.7 §6, Phases 1a and 1b (Release 0.1 "Language")
+Status: Draft v1.15 · 2026-11-21 · Covers PROJECT_PLAN v0.7 §6, Phases 1a and 1b (Release 0.1 "Language")
 
 This plan breaks Phase 1 into ordered steps, each small enough for one or a few pull requests. PROJECT_PLAN.md remains the source of truth for scope, architecture and budgets. Where this plan finds something the project plan does not settle, it is listed under [decisions](#24-decisions-and-their-recommended-defaults), and settled by the [decision methodology](#25-decision-methodology): each recommended default is evaluated during the step that first depends on it.
 
@@ -19,6 +19,7 @@ Change history:
 - v1.11: D2 adopted (ADR 0019), from the step 1a.7 incremental query spike.
 - v1.12: step 1a.7 done, with the owner-approved scope change: the implied specializations and redefinitions that name resolution needs are pulled forward from 1a.9. All 4003 names of the KerML libraries resolve to the element the pilot implementation resolved them to. ADR 0020 records the readings.
 - v1.14: D10 adopted (ADR 0022), from the step 1a.9 materialization spike, which also found and fixed a scaling bug in resolution (ADR 0020 decision 5a).
+- v1.15: step 1a.9 in progress: the overlay and the view of ADR 0022, and 58 of the 59 specialization constraints, which the KerML libraries satisfy. ADRs 0020 and 0022 record the readings and the implied elements.
 - v1.13: step 1a.8 done, in four PRs: one per layer, and model-level evaluation in a fourth, as the owner chose. All 90 derive rules and 84 operations are implemented and tested, except `memberElementId`, which no constraint needs. ADR 0021 records the readings.
 
 ## 1. Executive summary
@@ -312,6 +313,10 @@ Each step below gives its goal, the spec clauses, what it delivers, the tests to
 - **Effort:** 0.75–1
 
 #### 1a.9 Implied relationships
+- **Status:** in progress, one PR per table.
+  - **The overlay** (ADR 0022): each file's implied relationships, and the elements they own, are a query of their own, which the derived properties read with the lowered fragment as one view. Resolution's implied queries (ADR 0020) feed it, so the 1a.7 and 1a.8 oracles still pass.
+  - **Specialization constraints:** 58 of 59 done, each with a check function in `checks.rs` and a golden test. The new implied relationships are the expression results, feature values, cross features and semantic metadata. `checkFeatureChainExpressionResultSpecialization` needs an implied `sourceTargetFeature`, so it follows with the redefinitions. The inventory is `crates/sysml-semantics/checks.json`.
+  - **The KerML libraries** satisfy every implemented check, their implied elements included (`tests/checks.rs`).
 - **Goal:** add the relationships the semantic constraints require (KerML 8.4.2).
 - **Clauses:**
   - KerML 8.4.2 (the four kinds and the two redundancy rules)

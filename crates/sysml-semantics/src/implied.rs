@@ -5,9 +5,8 @@
 //! A type's general types are its owned specializations' and these implied ones, so inheritance
 //! (KerML 8.3.3.1.10) sees `Base::things`, `Performances::Performance` and the other library
 //! types the semantic constraints require, and the positional redefinitions of ends, parameters
-//! and results. They are computed, not added to the fragments: materializing them, and the
-//! implied relationships that do not change what a name resolves to (type featurings, binding
-//! connectors, the implied result parameters of expressions), is step 1a.9.
+//! and results. They are computed, not added to the fragments: the overlay of each file
+//! (`materialize.rs`, ADR 0022) materializes them from these queries.
 
 use sysml_model::{Attr, ElementIx, Graph, Metaclass as M};
 
@@ -130,9 +129,20 @@ fn owner_of_kind(db: &dyn salsa::Database, project: Project, t: Global, kind: M)
 
 /// A feature's `type`s (KerML 8.3.3.3.4): the types of its typings, and those of the features it
 /// subsets, redefines or chains, directly or indirectly.
-fn feature_types(db: &dyn salsa::Database, project: Project, f: Global) -> Vec<Global> {
+pub(crate) fn feature_types(db: &dyn salsa::Database, project: Project, f: Global) -> Vec<Global> {
+    feature_types_except(db, project, f, None)
+}
+
+/// [`feature_types`], without following one feature: an end's owned cross feature, whose own
+/// types are the end's (`checkFeatureOwnedCrossFeatureSpecialization`).
+fn feature_types_except(
+    db: &dyn salsa::Database,
+    project: Project,
+    f: Global,
+    skip: Option<Global>,
+) -> Vec<Global> {
     let mut types = Vec::new();
-    let mut seen = vec![f];
+    let mut seen: Vec<Global> = std::iter::once(f).chain(skip).collect();
     let mut stack = vec![f];
     while let Some(x) = stack.pop() {
         for general in generals(db, project, x).iter().copied() {
@@ -168,6 +178,183 @@ fn owned_features(g: &Graph, t: ElementIx) -> impl Iterator<Item = ElementIx> + 
         .filter_map(|r| g.owned_related_elements(*r).first().copied())
 }
 
+/// The element at an end of a relationship of the fragment: written there, or the member element
+/// of the membership its name resolves to (KerML 8.2.3.5).
+fn end_of(
+    db: &dyn salsa::Database,
+    project: Project,
+    rel: Global,
+    slot: sysml_model::Slot,
+) -> Option<Global> {
+    resolve_end(db, project, rel, slot, 0)
+        .as_ref()
+        .and_then(|e| member_element(db, project, e))
+}
+
+/// The kind of an implied specialization of a feature by a type: a FeatureTyping by a
+/// Classifier, a Subsetting of a Feature, else a Specialization (KerML 8.3.3.1, 8.3.3.3).
+fn feature_specialization(db: &dyn salsa::Database, t: Global) -> M {
+    let m = metaclass(db, t);
+    if m.specializes(M::Classifier) {
+        M::FeatureTyping
+    } else if m.specializes(M::Feature) {
+        M::Subsetting
+    } else {
+        M::Specialization
+    }
+}
+
+/// The kind of an implied specialization of a type by another, for either kind of type.
+pub(crate) fn specialization_kind(db: &dyn salsa::Database, special: Global, general: Global) -> M {
+    let (s, t) = (metaclass(db, special), metaclass(db, general));
+    if s.specializes(M::Feature) {
+        feature_specialization(db, general)
+    } else if s.specializes(M::Classifier) && t.specializes(M::Classifier) {
+        M::Subclassification
+    } else {
+        M::Specialization
+    }
+}
+
+/// Whether a type owns a written Specialization of itself (KerML 8.3.3.1.10
+/// `ownedSpecialization`, which the fragment holds only as written).
+fn has_owned_specialization(g: &Graph, t: ElementIx) -> bool {
+    g.owned_relationships(t).iter().any(|r| {
+        g.metaclass(*r).specializes(M::Specialization)
+            && match g.source(*r).first() {
+                None => true,
+                Some(sysml_model::Endpoint::Element(e)) => *e == t,
+                Some(sysml_model::Endpoint::Name(_)) => false,
+            }
+    })
+}
+
+/// The member element of the first owned membership of a namespace that is not of a kind
+/// (KerML 8.3.4.8.5 `referent`, with ParameterMembership).
+fn first_member_not(
+    db: &dyn salsa::Database,
+    project: Project,
+    x: Global,
+    not: M,
+) -> Option<Global> {
+    let l = structure(db, x.file);
+    let g = l.graph();
+    let r = g.owned_relationships(x.ix()).iter().find(|r| {
+        let m = g.metaclass(**r);
+        m.specializes(M::Membership) && !m.specializes(not)
+    })?;
+    // An OwningMembership's member element is the element it owns (KerML 8.3.2.4.6).
+    if g.metaclass(*r).specializes(M::OwningMembership) {
+        return g.owned_related_elements(*r).first().map(|e| at(x.file, *e));
+    }
+    end_of(db, project, at(x.file, *r), sysml_model::Slot::Target)
+}
+
+/// The first argument of an invocation (KerML 8.3.4.8.8 `argument->first()`): the value of the
+/// FeatureValue of its first owned parameter, which redefines the first input of the
+/// instantiated type (`checkFeatureParameterRedefinition`).
+fn first_argument(g: &Graph, file: SourceFile, x: ElementIx) -> Option<Global> {
+    let p = *owned_parameters(g, x).first()?;
+    g.owned_relationships(p)
+        .iter()
+        .find(|r| g.metaclass(**r).specializes(M::FeatureValue))
+        .and_then(|r| g.owned_related_elements(*r).first())
+        .map(|e| at(file, *e))
+}
+
+/// The specializations of a feature that its typing implies, for an implied feature typed by
+/// `types` (KerML 8.3.3.3.4 checkFeatureObjectSpecialization, checkFeatureOccurrenceSpecialization,
+/// checkFeatureDataValueSpecialization, checkFeatureSpecialization), without those KerML 8.4.2
+/// leaves out: one that a type or another of them already implies.
+pub(crate) fn typed_feature_generals(
+    db: &dyn salsa::Database,
+    project: Project,
+    types: &[Global],
+) -> Vec<Global> {
+    let typed = |k: M| types.iter().any(|t| metaclass(db, *t).specializes(k));
+    let mut candidates = Vec::new();
+    for (k, n) in [
+        (M::Structure, "Objects::objects"),
+        (M::Class, "Occurrences::occurrences"),
+        (M::DataType, "Base::dataValues"),
+    ] {
+        if typed(k) {
+            candidates.extend(*library(db, project, n));
+        }
+    }
+    candidates.extend(*library(db, project, "Base::things"));
+    let all: Vec<Global> = types.iter().chain(&candidates).copied().collect();
+    let mut kept: Vec<Global> = Vec::new();
+    for c in candidates {
+        let redundant = all
+            .iter()
+            .any(|o| *o != c && supertypes(db, project, o.file, o.index).contains(&c));
+        if !redundant && !kept.contains(&c) {
+            kept.push(c);
+        }
+    }
+    kept
+}
+
+/// `ownedCrossFeature()` (KerML 8.3.3.3.4): for an end feature with an owning type, its first
+/// owned member that is a Feature, not a Multiplicity or a MetadataFeature, and not owned through
+/// a FeatureMembership.
+pub(crate) fn owned_cross_feature(g: &Graph, f: ElementIx) -> Option<ElementIx> {
+    if !g.flag(f, Attr::IsEnd) || owning_type(g, f).is_none() {
+        return None;
+    }
+    g.owned_relationships(f)
+        .iter()
+        .filter(|r| {
+            let m = g.metaclass(**r);
+            m.specializes(M::OwningMembership) && !m.specializes(M::FeatureMembership)
+        })
+        .filter_map(|r| g.owned_related_elements(*r).first().copied())
+        .find(|e| {
+            let m = g.metaclass(*e);
+            m.specializes(M::Feature)
+                && !m.specializes(M::Multiplicity)
+                && !m.specializes(M::MetadataFeature)
+        })
+}
+
+/// The end feature whose owned cross feature a feature is (KerML 8.3.3.3.4
+/// `isOwnedCrossFeature()`).
+fn crossed_end(g: &Graph, f: ElementIx) -> Option<ElementIx> {
+    let e = g.owner(f)?;
+    (g.metaclass(e).specializes(M::Feature) && owned_cross_feature(g, e) == Some(f)).then_some(e)
+}
+
+/// `crossFeature` (KerML 8.3.3.3.4 deriveFeatureCrossFeature) of a feature: the second chaining
+/// feature of the feature its first owned CrossSubsetting crosses; for an end that has an owned
+/// cross feature and no CrossSubsetting, that feature, which its implied CrossSubsetting crosses
+/// (`checkFeatureCrossingSpecialization`).
+fn cross_feature(db: &dyn salsa::Database, project: Project, f: Global) -> Option<Global> {
+    let l = structure(db, f.file);
+    let g = l.graph();
+    let Some(r) = g
+        .owned_relationships(f.ix())
+        .iter()
+        .find(|r| g.metaclass(**r) == M::CrossSubsetting)
+    else {
+        return owned_cross_feature(g, f.ix()).map(|c| at(f.file, c));
+    };
+    let crossed = end_of(db, project, at(f.file, *r), sysml_model::Slot::Target)?;
+    let lc = structure(db, crossed.file);
+    let gc = lc.graph();
+    let chaining = *gc
+        .owned_relationships(crossed.ix())
+        .iter()
+        .filter(|r| gc.metaclass(**r) == M::FeatureChaining)
+        .nth(1)?;
+    end_of(
+        db,
+        project,
+        at(crossed.file, chaining),
+        sysml_model::Slot::Target,
+    )
+}
+
 fn is_result(g: &Graph, f: ElementIx) -> bool {
     g.owning_relationship(f)
         .is_some_and(|r| g.metaclass(r).specializes(M::ReturnParameterMembership))
@@ -191,6 +378,10 @@ pub fn end_features(
     file: SourceFile,
     ty: u32,
 ) -> Vec<Global> {
+    // An implied element (ADR 0022) has no names, memberships or generals of its own here.
+    if !crate::resolve::in_fragment(db, file, ty) {
+        return Default::default();
+    }
     let l = structure(db, file);
     let g = &l.graph();
     let owned: Vec<Global> = owned_features(g, ix(ty))
@@ -221,6 +412,10 @@ pub fn result_parameter(
     file: SourceFile,
     ty: u32,
 ) -> Option<Global> {
+    // An implied element (ADR 0022) has no names, memberships or generals of its own here.
+    if !crate::resolve::in_fragment(db, file, ty) {
+        return Default::default();
+    }
     let l = structure(db, file);
     let g = &l.graph();
     if let Some(r) = owned_features(g, ix(ty)).find(|f| is_result(g, *f)) {
@@ -331,6 +526,10 @@ pub fn implied_generals(
     file: SourceFile,
     ty: u32,
 ) -> Vec<Implied> {
+    // An implied element (ADR 0022) has no names, memberships or generals of its own here.
+    if !crate::resolve::in_fragment(db, file, ty) {
+        return Default::default();
+    }
     let here = Global { file, index: ty };
     let l = structure(db, file);
     let g = &l.graph();
@@ -343,8 +542,8 @@ pub fn implied_generals(
     let owned = owned_generals(db, project, here).clone();
 
     // ---- specialization constraints, most specific first ----
-    let mut candidates: Vec<(M, Option<Global>)> = Vec::new();
-    let mut push = |kind: M, general: Option<Global>| candidates.push((kind, general));
+    let candidates: std::cell::RefCell<Vec<(M, Option<Global>)>> = Default::default();
+    let push = |kind: M, general: Option<Global>| candidates.borrow_mut().push((kind, general));
     if m.specializes(M::Classifier) {
         let sub = M::Subclassification;
         let binary = || end_features(db, project, file, ty).len() == 2;
@@ -396,7 +595,20 @@ pub fn implied_generals(
         let owner = owning_type(g, x).map(|t| at(file, t));
         let owner_is = |kind: M| owner.is_some_and(|t| owner_of_kind(db, project, t, kind));
         let types = owned_types(db, project, here);
-        let typed = |kind: M| types.iter().any(|t| metaclass(db, *t).specializes(kind));
+        // `ownedTyping.type`: the written typings and the implied ones so far, as an owned cross
+        // feature's or a result's (KerML 8.3.3.3.4 `ownedTyping`, implied ones included).
+        let typed = |kind: M| {
+            let implied: Vec<Global> = candidates
+                .borrow()
+                .iter()
+                .filter(|c| c.0 == M::FeatureTyping)
+                .filter_map(|c| c.1)
+                .collect();
+            types
+                .iter()
+                .chain(&implied)
+                .any(|t| metaclass(db, *t).specializes(kind))
+        };
         let composite = g.flag(x, Attr::IsComposite);
         // KerML 8.3.4.8.9–8.3.4.8.14 checkLiteral*Specialization, 8.3.4.8.16
         // checkNullExpression…, 8.3.4.8.15 checkMetadataAccessExpression…, 8.3.4.8.3
@@ -445,14 +657,7 @@ pub fn implied_generals(
         }
         if m.specializes(M::InvocationExpression) {
             if let Some(t) = instantiated_type(db, project, here).filter(|t| *t != here) {
-                let kind = if metaclass(db, t).specializes(M::Classifier) {
-                    M::FeatureTyping
-                } else if metaclass(db, t).specializes(M::Feature) {
-                    M::Subsetting
-                } else {
-                    M::Specialization
-                };
-                push(kind, Some(t));
+                push(feature_specialization(db, t), Some(t));
             }
         }
         if m.specializes(M::Expression) {
@@ -466,15 +671,71 @@ pub fn implied_generals(
                 owning_type(g, x).filter(|c| g.metaclass(*c).specializes(M::ConstructorExpression))
             {
                 if let Some(t) = instantiated_type(db, project, at(file, c)) {
-                    let kind = if metaclass(db, t).specializes(M::Classifier) {
-                        M::FeatureTyping
-                    } else if metaclass(db, t).specializes(M::Feature) {
-                        M::Subsetting
-                    } else {
-                        M::Specialization
-                    };
-                    push(kind, Some(t));
+                    push(feature_specialization(db, t), Some(t));
                 }
+            }
+            if let Some(t) = owning_type(g, x) {
+                let tg = at(file, t);
+                let tm = g.metaclass(t);
+                // KerML 8.3.4.8.5 checkFeatureReferenceExpressionResultSpecialization: the result
+                // subsets the referent.
+                if tm.specializes(M::FeatureReferenceExpression) {
+                    let referent = first_member_not(db, project, tg, M::ParameterMembership)
+                        .filter(|r| metaclass(db, *r).specializes(M::Feature));
+                    push(subset, referent);
+                }
+                // KerML 8.3.4.8.8 checkInvocationExpressionBehaviorResultSpecialization: the
+                // result of an invocation of a type that is not a Function, nor a Feature typed by
+                // one, specializes it.
+                if tm.specializes(M::InvocationExpression) {
+                    if let Some(i) = instantiated_type(db, project, tg).filter(|i| *i != tg) {
+                        let function = |y: &Global| metaclass(db, *y).specializes(M::Function);
+                        let invokes_function = function(&i)
+                            || (metaclass(db, i).specializes(M::Feature)
+                                && feature_types(db, project, i).iter().any(function));
+                        if !invokes_function {
+                            push(feature_specialization(db, i), Some(i));
+                        }
+                    }
+                }
+                // KerML 8.3.4.8.18 checkSelectExpressionResultSpecialization, 8.3.4.8.6
+                // checkIndexExpressionResultSpecialization: the result subsets the first
+                // argument's result, for an index unless that result is a `Collections::Array`.
+                let index = tm.specializes(M::IndexExpression);
+                if tm.specializes(M::SelectExpression) || index {
+                    if let Some(r) = first_argument(g, file, t)
+                        .and_then(|a| *result_parameter(db, project, a.file, a.index))
+                    {
+                        let array = index
+                            && lib("Collections::Array").is_some_and(|a| {
+                                r == a || supertypes(db, project, r.file, r.index).contains(&a)
+                            });
+                        if !array {
+                            push(subset, Some(r));
+                        }
+                    }
+                }
+            }
+        }
+        // KerML 8.3.3.3.4 checkFeatureValuationSpecialization: a feature without a direction or a
+        // written specialization subsets the result of the value of each of its FeatureValues.
+        if g.values(x, Attr::Direction).next().is_none() && !has_owned_specialization(g, x) {
+            for r in g.owned_relationships(x) {
+                if g.metaclass(*r).specializes(M::FeatureValue) {
+                    if let Some(v) = g.owned_related_elements(*r).first() {
+                        push(
+                            subset,
+                            *result_parameter(db, project, file, v.index() as u32),
+                        );
+                    }
+                }
+            }
+        }
+        // KerML 8.3.3.3.4 checkFeatureOwnedCrossFeatureSpecialization: an owned cross feature
+        // specializes the types of its end.
+        if let Some(e) = crossed_end(g, x) {
+            for t in feature_types_except(db, project, at(file, e), Some(here)) {
+                push(feature_specialization(db, t), Some(t));
             }
         }
         // KerML 8.3.4.9.6 checkSuccessionFlowSpecialization, 8.3.4.9.2 checkFlowWithEnds…,
@@ -483,7 +744,9 @@ pub fn implied_generals(
             push(subset, lib("Transfers::flowTransfersBefore"));
         }
         if m.specializes(M::Flow) {
-            if owned_features(g, x).any(|f| g.flag(f, Attr::IsEnd)) {
+            // `ownedEndFeatures` read as the flow's FlowEnds, those of `from … to …` (KerML
+            // 8.4.4.10.2), not the plain end features of the library's own flows (ADR 0020).
+            if owned_features(g, x).any(|f| g.metaclass(f) == M::FlowEnd) {
                 push(subset, lib("Transfers::flowTransfers"));
             }
             push(subset, lib("Transfers::transfers"));
@@ -568,10 +831,62 @@ pub fn implied_generals(
         push(subset, lib("Base::things"));
     }
 
+    // Specializations that a constraint requires to be owned, not only implied by the type's
+    // supertypes, which the rules of KerML 8.4.2 therefore do not filter (ADR 0020).
+    let mut direct: Vec<Implied> = Vec::new();
+    if m.specializes(M::Feature) {
+        // KerML 8.3.3.3.4 checkFeatureCrossingSpecialization: an end with an owned cross feature
+        // and no CrossSubsetting crosses it, through a chain the overlay builds (Table 9 Note 2).
+        if let Some(c) = owned_cross_feature(g, x) {
+            if !g
+                .owned_relationships(x)
+                .iter()
+                .any(|r| g.metaclass(*r) == M::CrossSubsetting)
+            {
+                direct.push(Implied {
+                    kind: M::CrossSubsetting,
+                    general: at(file, c),
+                });
+            }
+        }
+        // KerML 8.3.3.3.4 checkFeatureOwnedCrossFeatureRedefinitionSpecialization: an owned cross
+        // feature subsets the cross features of the features its end redefines.
+        if let Some(e) = crossed_end(g, x) {
+            let eg = at(file, e);
+            let written: Vec<Global> = g
+                .owned_relationships(e)
+                .iter()
+                .filter(|r| g.metaclass(**r) == M::Redefinition)
+                .filter_map(|r| end_of(db, project, at(file, *r), sysml_model::Slot::Target))
+                .collect();
+            let implied = implied_redefinitions(db, project, file, e.index() as u32);
+            let subsetted: Vec<Global> = g
+                .owned_relationships(x)
+                .iter()
+                .filter(|r| g.metaclass(**r) == M::Subsetting)
+                .filter_map(|r| end_of(db, project, at(file, *r), sysml_model::Slot::Target))
+                .collect();
+            for r in written.into_iter().chain(implied.iter().map(|i| i.general)) {
+                if r == eg {
+                    continue;
+                }
+                if let Some(c) = cross_feature(db, project, r).filter(|c| *c != here) {
+                    if !subsetted.contains(&c) && !direct.iter().any(|d| d.general == c) {
+                        direct.push(Implied {
+                            kind: M::Subsetting,
+                            general: c,
+                        });
+                    }
+                }
+            }
+        }
+    }
+
     let redefinitions = implied_redefinitions(db, project, file, ty).clone();
     // KerML 8.4.2: drop the specializations already implied, by an owned specialization, another
     // implied specialization, or an implied redefinition (which itself is never dropped).
     let mut kept: Vec<Implied> = Vec::new();
+    let candidates = candidates.into_inner();
     let generals_so_far: Vec<Global> = candidates.iter().filter_map(|c| c.1).collect();
     for (kind, general) in candidates {
         let Some(general) = general else { continue };
@@ -593,6 +908,7 @@ pub fn implied_generals(
         }
     }
 
+    kept.extend(direct);
     kept.extend(redefinitions);
     kept
 }
@@ -610,6 +926,10 @@ pub fn implied_redefinitions(
     file: SourceFile,
     ty: u32,
 ) -> Vec<Implied> {
+    // An implied element (ADR 0022) has no names, memberships or generals of its own here.
+    if !crate::resolve::in_fragment(db, file, ty) {
+        return Default::default();
+    }
     let here = Global { file, index: ty };
     let l = structure(db, file);
     let g = l.graph();

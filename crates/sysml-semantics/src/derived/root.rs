@@ -5,18 +5,18 @@ use std::sync::Arc;
 use sysml_model::{Attr, Metaclass as M, Slot};
 
 use super::{at, end, ends, metaclass, owned_relationships_of, unique};
+use crate::materialize::view;
 use crate::resolve::{
     collide, effective_names, global_namespace, import_memberships, imported_memberships,
     member_element, member_metaclass, memberships, namespace_memberships, settle_path,
-    settle_qualified_name, structure, visibility, Entry, Global, Project, Visibility,
+    settle_qualified_name, visibility, Entry, Global, Project, Visibility,
 };
 
 // ---- Element (KerML 8.3.2.1.2) ----
 
 /// `owner` (deriveElementOwner): `owningRelationship.owningRelatedElement`.
-pub fn owner(db: &dyn salsa::Database, _project: Project, x: Global) -> Option<Global> {
-    structure(db, x.file)
-        .graph()
+pub fn owner(db: &dyn salsa::Database, project: Project, x: Global) -> Option<Global> {
+    view(db, project, x.file)
         .owner(x.ix())
         .map(|o| at(x.file, o))
 }
@@ -24,19 +24,17 @@ pub fn owner(db: &dyn salsa::Database, _project: Project, x: Global) -> Option<G
 /// `ownedElement` (deriveElementOwnedElement): `ownedRelationship.ownedRelatedElement`. Like
 /// every `ownedRelationship` here, it includes the implied relationships once `isImpliedIncluded`
 /// is true (KerML 8.3.2.1.2; ADR 0017).
-pub fn owned_element(db: &dyn salsa::Database, _project: Project, x: Global) -> Vec<Global> {
-    let s = structure(db, x.file);
-    let g = s.graph();
+pub fn owned_element(db: &dyn salsa::Database, project: Project, x: Global) -> Vec<Global> {
+    let g = view(db, project, x.file);
     g.all_owned_relationships(x.ix())
-        .flat_map(|r| g.owned_related_elements(r).iter().copied())
+        .flat_map(|r| g.owned_related_elements(r))
         .map(|e| at(x.file, e))
         .collect()
 }
 
 /// `owningMembership` (KerML 8.3.2.1.2): the owning relationship, if it is an OwningMembership.
-pub fn owning_membership(db: &dyn salsa::Database, _project: Project, x: Global) -> Option<Global> {
-    let s = structure(db, x.file);
-    let g = s.graph();
+pub fn owning_membership(db: &dyn salsa::Database, project: Project, x: Global) -> Option<Global> {
+    let g = view(db, project, x.file);
     g.owning_relationship(x.ix())
         .filter(|r| g.metaclass(*r).specializes(M::OwningMembership))
         .map(|r| at(x.file, r))
@@ -45,10 +43,8 @@ pub fn owning_membership(db: &dyn salsa::Database, _project: Project, x: Global)
 /// `owningNamespace` (deriveOwningNamespace): `owningMembership.membershipOwningNamespace`.
 pub fn owning_namespace(db: &dyn salsa::Database, project: Project, x: Global) -> Option<Global> {
     let m = owning_membership(db, project, x)?;
-    let s = structure(db, x.file);
-    s.graph()
-        .owning_related_element(m.ix())
-        .map(|n| at(x.file, n))
+    let s = view(db, project, x.file);
+    s.owning_related_element(m.ix()).map(|n| at(x.file, n))
 }
 
 /// `name` (deriveElementName): `effectiveName()`.
@@ -159,8 +155,7 @@ pub(crate) fn no_qualified_name(
 /// OwningMembership): a unique description of where an element is in its root namespace.
 #[salsa::tracked(returns(ref), cycle_initial = no_path, cycle_fn = settle_path)]
 pub fn path(db: &dyn salsa::Database, project: Project, x: Global) -> Arc<str> {
-    let s = structure(db, x.file);
-    let g = s.graph();
+    let g = view(db, project, x.file);
     let m = g.metaclass(x.ix());
     if m.specializes(M::OwningMembership) {
         // 8.3.2.4.8: `ownedElement.qualifiedName + '/owningMembership'`, if that is not null.
@@ -208,7 +203,7 @@ pub(crate) fn no_path(
 /// `ownedAnnotation` (deriveElementOwnedAnnotation): the owned Annotations whose annotated
 /// element is this element.
 pub fn owned_annotation(db: &dyn salsa::Database, project: Project, x: Global) -> Vec<Global> {
-    owned_relationships_of(db, x, M::Annotation)
+    owned_relationships_of(db, project, x, M::Annotation)
         .into_iter()
         .filter(|a| annotation_annotated_element(db, project, *a) == Some(x))
         .collect()
@@ -218,7 +213,7 @@ pub fn owned_annotation(db: &dyn salsa::Database, project: Project, x: Global) -
 pub fn documentation(db: &dyn salsa::Database, project: Project, x: Global) -> Vec<Global> {
     owned_element(db, project, x)
         .into_iter()
-        .filter(|e| metaclass(db, *e).specializes(M::Documentation))
+        .filter(|e| metaclass(db, project, *e).specializes(M::Documentation))
         .collect()
 }
 
@@ -231,16 +226,15 @@ pub fn textual_representation(
 ) -> Vec<Global> {
     owned_element(db, project, x)
         .into_iter()
-        .filter(|e| metaclass(db, *e).specializes(M::TextualRepresentation))
+        .filter(|e| metaclass(db, project, *e).specializes(M::TextualRepresentation))
         .collect()
 }
 
 /// `libraryNamespace()`: for an Element, that of its owning relationship (KerML 8.3.2.1.2); for a
 /// Relationship, that of its owning related element, else of its owning relationship
 /// (8.3.2.1.3); a LibraryPackage is its own (8.3.4.13.2).
-pub fn library_namespace(db: &dyn salsa::Database, _project: Project, x: Global) -> Option<Global> {
-    let s = structure(db, x.file);
-    let g = s.graph();
+pub fn library_namespace(db: &dyn salsa::Database, project: Project, x: Global) -> Option<Global> {
+    let g = view(db, project, x.file);
     let mut e = x.ix();
     loop {
         let m = g.metaclass(e);
@@ -267,16 +261,15 @@ pub fn is_library_element(db: &dyn salsa::Database, project: Project, x: Global)
 /// `importOwningNamespace`, `featureChained`, `owningType` …). An Annotation's source is its
 /// annotating element, owned or owning (8.3.2.3.3).
 pub fn source(db: &dyn salsa::Database, project: Project, x: Global) -> Vec<Global> {
-    let s = structure(db, x.file);
-    let m = s.graph().metaclass(x.ix());
+    let s = view(db, project, x.file);
+    let m = s.metaclass(x.ix());
     if m.specializes(M::Annotation) {
         return annotating_element(db, project, x).into_iter().collect();
     }
     if m.stored_attributes().iter().any(|a| a.slot == Slot::Source) {
         return ends(db, project, x, Slot::Source);
     }
-    s.graph()
-        .owning_related_element(x.ix())
+    s.owning_related_element(x.ix())
         .map(|o| at(x.file, o))
         .into_iter()
         .collect()
@@ -286,8 +279,7 @@ pub fn source(db: &dyn salsa::Database, project: Project, x: Global) -> Vec<Glob
 /// the metaclass stores them; otherwise the owned related elements (an OwningMembership's
 /// `ownedMemberElement`). An Annotation's target is its annotated element (8.3.2.3.3).
 pub fn target(db: &dyn salsa::Database, project: Project, x: Global) -> Vec<Global> {
-    let s = structure(db, x.file);
-    let g = s.graph();
+    let g = view(db, project, x.file);
     let m = g.metaclass(x.ix());
     if m.specializes(M::Annotation) {
         return annotation_annotated_element(db, project, x)
@@ -320,25 +312,22 @@ pub fn annotation_annotated_element(
     project: Project,
     a: Global,
 ) -> Option<Global> {
-    let s = structure(db, a.file);
-    if !s.graph().target(a.ix()).is_empty() {
+    let s = view(db, project, a.file);
+    if !s.ends(a.ix(), Slot::Target).is_empty() {
         return end(db, project, a, Slot::Target, 0);
     }
     owned_annotating_element(db, project, a)?;
-    s.graph()
-        .owning_related_element(a.ix())
-        .map(|o| at(a.file, o))
+    s.owning_related_element(a.ix()).map(|o| at(a.file, o))
 }
 
 /// `ownedAnnotatingElement` (deriveAnnotationOwnedAnnotatingElement): the first owned related
 /// element that is an AnnotatingElement.
 pub fn owned_annotating_element(
     db: &dyn salsa::Database,
-    _project: Project,
+    project: Project,
     a: Global,
 ) -> Option<Global> {
-    let s = structure(db, a.file);
-    let g = s.graph();
+    let g = view(db, project, a.file);
     g.owned_related_elements(a.ix())
         .iter()
         .find(|e| g.metaclass(**e).specializes(M::AnnotatingElement))
@@ -349,11 +338,10 @@ pub fn owned_annotating_element(
 /// AnnotatingElement.
 pub fn owning_annotating_element(
     db: &dyn salsa::Database,
-    _project: Project,
+    project: Project,
     a: Global,
 ) -> Option<Global> {
-    let s = structure(db, a.file);
-    let g = s.graph();
+    let g = view(db, project, a.file);
     g.owning_related_element(a.ix())
         .filter(|o| g.metaclass(*o).specializes(M::AnnotatingElement))
         .map(|o| at(a.file, o))
@@ -372,7 +360,7 @@ pub fn owned_annotating_relationship(
     project: Project,
     x: Global,
 ) -> Vec<Global> {
-    owned_relationships_of(db, x, M::Annotation)
+    owned_relationships_of(db, project, x, M::Annotation)
         .into_iter()
         .filter(|a| annotation_annotated_element(db, project, *a) != Some(x))
         .collect()
@@ -382,11 +370,10 @@ pub fn owned_annotating_relationship(
 /// Annotation.
 pub fn owning_annotating_relationship(
     db: &dyn salsa::Database,
-    _project: Project,
+    project: Project,
     x: Global,
 ) -> Option<Global> {
-    let s = structure(db, x.file);
-    let g = s.graph();
+    let g = view(db, project, x.file);
     g.owning_relationship(x.ix())
         .filter(|r| g.metaclass(*r).specializes(M::Annotation))
         .map(|r| at(x.file, r))
@@ -419,25 +406,24 @@ pub fn annotated_element(db: &dyn salsa::Database, project: Project, x: Global) 
 
 /// `ownedMembership` (deriveNamespaceOwnedMembership): the owned relationships that are
 /// Memberships.
-pub fn owned_membership(db: &dyn salsa::Database, _project: Project, ns: Global) -> Vec<Global> {
-    owned_relationships_of(db, ns, M::Membership)
+pub fn owned_membership(db: &dyn salsa::Database, project: Project, ns: Global) -> Vec<Global> {
+    owned_relationships_of(db, project, ns, M::Membership)
 }
 
 /// `ownedMember` (deriveNamespaceOwnedMember): the owned member elements of the owned
 /// OwningMemberships.
-pub fn owned_member(db: &dyn salsa::Database, _project: Project, ns: Global) -> Vec<Global> {
-    let s = structure(db, ns.file);
-    let g = s.graph();
+pub fn owned_member(db: &dyn salsa::Database, project: Project, ns: Global) -> Vec<Global> {
+    let g = view(db, project, ns.file);
     g.all_owned_relationships(ns.ix())
         .filter(|r| g.metaclass(*r).specializes(M::OwningMembership))
-        .filter_map(|r| g.owned_related_elements(r).first())
-        .map(|e| at(ns.file, *e))
+        .filter_map(|r| g.owned_related_elements(r).first().copied())
+        .map(|e| at(ns.file, e))
         .collect()
 }
 
 /// `ownedImport` (deriveNamespaceOwnedImport): the owned relationships that are Imports.
-pub fn owned_import(db: &dyn salsa::Database, _project: Project, ns: Global) -> Vec<Global> {
-    owned_relationships_of(db, ns, M::Import)
+pub fn owned_import(db: &dyn salsa::Database, project: Project, ns: Global) -> Vec<Global> {
+    owned_relationships_of(db, project, ns, M::Import)
 }
 
 /// `importedMembership` (deriveNamespaceImportedMembership): `importedMemberships(Set{})`.
@@ -492,8 +478,8 @@ pub fn import_imported_memberships(
     import: Global,
 ) -> Vec<Global> {
     // The importing namespace is the import's owning related element (`importOwningNamespace`).
-    let s = structure(db, import.file);
-    let Some(ns) = s.graph().owning_related_element(import.ix()) else {
+    let s = view(db, project, import.file);
+    let Some(ns) = s.owning_related_element(import.ix()) else {
         return Vec::new();
     };
     let ns = at(import.file, ns);
@@ -511,18 +497,17 @@ pub fn memberships_of_visibility(
     ns: Global,
     visibility_kind: Option<Visibility>,
 ) -> Vec<Global> {
-    let s = structure(db, ns.file);
-    let g = s.graph();
+    let g = view(db, project, ns.file);
     let mut out: Vec<Global> = g
         .all_owned_relationships(ns.ix())
         .filter(|r| g.metaclass(*r).specializes(M::Membership))
-        .filter(|r| visibility_kind.is_none_or(|v| visibility(g, *r) == v))
+        .filter(|r| visibility_kind.is_none_or(|v| visibility(g.lowered(), *r) == v))
         .map(|r| at(ns.file, r))
         .collect();
     // `ownedImport->select(imp | …).importedMemberships(…)`: each import's own memberships,
     // without the namespace's exclusion of collisions.
     for import in owned_import(db, project, ns) {
-        if visibility_kind.is_none_or(|v| visibility(g, import.ix()) == v) {
+        if visibility_kind.is_none_or(|v| visibility(g.lowered(), import.ix()) == v) {
             out.extend(
                 import_imported_memberships(db, project, import)
                     .iter()
@@ -586,14 +571,14 @@ pub fn visibility_of(
     if imported_membership(db, project, ns).contains(&mem) {
         for import in owned_import(db, project, ns) {
             if import_imported_memberships(db, project, import).contains(&mem) {
-                let s = structure(db, import.file);
-                return visibility(s.graph(), import.ix());
+                let s = view(db, project, import.file);
+                return visibility(s.lowered(), import.ix());
             }
         }
     }
     if membership(db, project, ns).contains(&mem) {
-        let s = structure(db, mem.file);
-        return visibility(s.graph(), mem.ix());
+        let s = view(db, project, mem.file);
+        return visibility(s.lowered(), mem.ix());
     }
     Visibility::Private
 }
@@ -621,8 +606,7 @@ pub fn is_distinguishable_from(
 /// A membership as resolution sees it: its member names (an OwningMembership's are its owned
 /// element's, `ownedMemberName` and `ownedMemberShortName`).
 fn membership_entry(db: &dyn salsa::Database, project: Project, m: Global) -> Entry {
-    let s = structure(db, m.file);
-    let g = s.graph();
+    let g = view(db, project, m.file);
     let owned = g
         .owned_related_elements(m.ix())
         .first()
@@ -643,7 +627,7 @@ fn membership_entry(db: &dyn salsa::Database, project: Project, m: Global) -> En
         short_name,
         membership: m,
         owned_element: owned,
-        visibility: visibility(g, m.ix()),
+        visibility: visibility(g.lowered(), m.ix()),
         hidden: false,
     }
 }
@@ -681,7 +665,7 @@ pub fn imported_element(
     import: Global,
 ) -> Option<Global> {
     let imported = end(db, project, import, Slot::Target, 0)?;
-    if metaclass(db, import).specializes(M::MembershipImport) {
+    if metaclass(db, project, import).specializes(M::MembershipImport) {
         return membership_element(db, project, imported);
     }
     Some(imported)
@@ -845,7 +829,7 @@ pub fn resolve(
         Some(q) if q == "$" => resolve_global(db, project, &escape(&name)),
         Some(q) => {
             let namespace = membership_element(db, project, resolve(db, project, ns, &q)?)?;
-            if !metaclass(db, namespace).specializes(M::Namespace) {
+            if !metaclass(db, project, namespace).specializes(M::Namespace) {
                 return None;
             }
             resolve_visible(db, project, namespace, &name)
