@@ -388,6 +388,10 @@ pub fn imported_memberships(
     file: SourceFile,
     ns: u32,
 ) -> Vec<Entry> {
+    // An implied element (ADR 0022) has no names, memberships or generals of its own here.
+    if !crate::resolve::in_fragment(db, file, ns) {
+        return Default::default();
+    }
     let mut out: Vec<Entry> = Vec::new();
     // KerML 8.3.4.13.4 Package::importedMemberships: a package's filter conditions apply to all
     // its imports (ADR 0021).
@@ -464,7 +468,10 @@ pub fn imported_memberships(
 }
 
 pub(crate) fn member_metaclass(db: &dyn salsa::Database, project: Project, e: &Entry) -> Option<M> {
-    member_element(db, project, e).map(|x| structure(db, x.file).graph().metaclass(x.ix()))
+    // The members resolution finds are elements of the fragments, never implied ones (ADR 0022).
+    member_element(db, project, e)
+        .filter(|x| in_fragment(db, x.file, x.index))
+        .map(|x| structure(db, x.file).graph().metaclass(x.ix()))
 }
 
 /// Two memberships are not distinguishable (KerML 8.3.2.4.3 `isDistinguishableFrom`) when a name
@@ -1250,6 +1257,10 @@ pub fn resolve_end(
     slot: Slot,
     position: u32,
 ) -> Option<Entry> {
+    // The ends of an implied relationship are elements, not names (ADR 0022).
+    if !in_fragment(db, rel.file, rel.index) {
+        return None;
+    }
     let l = structure(db, rel.file);
     let g = &l.graph();
     let ends = match slot {

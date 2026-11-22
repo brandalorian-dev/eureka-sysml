@@ -475,6 +475,10 @@ pub(crate) fn instantiated_type(
     project: Project,
     x: Global,
 ) -> Option<Global> {
+    // An implied element (ADR 0022) is no InstantiationExpression.
+    if !crate::resolve::in_fragment(db, x.file, x.index) {
+        return None;
+    }
     let l = structure(db, x.file);
     let g = &l.graph();
     if g.metaclass(x.ix()).specializes(M::OperatorExpression) {

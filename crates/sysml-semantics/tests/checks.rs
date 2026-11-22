@@ -922,6 +922,162 @@ fn the_redundancy_rules() {
     assert_eq!(n, 1, "{i:?}");
 }
 
+// ---- implied elements (ADR 0022) ----
+
+/// A model with every kind of implied element and relationship: specializations, redefinitions,
+/// and the chain and features of an implied CrossSubsetting.
+const IMPLIED: &str = "classifier T; classifier U;
+    assoc A { end [1] feature a : T; end feature b : U; }
+    assoc B specializes A { end [0..1] feature a2 : T; end feature b2 : U; }
+    behavior P { in x; } feature v = P(1); feature w = v;";
+
+#[test]
+fn derived_properties_of_implied_elements() {
+    // Every derived property and operation of one element, on every element of the view, the
+    // implied ones included: none reads past the lowered fragment.
+    let m = model_with_library(IMPLIED);
+    let (db, p) = (&m.db, m.project);
+    let v = sysml_semantics::view(db, p, m.file);
+    let base = m.graph().graph.len();
+    assert!(v.len() > base, "the model has implied elements");
+    for index in (0..v.len() as u32).rev() {
+        let x = Global {
+            file: m.file,
+            index,
+        };
+        let _ = d::owner(db, p, x);
+        let _ = d::owned_element(db, p, x);
+        let _ = d::owning_membership(db, p, x);
+        let _ = d::owning_namespace(db, p, x);
+        let _ = d::name(db, p, x);
+        let _ = d::short_name(db, p, x);
+        let _ = d::effective_name(db, p, x);
+        let _ = d::effective_short_name(db, p, x);
+        let _ = d::escaped_name(db, p, x);
+        let _ = d::qualified_name(db, p, x);
+        let _ = d::path(db, p, x);
+        let _ = d::owned_annotation(db, p, x);
+        let _ = d::documentation(db, p, x);
+        let _ = d::textual_representation(db, p, x);
+        let _ = d::library_namespace(db, p, x);
+        let _ = d::is_library_element(db, p, x);
+        let _ = d::source(db, p, x);
+        let _ = d::target(db, p, x);
+        let _ = d::related_element(db, p, x);
+        let _ = d::annotation_annotated_element(db, p, x);
+        let _ = d::owned_annotating_element(db, p, x);
+        let _ = d::owning_annotating_element(db, p, x);
+        let _ = d::annotating_element(db, p, x);
+        let _ = d::owned_annotating_relationship(db, p, x);
+        let _ = d::owning_annotating_relationship(db, p, x);
+        let _ = d::annotation(db, p, x);
+        let _ = d::annotated_element(db, p, x);
+        let _ = d::owned_membership(db, p, x);
+        let _ = d::owned_member(db, p, x);
+        let _ = d::owned_import(db, p, x);
+        let _ = d::imported_membership(db, p, x);
+        let _ = d::membership(db, p, x);
+        let _ = d::member(db, p, x);
+        let _ = d::namespace_imported_memberships(db, p, x);
+        let _ = d::import_imported_memberships(db, p, x);
+        let _ = d::owned_member_name(db, p, x);
+        let _ = d::owned_member_short_name(db, p, x);
+        let _ = d::imported_element(db, p, x);
+        let _ = d::owned_specialization(db, p, x);
+        let _ = d::owned_conjugator(db, p, x);
+        let _ = d::is_conjugated(db, p, x);
+        let _ = d::owned_unioning(db, p, x);
+        let _ = d::owned_intersecting(db, p, x);
+        let _ = d::owned_differencing(db, p, x);
+        let _ = d::owned_disjoining(db, p, x);
+        let _ = d::unioning_type(db, p, x);
+        let _ = d::intersecting_type(db, p, x);
+        let _ = d::differencing_type(db, p, x);
+        let _ = d::owned_feature_membership(db, p, x);
+        let _ = d::owned_feature(db, p, x);
+        let _ = d::inherited_membership(db, p, x);
+        let _ = d::inherited_feature(db, p, x);
+        let _ = d::feature_membership(db, p, x);
+        let _ = d::feature(db, p, x);
+        let _ = d::end_feature(db, p, x);
+        let _ = d::owned_end_feature(db, p, x);
+        let _ = d::multiplicity(db, p, x);
+        let _ = d::owning_type(db, p, x);
+        let _ = d::input(db, p, x);
+        let _ = d::output(db, p, x);
+        let _ = d::directed_feature(db, p, x);
+        let _ = d::all_supertypes(db, p, x);
+        let _ = d::multiplicities(db, p, x);
+        let _ = d::all_redefined_features_of(db, p, x);
+        let _ = d::owned_subclassification(db, p, x);
+        let _ = d::owned_subsetting(db, p, x);
+        let _ = d::owned_redefinition(db, p, x);
+        let _ = d::owned_typing(db, p, x);
+        let _ = d::owned_reference_subsetting(db, p, x);
+        let _ = d::owned_cross_subsetting(db, p, x);
+        let _ = d::owned_feature_chaining(db, p, x);
+        let _ = d::chaining_feature(db, p, x);
+        let _ = d::feature_target(db, p, x);
+        let _ = d::cross_feature(db, p, x);
+        let _ = d::owned_type_featuring(db, p, x);
+        let _ = d::owned_feature_inverting(db, p, x);
+        let _ = d::featuring_type(db, p, x);
+        let _ = d::typing_features(db, p, x);
+        let _ = d::r#type(db, p, x);
+        let _ = d::naming_feature(db, p, x);
+        let _ = d::all_redefined_features(db, p, x);
+        let _ = d::owned_cross_feature(db, p, x);
+        let _ = d::is_owned_cross_feature(db, p, x);
+        let _ = d::is_cartesian_product(db, p, x);
+        let _ = d::as_cartesian_product(db, p, x);
+        let _ = d::step(db, p, x);
+        let _ = d::behavior(db, p, x);
+        let _ = d::parameter_direction(db, p, x);
+        let _ = d::result(db, p, x);
+        let _ = d::instantiated_type(db, p, x);
+        let _ = d::argument(db, p, x);
+        let _ = d::constructor_argument(db, p, x);
+        let _ = d::referent(db, p, x);
+        let _ = d::chain_target_feature(db, p, x);
+        let _ = d::source_target_feature(db, p, x);
+        let _ = d::referenced_element(db, p, x);
+        let _ = d::related_feature(db, p, x);
+        let _ = d::source_feature(db, p, x);
+        let _ = d::target_feature(db, p, x);
+        let _ = d::default_featuring_type(db, p, x);
+        let _ = d::related_type(db, p, x);
+        let _ = d::source_type(db, p, x);
+        let _ = d::target_type(db, p, x);
+        let _ = d::flow_end(db, p, x);
+        let _ = d::payload_feature(db, p, x);
+        let _ = d::payload_type(db, p, x);
+        let _ = d::source_output_feature(db, p, x);
+        let _ = d::target_input_feature(db, p, x);
+        let _ = d::lower_bound(db, p, x);
+        let _ = d::upper_bound(db, p, x);
+        let _ = d::bound(db, p, x);
+        let _ = d::metaclass_of(db, p, x);
+        let _ = d::is_semantic(db, p, x);
+        let _ = d::is_syntactic(db, p, x);
+        let _ = d::filter_condition(db, p, x);
+        let _ = d::function_is_model_level_evaluable(db, p, x);
+        let _ = d::is_model_level_evaluable(db, p, x);
+        let _ = d::metaclass_feature(db, p, x);
+        let _ = d::package_imported_memberships(db, p, x);
+    }
+    let _ = c::violations(db, p, m.file);
+    // The view's implied relationships, given to resolution, resolve nothing.
+    for index in base as u32..v.len() as u32 {
+        let x = Global {
+            file: m.file,
+            index,
+        };
+        for slot in [sysml_model::Slot::Source, sysml_model::Slot::Target] {
+            assert!(sysml_semantics::resolve_end(db, p, x, slot, 0).is_none());
+        }
+    }
+}
+
 // ---- all checks ----
 
 #[test]

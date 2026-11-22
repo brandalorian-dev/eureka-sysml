@@ -22,7 +22,7 @@ use super::types::{
 };
 use super::{at, metaclass};
 use crate::materialize::view;
-use crate::resolve::{structure, Global, Project};
+use crate::resolve::{Global, Project};
 
 /// A value of model-level evaluation.
 #[derive(Clone, Debug, PartialEq)]
@@ -910,8 +910,7 @@ pub fn model_level_evaluable(
     let result = super::kernel::result(db, project, x);
     written
         && owned_feature(db, project, x).into_iter().all(|f| {
-            let fg = structure(db, f.file);
-            let fg = fg.graph();
+            let fg = view(db, project, f.file);
             let input = matches!(
                 fg.values(f.ix(), Attr::Direction).next(),
                 Some(Value::Enumeration("in"))

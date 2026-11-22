@@ -553,6 +553,15 @@ impl<'db> View<'db> {
         }
     }
 
+    /// The visibility of a membership or an import (KerML 8.3.2.4), or the metamodel default for
+    /// an implied one, which sets none.
+    pub fn visibility(&self, ix: ElementIx) -> crate::Visibility {
+        match self.implied(ix) {
+            Some(l) => crate::resolve::visibility(&self.overlay.graph, l),
+            None => crate::resolve::visibility(self.base(), ix),
+        }
+    }
+
     /// A String attribute.
     pub fn string(&self, ix: ElementIx, attr: Attr) -> Option<&'db str> {
         match self.implied(ix) {
