@@ -16,7 +16,9 @@ use std::collections::HashMap;
 use sysml_model::{Attr, ElementIx, Endpoint, Graph, Metaclass as M, Slot, Value};
 use uuid::Uuid;
 
-use crate::implied::{implied_featurings, implied_generals, Featuring};
+use crate::implied::{
+    implied_bindings, implied_featurings, implied_generals, BindingEnd, BindingFeaturing, Featuring,
+};
 use crate::resolve::{structure, Global, Project, SourceFile, Structure};
 
 /// The implied part of a file.
@@ -139,6 +141,9 @@ pub fn overlay(db: &dyn salsa::Database, project: Project, file: SourceFile) -> 
                 f => b.featuring(r, Slot::Target, f),
             }
         }
+        for binding in implied_bindings(db, project, file, x) {
+            b.binding(db, project, x, binding);
+        }
     }
     // The ends that name a constructed featuring type, once all of this file's are built.
     for (r, slot, f) in std::mem::take(&mut b.pending) {
@@ -242,6 +247,89 @@ impl Build {
         };
         self.o.ends.insert(r, (sources, Vec::new()));
         r
+    }
+
+    /// An implied binding connector of the element `x` (KerML 8.4.2, the binding-connector
+    /// constraints), as the grammar writes `binding a = b` (8.2.5.5.2): two end features, each
+    /// with a ReferenceSubsetting of a related feature, a chain built by the overlay where the
+    /// end is one. It subsets `Links::selfLinks` (checkBindingConnectorSpecialization), its ends
+    /// redefine that feature's ends (checkFeatureEndRedefinition), and every new feature is
+    /// featured as the type-featuring constraints require.
+    fn binding(
+        &mut self,
+        db: &dyn salsa::Database,
+        project: Project,
+        x: u32,
+        binding: &crate::implied::Binding,
+    ) {
+        let here = Global {
+            file: self.file,
+            index: x,
+        };
+        let c = self.element(M::BindingConnector);
+        let cg = self.global(c);
+        let membership = match binding.featuring {
+            BindingFeaturing::Owner => M::FeatureMembership,
+            _ => M::OwningMembership,
+        };
+        self.relationship(Owner::Fragment(x), membership, here, Some(c));
+        let self_links = crate::derived::library(db, project, "Links::selfLinks");
+        let link_ends = self_links
+            .map(|s| crate::implied::all_end_features(db, project, s))
+            .unwrap_or_default();
+        for (i, end) in binding.ends.iter().enumerate() {
+            let e = self.element(M::Feature);
+            let eg = self.global(e);
+            self.o.graph.set(
+                ElementIx::from_index(e as usize),
+                Attr::IsEnd,
+                Value::Boolean(true),
+            );
+            self.relationship(Owner::Implied(c), M::EndFeatureMembership, cg, Some(e));
+            let r = self.relationship(Owner::Implied(e), M::ReferenceSubsetting, eg, None);
+            match *end {
+                BindingEnd::Feature(f) => self.end(r, Slot::Target, f),
+                BindingEnd::Chain(a, b) => {
+                    self.chain(r, &[a, b]);
+                }
+            }
+            if let Some(redefined) = link_ends.get(i) {
+                let r = self.relationship(Owner::Implied(e), M::Redefinition, eg, None);
+                self.end(r, Slot::Target, *redefined);
+            }
+            let r = self.relationship(Owner::Implied(e), M::TypeFeaturing, eg, None);
+            self.end(r, Slot::Target, cg);
+        }
+        if let Some(s) = self_links {
+            let r = self.relationship(Owner::Implied(c), M::Subsetting, cg, None);
+            self.end(r, Slot::Target, s);
+        }
+        match binding.featuring {
+            BindingFeaturing::Owner => {
+                let r = self.relationship(Owner::Implied(c), M::TypeFeaturing, cg, None);
+                self.end(r, Slot::Target, here);
+            }
+            BindingFeaturing::Copy => {
+                for f in crate::implied::featuring_types(db, project, self.file, x) {
+                    if let Featuring::Default(y) = *f {
+                        if self.default_of(db, project, y).is_none() {
+                            continue;
+                        }
+                    }
+                    let r = self.relationship(Owner::Implied(c), M::TypeFeaturing, cg, None);
+                    self.featuring(r, Slot::Target, *f);
+                }
+            }
+            BindingFeaturing::StartShot => {
+                let that = crate::derived::library(db, project, "Base::things::that");
+                let start =
+                    crate::derived::library(db, project, "Occurrences::Occurrence::startShot");
+                if let (Some(that), Some(start)) = (that, start) {
+                    let r = self.relationship(Owner::Implied(c), M::TypeFeaturing, cg, None);
+                    self.chain(r, &[that, start]);
+                }
+            }
+        }
     }
 
     /// The default featuring type of a connector, from this overlay or another file's.

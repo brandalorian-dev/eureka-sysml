@@ -93,9 +93,9 @@
       "function": "check_data_type_specialization"
     },
     "Expression::checkExpressionResultBindingConnector": {
-      "status": "open",
+      "status": "done",
       "table": "BindingConnector",
-      "pending": "step 1a.9, with the binding-connector constraints"
+      "function": "check_expression_result_binding_connector"
     },
     "Expression::checkExpressionSpecialization": {
       "status": "done",
@@ -213,9 +213,9 @@
       "function": "check_feature_chain_expression_target_redefinition"
     },
     "FeatureReferenceExpression::checkFeatureReferenceExpressionBindingConnector": {
-      "status": "open",
+      "status": "done",
       "table": "BindingConnector",
-      "pending": "step 1a.9, with the binding-connector constraints"
+      "function": "check_feature_reference_expression_binding_connector"
     },
     "FeatureReferenceExpression::checkFeatureReferenceExpressionResultSpecialization": {
       "status": "done",
@@ -223,9 +223,9 @@
       "function": "check_feature_reference_expression_result_specialization"
     },
     "FeatureValue::checkFeatureValueBindingConnector": {
-      "status": "open",
+      "status": "done",
       "table": "BindingConnector",
-      "pending": "step 1a.9, with the binding-connector constraints"
+      "function": "check_feature_value_binding_connector"
     },
     "Flow::checkFlowSpecialization": {
       "status": "done",
@@ -238,9 +238,9 @@
       "function": "check_flow_with_ends_specialization"
     },
     "Function::checkFunctionResultBindingConnector": {
-      "status": "open",
+      "status": "done",
       "table": "BindingConnector",
-      "pending": "step 1a.9, with the binding-connector constraints"
+      "function": "check_function_result_binding_connector"
     },
     "Function::checkFunctionSpecialization": {
       "status": "done",
@@ -258,9 +258,9 @@
       "function": "check_invariant_specialization"
     },
     "InvocationExpression::checkInvocationExpressionBehaviorBindingConnector": {
-      "status": "open",
+      "status": "done",
       "table": "BindingConnector",
-      "pending": "step 1a.9, with the binding-connector constraints"
+      "function": "check_invocation_expression_behavior_binding_connector"
     },
     "InvocationExpression::checkInvocationExpressionBehaviorResultSpecialization": {
       "status": "done",

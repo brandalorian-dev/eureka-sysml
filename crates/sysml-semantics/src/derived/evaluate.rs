@@ -921,22 +921,28 @@ pub fn model_level_evaluable(
         .iter()
         .all(|r| g.flag(r.ix(), Attr::IsImplied));
     let result = super::kernel::result(db, project, x);
+    // The owned features as written: the binding connector that checkExpressionResultBindingConnector
+    // implies is an owned feature too, which the OCL, like its `ownedSpecialization->forAll(isImplied)`,
+    // does not count (ADR 0021).
     written
-        && owned_feature(db, project, x).into_iter().all(|f| {
-            let fg = view(db, project, f.file);
-            let input = matches!(
-                fg.values(f.ix(), Attr::Direction).next(),
-                Some(Value::Enumeration("in"))
-            );
-            let plain = (input || Some(f) == result)
-                && owned_feature(db, project, f).is_empty()
-                && valuation(db, project, f).is_none();
-            let result_expression = fg
-                .owning_relationship(f.ix())
-                .is_some_and(|r| fg.metaclass(r).specializes(M::ResultExpressionMembership))
-                && model_level_evaluable(db, project, f, visited);
-            plain || result_expression
-        })
+        && owned_feature(db, project, x)
+            .into_iter()
+            .filter(|f| !g.is_implied(f.ix()))
+            .all(|f| {
+                let fg = view(db, project, f.file);
+                let input = matches!(
+                    fg.values(f.ix(), Attr::Direction).next(),
+                    Some(Value::Enumeration("in"))
+                );
+                let plain = (input || Some(f) == result)
+                    && owned_feature(db, project, f).is_empty()
+                    && valuation(db, project, f).is_none();
+                let result_expression = fg
+                    .owning_relationship(f.ix())
+                    .is_some_and(|r| fg.metaclass(r).specializes(M::ResultExpressionMembership))
+                    && model_level_evaluable(db, project, f, visited);
+                plain || result_expression
+            })
 }
 
 /// `FeatureReferenceExpression::modelLevelEvaluable(visited)` (KerML 8.3.4.8.5): a reference to

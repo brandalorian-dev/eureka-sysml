@@ -44,8 +44,8 @@ mod materialize;
 mod resolve;
 
 pub use implied::{
-    featuring_types, implied_featurings, implied_generals, implied_redefinitions, Featuring,
-    Implied,
+    featuring_types, implied_bindings, implied_featurings, implied_generals, implied_redefinitions,
+    Binding, BindingEnd, BindingFeaturing, Featuring, Implied,
 };
 pub use lower::{lower, Lowered};
 pub use materialize::{overlay, view, Overlay, View, ViewEnd};

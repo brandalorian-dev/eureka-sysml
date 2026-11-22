@@ -5,7 +5,7 @@
 //!
 //! - A `done` entry names its function in `sysml_semantics::checks`, which `CHECKS` lists for the
 //!   constraint's metaclass, and has a golden test in `tests/checks.rs` of the same name.
-//! - An `open` entry says what it waits for; a `deferred` one is a constraint without OCL.
+//! - No entry is `open`, since step 1a.9 is done; a `deferred` one is a constraint without OCL.
 //! - The table is the one the constraint's name gives (KerML 8.4.2: a specialization constraint
 //!   has "Specialization" in its name, and so on), and the tables have the sizes of KerML 8.4.2.
 
@@ -82,7 +82,8 @@ fn the_inventory_lists_every_check_with_its_status() {
                     problems.push(format!("{key}: not in CHECKS"));
                 }
             }
-            "open" if text("pending").is_some() => {}
+            // Step 1a.9 is done: no constraint is open.
+            "open" => problems.push(format!("{key}: open, but step 1a.9 is done")),
             "deferred" if text("reason").is_some() && c.body.trim() == "TBD" => {}
             s => problems.push(format!("{key}: status `{s}` without what it needs")),
         }

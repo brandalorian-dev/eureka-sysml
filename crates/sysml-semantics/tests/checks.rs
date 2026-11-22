@@ -1380,6 +1380,123 @@ fn a_chain_that_gives_the_owning_type_needs_no_featuring() {
     ));
 }
 
+// ---- Table 11: binding connectors (KerML 8.4.4.1) ----
+
+/// The related features of the implied binding connectors an element owns.
+fn bindings(m: &Model, x: Global) -> Vec<Vec<Global>> {
+    let v = sysml_semantics::view(&m.db, m.project, x.file);
+    d::owned_member(&m.db, m.project, x)
+        .into_iter()
+        .filter(|b| v.is_implied(b.ix()) && v.metaclass(b.ix()) == Metaclass::BindingConnector)
+        .map(|b| d::related_feature(&m.db, m.project, b))
+        .collect()
+}
+
+#[test]
+fn check_invocation_expression_behavior_binding_connector() {
+    // an invocation of a Behavior binds itself to its result; of a Function, it does not
+    let m = model_with_library(
+        "behavior B { in x; } feature v = B(1); function F { in x; return r; } feature w = F(1);",
+    );
+    let (db, p) = (&m.db, m.project);
+    let x = m.get("v::InvocationExpression#1");
+    assert_eq!(bindings(&m, x), [vec![x, d::result(db, p, x).unwrap()]]);
+    let y = m.get("w::InvocationExpression#1");
+    assert!(bindings(&m, y).is_empty());
+    for x in [x, y] {
+        assert!(holds(
+            &m,
+            c::check_invocation_expression_behavior_binding_connector,
+            x
+        ));
+    }
+}
+
+#[test]
+fn check_feature_reference_expression_binding_connector() {
+    // the referent is bound to the result
+    let m = model_with_library("feature a; feature b = a;");
+    let (db, p) = (&m.db, m.project);
+    let x = m.get("b::FeatureReferenceExpression#1");
+    assert_eq!(
+        bindings(&m, x),
+        [vec![m.get("a"), d::result(db, p, x).unwrap()]]
+    );
+    assert!(holds(
+        &m,
+        c::check_feature_reference_expression_binding_connector,
+        x
+    ));
+}
+
+#[test]
+fn check_function_result_binding_connector() {
+    // a function's result is bound to the result of its result expression
+    let m = model_with_library("function F { in x; x }");
+    let (db, p) = (&m.db, m.project);
+    let f = m.get("F");
+    let body = m.get("F::FeatureReferenceExpression#1");
+    let expected = vec![
+        d::result(db, p, f).unwrap(),
+        d::result(db, p, body).unwrap(),
+    ];
+    assert_eq!(bindings(&m, f), [expected]);
+    assert!(holds(&m, c::check_function_result_binding_connector, f));
+}
+
+#[test]
+fn check_expression_result_binding_connector() {
+    // an expression's result is bound to the result of its result expression
+    let m = model_with_library("expr e { 1 }");
+    let (db, p) = (&m.db, m.project);
+    let e = m.get("e");
+    let literal = m.get("e::LiteralInteger#1");
+    let expected = vec![
+        d::result(db, p, e).unwrap(),
+        d::result(db, p, literal).unwrap(),
+    ];
+    assert_eq!(bindings(&m, e), [expected]);
+    assert!(holds(&m, c::check_expression_result_binding_connector, e));
+}
+
+#[test]
+fn check_feature_value_binding_connector() {
+    // the feature is bound to the chain of the value and its result, featured as the feature is;
+    // for an initial value, by that.startShot; for a default, there is none
+    let text = "classifier C { feature a; feature b = a; }
+        class K { var feature v := 1; } classifier D { feature e default = 1; }";
+    let m = model_with_library(text);
+    let (db, p) = (&m.db, m.project);
+    let b = m.get("C::b");
+    let value = m.get("C::b::FeatureReferenceExpression#1");
+    let related = bindings(&m, b);
+    assert_eq!(related.len(), 1);
+    assert_eq!(related[0][0], b);
+    let chain = d::chaining_feature(db, p, related[0][1]);
+    assert_eq!(chain, [value, d::result(db, p, value).unwrap()]);
+    let fv = m.relationship("C::b", Metaclass::FeatureValue, 1);
+    assert!(holds(&m, c::check_feature_value_binding_connector, fv));
+    // initial
+    let v = m.get("K::v");
+    assert_eq!(bindings(&m, v).len(), 1);
+    let fv = m.relationship("K::v", Metaclass::FeatureValue, 1);
+    assert!(holds(&m, c::check_feature_value_binding_connector, fv));
+    // default
+    assert!(bindings(&m, m.get("D::e")).is_empty());
+    let fv = m.relationship("D::e", Metaclass::FeatureValue, 1);
+    assert!(holds(&m, c::check_feature_value_binding_connector, fv));
+}
+
+#[test]
+fn implied_binding_connectors_meet_the_other_constraints() {
+    // an implied binding connector, its ends and their chains are checked like any element
+    let m = model_with_library(
+        "classifier C { feature a; feature b = a; } class K { var feature v := 1; }
+        function F { in x; x } behavior B { in x; } feature w = B(1);",
+    );
+    assert!(c::violations(&m.db, m.project, m.file).is_empty());
+}
+
 // ---- KerML 8.4.2: the redundancy rules ----
 
 #[test]

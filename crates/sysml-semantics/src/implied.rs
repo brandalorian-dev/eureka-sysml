@@ -1493,3 +1493,146 @@ pub(crate) fn redefined_cross_features(
         .filter(|c| *c != cross)
         .collect()
 }
+
+// ---- binding connectors (KerML 8.4.2, binding-connector constraints) ----
+
+/// An end of an implied binding connector: a feature, or the chain of two features.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+pub enum BindingEnd {
+    /// The feature itself.
+    Feature(Global),
+    /// The feature chain `first.second` (KerML 8.3.3.3.4 `chainingFeature`).
+    Chain(Global, Global),
+}
+
+/// How an implied binding connector is featured.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+pub enum BindingFeaturing {
+    /// Owned through a FeatureMembership, featured by its owner (an `ownedFeature`).
+    Owner,
+    /// Owned through an OwningMembership and featured by the featuring types of its owner
+    /// (checkFeatureValueBindingConnector, a FeatureValue that is not initial).
+    Copy,
+    /// Owned through an OwningMembership and featured by the chain `Base::things::that.
+    /// Occurrences::Occurrence::startShot` (an initial FeatureValue).
+    StartShot,
+}
+
+/// A binding connector that a constraint implies, owned by the constrained element.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+pub struct Binding {
+    /// Its two ends, in order.
+    pub ends: [BindingEnd; 2],
+    /// How it is featured.
+    pub featuring: BindingFeaturing,
+}
+
+settle!(settle_bindings, Vec<Binding>, (Project, SourceFile, u32));
+
+fn no_bindings(
+    _db: &dyn salsa::Database,
+    _id: salsa::Id,
+    _project: Project,
+    _file: SourceFile,
+    _x: u32,
+) -> Vec<Binding> {
+    Vec::new()
+}
+
+/// The binding connectors the binding-connector constraints imply for an element, in the order
+/// of KerML's Table 11 (8.4.4.1). Each binds its first end to its second; the owner is the
+/// constrained element (Table 11 Note 1). A fixpoint from none.
+///
+/// - KerML 8.3.4.8.8 checkInvocationExpressionBehaviorBindingConnector (Note 3): an invocation of a
+///   type that is not a Function, nor a Feature typed by one, binds itself to its result.
+/// - KerML 8.3.4.8.5 checkFeatureReferenceExpressionBindingConnector: the referent to the result.
+/// - KerML 8.3.4.7.4 checkFunctionResultBindingConnector and 8.3.4.7.3
+///   checkExpressionResultBindingConnector: the result to the result of each result expression.
+/// - KerML 8.3.4.10.2 checkFeatureValueBindingConnector: a feature to the chain of the value of
+///   each of its FeatureValues that is not a default and the value's result, featured as the
+///   feature is or, for an initial value, by `that.startShot`.
+#[salsa::tracked(returns(ref), cycle_initial = no_bindings, cycle_fn = settle_bindings)]
+pub fn implied_bindings(
+    db: &dyn salsa::Database,
+    project: Project,
+    file: SourceFile,
+    x: u32,
+) -> Vec<Binding> {
+    if !crate::resolve::in_fragment(db, file, x) {
+        return Vec::new();
+    }
+    let here = Global { file, index: x };
+    let l = structure(db, file);
+    let g = l.graph();
+    let f = ix(x);
+    let m = g.metaclass(f);
+    let mut out = Vec::new();
+    let owned = |a: BindingEnd, b: BindingEnd| Binding {
+        ends: [a, b],
+        featuring: BindingFeaturing::Owner,
+    };
+    let result = || *result_parameter(db, project, file, x);
+    // checkInvocationExpressionBehaviorBindingConnector
+    if m.specializes(M::InvocationExpression) {
+        if let (Some(t), Some(r)) = (
+            instantiated_type(db, project, here).filter(|t| *t != here),
+            result(),
+        ) {
+            let function = |y: &Global| metaclass(db, *y).specializes(M::Function);
+            let invokes_function = function(&t)
+                || (metaclass(db, t).specializes(M::Feature)
+                    && feature_types(db, project, t).iter().any(function));
+            if !invokes_function {
+                out.push(owned(BindingEnd::Feature(here), BindingEnd::Feature(r)));
+            }
+        }
+    }
+    // checkFeatureReferenceExpressionBindingConnector
+    if m.specializes(M::FeatureReferenceExpression) {
+        let referent = first_member_not(db, project, here, M::ParameterMembership)
+            .filter(|r| metaclass(db, *r).specializes(M::Feature));
+        if let (Some(t), Some(r)) = (referent, result()) {
+            out.push(owned(BindingEnd::Feature(t), BindingEnd::Feature(r)));
+        }
+    }
+    // checkFunctionResultBindingConnector, checkExpressionResultBindingConnector
+    if m.specializes(M::Function) || m.specializes(M::Expression) {
+        if let Some(r) = result() {
+            for rel in g.owned_relationships(f) {
+                if !g.metaclass(*rel).specializes(M::ResultExpressionMembership) {
+                    continue;
+                }
+                let Some(e) = g.owned_related_elements(*rel).first() else {
+                    continue;
+                };
+                if let Some(er) = *result_parameter(db, project, file, e.index() as u32) {
+                    out.push(owned(BindingEnd::Feature(r), BindingEnd::Feature(er)));
+                }
+            }
+        }
+    }
+    // checkFeatureValueBindingConnector
+    if m.specializes(M::Feature) {
+        for rel in g.owned_relationships(f) {
+            if !g.metaclass(*rel).specializes(M::FeatureValue) || g.flag(*rel, Attr::IsDefault) {
+                continue;
+            }
+            let Some(v) = g.owned_related_elements(*rel).first() else {
+                continue;
+            };
+            let vg = at(file, *v);
+            let Some(vr) = *result_parameter(db, project, file, vg.index) else {
+                continue;
+            };
+            out.push(Binding {
+                ends: [BindingEnd::Feature(here), BindingEnd::Chain(vg, vr)],
+                featuring: if g.flag(*rel, Attr::IsInitial) {
+                    BindingFeaturing::StartShot
+                } else {
+                    BindingFeaturing::Copy
+                },
+            });
+        }
+    }
+    out
+}
