@@ -20,8 +20,12 @@ use crate::resolve::{
 pub struct Implied {
     /// Subclassification, FeatureTyping, Subsetting, Specialization or Redefinition.
     pub kind: M,
-    /// The target.
+    /// The target or, for a chain, its last feature, which is what the type inherits from
+    /// (KerML 8.3.3.3.4 `featureTarget`).
     pub general: Global,
+    /// For a target that is a feature chain `chain.general`, which the overlay builds: its first
+    /// feature (`checkFeatureChainExpressionResultSpecialization`).
+    pub chain: Option<Global>,
 }
 
 fn ix(i: u32) -> ElementIx {
@@ -353,6 +357,33 @@ fn cross_feature(db: &dyn salsa::Database, project: Project, f: Global) -> Optio
         at(crossed.file, chaining),
         sysml_model::Slot::Target,
     )
+}
+
+/// The first input parameter of a FeatureChainExpression and its first owned feature, the
+/// `sourceTargetFeature()` that the grammar writes (KerML 8.3.4.8.4; ADR 0018).
+fn source_target(g: &Graph, t: ElementIx) -> Option<(ElementIx, ElementIx)> {
+    let p = owned_features(g, t).find(|f| {
+        matches!(
+            g.values(*f, Attr::Direction).next(),
+            Some(sysml_model::Value::Enumeration("in"))
+        )
+    })?;
+    Some((p, owned_features(g, p).next()?))
+}
+
+/// The public features of a type, owned then inherited, in order (KerML 8.3.3.1.10 `feature`,
+/// with `owningMembership.visibility = public`).
+fn public_features(db: &dyn salsa::Database, project: Project, t: Global) -> Vec<Global> {
+    let owned = crate::resolve::owned_memberships(db, project, t.file, t.index);
+    let inherited = crate::resolve::inherited_memberships(db, project, t.file, t.index, false);
+    owned
+        .iter()
+        .chain(inherited.iter())
+        // Not one that an owned feature redefines, which resolution keeps as hidden (ADR 0020).
+        .filter(|e| e.visibility == crate::Visibility::Public && !e.hidden)
+        .filter(|e| metaclass(db, e.membership).specializes(M::FeatureMembership))
+        .filter_map(|e| member_element(db, project, e))
+        .collect()
 }
 
 fn is_result(g: &Graph, f: ElementIx) -> bool {
@@ -850,6 +881,7 @@ pub fn implied_generals(
                 direct.push(Implied {
                     kind: M::CrossSubsetting,
                     general: at(file, c),
+                    chain: None,
                 });
             }
         }
@@ -879,9 +911,26 @@ pub fn implied_generals(
                         direct.push(Implied {
                             kind: M::Subsetting,
                             general: c,
+                            chain: None,
                         });
                     }
                 }
+            }
+        }
+    }
+
+    // KerML 8.3.4.8.4 checkFeatureChainExpressionResultSpecialization: the result subsets the
+    // chain of the first input parameter and its sourceTargetFeature (`subsetsChain`), which the
+    // overlay builds. The chain is a new element, so no supertype implies it (KerML 8.4.2).
+    if is_result(g, x) {
+        if let Some(t) = owning_type(g, x).filter(|t| g.metaclass(*t) == M::FeatureChainExpression)
+        {
+            if let Some((p, stf)) = source_target(g, t) {
+                direct.push(Implied {
+                    kind: M::Subsetting,
+                    general: at(file, stf),
+                    chain: Some(at(file, p)),
+                });
             }
         }
     }
@@ -908,7 +957,11 @@ pub fn implied_generals(
                     && supertypes(db, project, o.file, o.index).contains(&general)
             });
         if !redundant {
-            kept.push(Implied { kind, general });
+            kept.push(Implied {
+                kind,
+                general,
+                chain: None,
+            });
         }
     }
 
@@ -963,6 +1016,7 @@ pub fn implied_redefinitions(
                     redefinitions.push(Implied {
                         kind: M::Redefinition,
                         general: t,
+                        chain: None,
                     });
                 }
             }
@@ -1024,6 +1078,41 @@ pub fn implied_redefinitions(
                         Some(0) => redefine(lib("Transfers::Transfer::source::sourceOutput")),
                         Some(1) => redefine(lib("Transfers::Transfer::target::targetInput")),
                         _ => {}
+                    }
+                }
+            }
+        }
+        if let Some(p) = owning_type(g, x) {
+            // KerML 8.3.4.8.4 checkFeatureChainExpressionTargetRedefinition and
+            // checkFeatureChainExpressionSourceTargetRedefinition: the sourceTargetFeature
+            // redefines `ControlFunctions::'.'::source::target` and the target feature (8.4.4.1
+            // Table 11 Note 5).
+            if let Some(t) =
+                owning_type(g, p).filter(|t| g.metaclass(*t) == M::FeatureChainExpression)
+            {
+                if source_target(g, t) == Some((p, x)) {
+                    redefine(qualified(
+                        db,
+                        project,
+                        &["ControlFunctions", ".", "source", "target"],
+                    ));
+                    redefine(
+                        first_member_not(db, project, at(file, t), M::ParameterMembership)
+                            .filter(|r| metaclass(db, *r).specializes(M::Feature)),
+                    );
+                }
+            }
+            // KerML 8.3.4.8.3 checkConstructorExpressionResultFeatureRedefinition: a feature of
+            // the result of `new T(…)` without a written redefinition redefines the public feature
+            // of T at its position (8.4.4.1 Table 11 Note 6).
+            if is_result(g, p) && redefined.is_empty() {
+                if let Some(c) =
+                    owning_type(g, p).filter(|c| g.metaclass(*c) == M::ConstructorExpression)
+                {
+                    if let Some(i) = owned_features(g, p).position(|f| f == x) {
+                        if let Some(t) = instantiated_type(db, project, at(file, c)) {
+                            redefine(public_features(db, project, t).get(i).copied());
+                        }
                     }
                 }
             }

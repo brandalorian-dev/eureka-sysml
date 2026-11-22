@@ -73,9 +73,9 @@
       "reason": "KerML 1.0 gives no OCL for it (TBD), so there is nothing to check"
     },
     "ConstructorExpression::checkConstructorExpressionResultFeatureRedefinition": {
-      "status": "open",
+      "status": "done",
       "table": "Redefinition",
-      "pending": "step 1a.9, with the redefinition constraints"
+      "function": "check_constructor_expression_result_feature_redefinition"
     },
     "ConstructorExpression::checkConstructorExpressionResultSpecialization": {
       "status": "done",
@@ -118,9 +118,9 @@
       "function": "check_feature_data_value_specialization"
     },
     "Feature::checkFeatureEndRedefinition": {
-      "status": "open",
+      "status": "done",
       "table": "Redefinition",
-      "pending": "step 1a.9, with the redefinition constraints"
+      "function": "check_feature_end_redefinition"
     },
     "Feature::checkFeatureEndSpecialization": {
       "status": "done",
@@ -133,9 +133,9 @@
       "pending": "step 1a.9, with the type-featuring constraints"
     },
     "Feature::checkFeatureFlowFeatureRedefinition": {
-      "status": "open",
+      "status": "done",
       "table": "Redefinition",
-      "pending": "step 1a.9, with the redefinition constraints"
+      "function": "check_feature_flow_feature_redefinition"
     },
     "Feature::checkFeatureObjectSpecialization": {
       "status": "done",
@@ -163,9 +163,9 @@
       "pending": "step 1a.9, with the type-featuring constraints"
     },
     "Feature::checkFeatureParameterRedefinition": {
-      "status": "open",
+      "status": "done",
       "table": "Redefinition",
-      "pending": "step 1a.9, with the redefinition constraints"
+      "function": "check_feature_parameter_redefinition"
     },
     "Feature::checkFeaturePortionSpecialization": {
       "status": "done",
@@ -173,9 +173,9 @@
       "function": "check_feature_portion_specialization"
     },
     "Feature::checkFeatureResultRedefinition": {
-      "status": "open",
+      "status": "done",
       "table": "Redefinition",
-      "pending": "step 1a.9, with the redefinition constraints"
+      "function": "check_feature_result_redefinition"
     },
     "Feature::checkFeatureSpecialization": {
       "status": "done",
@@ -198,19 +198,19 @@
       "function": "check_feature_valuation_specialization"
     },
     "FeatureChainExpression::checkFeatureChainExpressionResultSpecialization": {
-      "status": "open",
+      "status": "done",
       "table": "Specialization",
-      "pending": "needs the implied sourceTargetFeature, which the redefinition constraints of step 1a.9 add"
+      "function": "check_feature_chain_expression_result_specialization"
     },
     "FeatureChainExpression::checkFeatureChainExpressionSourceTargetRedefinition": {
-      "status": "open",
+      "status": "done",
       "table": "Redefinition",
-      "pending": "step 1a.9, with the redefinition constraints"
+      "function": "check_feature_chain_expression_source_target_redefinition"
     },
     "FeatureChainExpression::checkFeatureChainExpressionTargetRedefinition": {
-      "status": "open",
+      "status": "done",
       "table": "Redefinition",
-      "pending": "step 1a.9, with the redefinition constraints"
+      "function": "check_feature_chain_expression_target_redefinition"
     },
     "FeatureReferenceExpression::checkFeatureReferenceExpressionBindingConnector": {
       "status": "open",
@@ -348,9 +348,9 @@
       "function": "check_null_expression_specialization"
     },
     "PayloadFeature::checkPayloadFeatureRedefinition": {
-      "status": "open",
+      "status": "done",
       "table": "Redefinition",
-      "pending": "step 1a.9, with the redefinition constraints"
+      "function": "check_payload_feature_redefinition"
     },
     "Predicate::checkPredicateSpecialization": {
       "status": "done",
