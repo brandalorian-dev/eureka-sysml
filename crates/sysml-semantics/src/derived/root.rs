@@ -9,7 +9,7 @@ use crate::materialize::view;
 use crate::resolve::{
     collide, effective_names, global_namespace, import_memberships, imported_memberships,
     member_element, member_metaclass, memberships, namespace_memberships, settle_path,
-    settle_qualified_name, visibility, Entry, Global, Project, Visibility,
+    settle_qualified_name, Entry, Global, Project, Visibility,
 };
 
 // ---- Element (KerML 8.3.2.1.2) ----
@@ -501,13 +501,13 @@ pub fn memberships_of_visibility(
     let mut out: Vec<Global> = g
         .all_owned_relationships(ns.ix())
         .filter(|r| g.metaclass(*r).specializes(M::Membership))
-        .filter(|r| visibility_kind.is_none_or(|v| visibility(g.lowered(), *r) == v))
+        .filter(|r| visibility_kind.is_none_or(|v| g.visibility(*r) == v))
         .map(|r| at(ns.file, r))
         .collect();
     // `ownedImport->select(imp | …).importedMemberships(…)`: each import's own memberships,
     // without the namespace's exclusion of collisions.
     for import in owned_import(db, project, ns) {
-        if visibility_kind.is_none_or(|v| visibility(g.lowered(), import.ix()) == v) {
+        if visibility_kind.is_none_or(|v| g.visibility(import.ix()) == v) {
             out.extend(
                 import_imported_memberships(db, project, import)
                     .iter()
@@ -572,13 +572,13 @@ pub fn visibility_of(
         for import in owned_import(db, project, ns) {
             if import_imported_memberships(db, project, import).contains(&mem) {
                 let s = view(db, project, import.file);
-                return visibility(s.lowered(), import.ix());
+                return s.visibility(import.ix());
             }
         }
     }
     if membership(db, project, ns).contains(&mem) {
         let s = view(db, project, mem.file);
-        return visibility(s.lowered(), mem.ix());
+        return s.visibility(mem.ix());
     }
     Visibility::Private
 }
@@ -627,7 +627,7 @@ fn membership_entry(db: &dyn salsa::Database, project: Project, m: Global) -> En
         short_name,
         membership: m,
         owned_element: owned,
-        visibility: visibility(g.lowered(), m.ix()),
+        visibility: g.visibility(m.ix()),
         hidden: false,
     }
 }
