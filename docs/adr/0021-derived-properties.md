@@ -128,6 +128,6 @@ The step's "done when" is therefore a test: all three layers complete.
 
 ## Amendment: step 1a.9 (2026-11-21)
 
-- **`modelLevelEvaluable` and implied features.** Since step 1a.9 an Expression with a result expression owns the BindingConnector that `checkExpressionResultBindingConnector` implies (ADR 0022). The operation requires every owned feature to be an input, the result or a result expression, which would make no such Expression evaluable. It already accepts implied specializations (`ownedSpecialization->forAll(isImplied)`), and its owned features are read the same way: those written, not the implied ones.
+- **`modelLevelEvaluable` and implied features.** Since step 1a.9 an Expression with a result expression owns the BindingConnector that `checkExpressionResultBindingConnector` implies (ADR 0022). The operation requires every owned feature to be an input, the result or a result expression, which would make no such Expression evaluable. It already accepts implied specializations (`ownedSpecialization->forAll(isImplied)`). In the same way, it does not count the implied binding connectors among the owned features. Any other implied owned feature counts.
 - **`featuringType`** reads the implied type featurings from the overlay, so the implied featuring of a feature owned through a FeatureMembership, which step 1a.8 computed in place, now comes from there.
 

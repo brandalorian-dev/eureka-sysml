@@ -701,6 +701,16 @@ pub fn check_feature_valuation_specialization(
         .all(|value| specializes(db, project, x, d::result(db, project, value)))
 }
 
+/// `featureWithValue` of a FeatureValue (KerML 8.3.4.10.2): its owning related element. A
+/// relationship has no `owner`, which is the owning related element of an owning relationship.
+fn feature_with_value(db: &dyn salsa::Database, project: Project, fv: Global) -> Option<Global> {
+    let v = crate::view(db, project, fv.file);
+    v.owning_related_element(fv.ix()).map(|e| Global {
+        file: fv.file,
+        index: e.index() as u32,
+    })
+}
+
 /// The owned related element of a relationship.
 fn target_element(db: &dyn salsa::Database, project: Project, r: Global) -> Option<Global> {
     let v = crate::view(db, project, r.file);
@@ -1006,7 +1016,7 @@ pub fn check_expression_type_featuring(
     else {
         return true;
     };
-    d::owner(db, project, fv).is_none_or(|f| {
+    feature_with_value(db, project, fv).is_none_or(|f| {
         same_types(
             d::featuring_type(db, project, x),
             d::featuring_type(db, project, f),
@@ -1056,16 +1066,7 @@ pub fn check_invocation_expression_behavior_binding_connector(
     project: Project,
     x: Global,
 ) -> bool {
-    if !is(db, project, x, M::InvocationExpression) {
-        return true;
-    }
-    let Some(t) = d::instantiated_type(db, project, x) else {
-        return true;
-    };
-    let function = |y: Global| is(db, project, y, M::Function);
-    if function(t)
-        || (is(db, project, t, M::Feature) && d::r#type(db, project, t).into_iter().any(function))
-    {
+    if crate::implied::invokes_non_function(db, project, x).is_none() {
         return true;
     }
     d::result(db, project, x)
@@ -1138,7 +1139,10 @@ pub fn check_feature_value_binding_connector(
     if !is(db, project, x, M::FeatureValue) || flag(db, project, x, Attr::IsDefault) {
         return true;
     }
-    let (Some(f), Some(value)) = (d::owner(db, project, x), target_element(db, project, x)) else {
+    let (Some(f), Some(value)) = (
+        feature_with_value(db, project, x),
+        target_element(db, project, x),
+    ) else {
         return true;
     };
     let Some(result) = d::result(db, project, value) else {
@@ -1671,16 +1675,11 @@ pub fn check_invocation_expression_behavior_result_specialization(
     project: Project,
     x: Global,
 ) -> bool {
-    if !is(db, project, x, M::InvocationExpression) {
-        return true;
+    // The condition is shared with the implied relationship (`invokes_non_function`).
+    match crate::implied::invokes_non_function(db, project, x) {
+        None => true,
+        Some(t) => result_specializes(db, project, x, Some(t)),
     }
-    let Some(t) = d::instantiated_type(db, project, x) else {
-        return true;
-    };
-    let function = |y: Global| is(db, project, y, M::Function);
-    let invokes_function = function(t)
-        || (is(db, project, t, M::Feature) && d::r#type(db, project, t).into_iter().any(function));
-    invokes_function || result_specializes(db, project, x, Some(t))
 }
 
 /// KerML 8.3.4.8.9 checkLiteralBooleanSpecialization.
@@ -1917,5 +1916,93 @@ pub fn check_metadata_feature_semantic_specialization(
         d::specializes(db, project, annotated, base)
     } else {
         true
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    //! The binding-connector checks, on bindings that are written wrongly: the overlay implies the
+    //! right one wherever a constraint applies, so only a written binding can be wrong.
+    use super::*;
+    use crate::{Database, SourceFile};
+    use sysml_model::FileId;
+    #[cfg(target_arch = "wasm32")]
+    use wasm_bindgen_test::wasm_bindgen_test as test;
+
+    fn model(text: &str) -> (Database, Project, SourceFile) {
+        let db = Database::default();
+        let file = SourceFile::new(
+            &db,
+            FileId(0),
+            "test.kerml".into(),
+            sysml_syntax::Language::KerML,
+            text.into(),
+        );
+        let project = Project::new(&db, vec![file]);
+        (db, project, file)
+    }
+
+    /// The element of the root namespace with a declared name.
+    fn get(db: &Database, project: Project, file: SourceFile, name: &str) -> Global {
+        let root = Global {
+            file,
+            index: crate::structure(db, file).root().index() as u32,
+        };
+        d::owned_member(db, project, root)
+            .into_iter()
+            .find(|m| d::name(db, project, *m).as_deref() == Some(name))
+            .unwrap()
+    }
+
+    #[test]
+    fn binds_needs_a_binding_connector_of_both_features() {
+        let (db, p, f) = model(
+            "classifier C { feature x; feature y; feature z; binding b of x = y; connector k from x to z; }",
+        );
+        let c = get(&db, p, f, "C");
+        let member = |n: &str| {
+            d::owned_member(&db, p, c)
+                .into_iter()
+                .find(|m| d::name(&db, p, *m).as_deref() == Some(n))
+                .unwrap()
+        };
+        let (x, y, z) = (member("x"), member("y"), member("z"));
+        let owned = d::owned_feature(&db, p, c);
+        assert!(binds(&db, p, owned.clone(), x, y));
+        assert!(binds(&db, p, owned.clone(), y, x));
+        // a binding of other features, and a connector that is no binding connector
+        assert!(!binds(&db, p, owned.clone(), y, z));
+        assert!(!binds(&db, p, owned, x, z));
+    }
+
+    #[test]
+    fn the_feature_with_a_value_is_the_owning_related_element() {
+        // a relationship has no owner, so `owner` would make the feature-value checks vacuous
+        let (db, p, f) = model("feature a; feature b = a;");
+        let b = get(&db, p, f, "b");
+        let fv = d::owned_membership(&db, p, b)
+            .into_iter()
+            .find(|m| is(&db, p, *m, M::FeatureValue))
+            .unwrap();
+        assert_eq!(d::owner(&db, p, fv), None);
+        assert_eq!(feature_with_value(&db, p, fv), Some(b));
+    }
+
+    #[test]
+    fn a_result_binding_must_bind_the_results() {
+        // the written result r is bound by the implied binding to the result of `x`; a check
+        // that only asked for some binding connector would also accept the written `binding b`
+        let (db, p, f) = model("function F { in x; in y; return r; binding b of y = r; x }");
+        let fun = get(&db, p, f, "F");
+        assert!(check_function_result_binding_connector(&db, p, fun));
+        let written = d::owned_feature(&db, p, fun)
+            .into_iter()
+            .filter(|b| is(&db, p, *b, M::BindingConnector))
+            .filter(|b| !crate::view(&db, p, f).is_implied(b.ix()))
+            .collect::<Vec<_>>();
+        let r = d::result(&db, p, fun).unwrap();
+        let body = result_expressions(&db, p, fun)[0];
+        let er = d::result(&db, p, body).unwrap();
+        assert!(!binds(&db, p, written, r, er));
     }
 }

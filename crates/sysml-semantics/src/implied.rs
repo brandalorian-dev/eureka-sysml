@@ -269,6 +269,30 @@ fn first_member_not(
     end_of(db, project, at(x.file, *r), sysml_model::Slot::Target)
 }
 
+/// The instantiated type of an InvocationExpression that is neither a Function nor a Feature
+/// typed by one (KerML 8.3.4.8.8, the condition of
+/// checkInvocationExpressionBehaviorResultSpecialization and
+/// checkInvocationExpressionBehaviorBindingConnector, 8.4.4.1 Table 11 Note 3). An instantiated
+/// type that is the invocation itself is none. The implied relationships and the checks both use
+/// it, so the two cannot read the condition differently.
+pub(crate) fn invokes_non_function(
+    db: &dyn salsa::Database,
+    project: Project,
+    x: Global,
+) -> Option<Global> {
+    if !crate::resolve::in_fragment(db, x.file, x.index)
+        || !metaclass(db, x).specializes(M::InvocationExpression)
+    {
+        return None;
+    }
+    let t = instantiated_type(db, project, x).filter(|t| *t != x)?;
+    let function = |y: &Global| metaclass(db, *y).specializes(M::Function);
+    let invokes_function = function(&t)
+        || (metaclass(db, t).specializes(M::Feature)
+            && feature_type(db, project, t).iter().any(function));
+    (!invokes_function).then_some(t)
+}
+
 /// The first argument of an invocation (KerML 8.3.4.8.8 `argument->first()`): the value of the
 /// FeatureValue of its first owned parameter, which redefines the first input of the
 /// instantiated type (`checkFeatureParameterRedefinition`).
@@ -740,16 +764,8 @@ pub fn implied_generals(
                 // KerML 8.3.4.8.8 checkInvocationExpressionBehaviorResultSpecialization: the
                 // result of an invocation of a type that is not a Function, nor a Feature typed by
                 // one, specializes it.
-                if tm.specializes(M::InvocationExpression) {
-                    if let Some(i) = instantiated_type(db, project, tg).filter(|i| *i != tg) {
-                        let function = |y: &Global| metaclass(db, *y).specializes(M::Function);
-                        let invokes_function = function(&i)
-                            || (metaclass(db, i).specializes(M::Feature)
-                                && feature_types(db, project, i).iter().any(function));
-                        if !invokes_function {
-                            push(feature_specialization(db, i), Some(i));
-                        }
-                    }
+                if let Some(i) = invokes_non_function(db, project, tg) {
+                    push(feature_specialization(db, i), Some(i));
                 }
                 // KerML 8.3.4.8.18 checkSelectExpressionResultSpecialization, 8.3.4.8.6
                 // checkIndexExpressionResultSpecialization: the result subsets the first
@@ -1573,18 +1589,9 @@ pub fn implied_bindings(
     };
     let result = || *result_parameter(db, project, file, x);
     // checkInvocationExpressionBehaviorBindingConnector
-    if m.specializes(M::InvocationExpression) {
-        if let (Some(t), Some(r)) = (
-            instantiated_type(db, project, here).filter(|t| *t != here),
-            result(),
-        ) {
-            let function = |y: &Global| metaclass(db, *y).specializes(M::Function);
-            let invokes_function = function(&t)
-                || (metaclass(db, t).specializes(M::Feature)
-                    && feature_types(db, project, t).iter().any(function));
-            if !invokes_function {
-                out.push(owned(BindingEnd::Feature(here), BindingEnd::Feature(r)));
-            }
+    if invokes_non_function(db, project, here).is_some() {
+        if let Some(r) = result() {
+            out.push(owned(BindingEnd::Feature(here), BindingEnd::Feature(r)));
         }
     }
     // checkFeatureReferenceExpressionBindingConnector
