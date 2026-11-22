@@ -43,7 +43,10 @@ mod lower;
 mod materialize;
 mod resolve;
 
-pub use implied::{implied_generals, implied_redefinitions, Implied};
+pub use implied::{
+    featuring_types, implied_featurings, implied_generals, implied_redefinitions, Featuring,
+    Implied,
+};
 pub use lower::{lower, Lowered};
 pub use materialize::{overlay, view, Overlay, View, ViewEnd};
 pub use resolve::{

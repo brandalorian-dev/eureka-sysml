@@ -111,6 +111,21 @@ pub const CHECKS: &[(M, &str, Check)] = &[
         "checkFeatureFlowFeatureRedefinition",
         check_feature_flow_feature_redefinition,
     ),
+    (
+        M::Multiplicity,
+        "checkMultiplicityTypeFeaturing",
+        check_multiplicity_type_featuring,
+    ),
+    (
+        M::Feature,
+        "checkFeatureFeatureMembershipTypeFeaturing",
+        check_feature_feature_membership_type_featuring,
+    ),
+    (
+        M::Feature,
+        "checkFeatureOwnedCrossFeatureTypeFeaturing",
+        check_feature_owned_cross_feature_type_featuring,
+    ),
     // ---- Kernel (KerML 8.3.4) ----
     (
         M::DataType,
@@ -168,6 +183,11 @@ pub const CHECKS: &[(M, &str, Check)] = &[
         check_connector_binary_object_specialization,
     ),
     (
+        M::Connector,
+        "checkConnectorTypeFeaturing",
+        check_connector_type_featuring,
+    ),
+    (
         M::BindingConnector,
         "checkBindingConnectorSpecialization",
         check_binding_connector_specialization,
@@ -216,6 +236,11 @@ pub const CHECKS: &[(M, &str, Check)] = &[
         M::Expression,
         "checkExpressionSpecialization",
         check_expression_specialization,
+    ),
+    (
+        M::Expression,
+        "checkExpressionTypeFeaturing",
+        check_expression_type_featuring,
     ),
     (
         M::BooleanExpression,
@@ -321,6 +346,11 @@ pub const CHECKS: &[(M, &str, Check)] = &[
         M::SelectExpression,
         "checkSelectExpressionResultSpecialization",
         check_select_expression_result_specialization,
+    ),
+    (
+        M::MultiplicityRange,
+        "checkMultiplicityRangeExpressionTypeFeaturing",
+        check_multiplicity_range_expression_type_featuring,
     ),
     (
         M::Flow,
@@ -811,6 +841,160 @@ pub fn check_feature_flow_feature_redefinition(
         }
         _ => true,
     }
+}
+
+// ---- type featurings ----
+
+/// Whether two lists of featuring types have the same types (the OCL's `=` of `featuringType`,
+/// read without order, since implied featurings follow the written ones; ADR 0020).
+fn same_types(a: &[Global], b: &[Global]) -> bool {
+    a.iter().all(|x| b.contains(x)) && b.iter().all(|x| a.contains(x))
+}
+
+/// KerML 8.3.3.1.9 checkMultiplicityTypeFeaturing: a multiplicity whose owning namespace is a
+/// Feature has that feature's featuring types, and any other none (the OCL's `owningType`, which
+/// a multiplicity never has, is read as the owning namespace of 8.4.4.12.1; ADR 0020).
+pub fn check_multiplicity_type_featuring(
+    db: &dyn salsa::Database,
+    project: Project,
+    x: Global,
+) -> bool {
+    if !is(db, project, x, M::Multiplicity) {
+        return true;
+    }
+    let own = d::featuring_type(db, project, x).clone();
+    match d::owning_namespace(db, project, x).filter(|o| is(db, project, *o, M::Feature)) {
+        Some(o) => same_types(&own, d::featuring_type(db, project, o)),
+        None => own.is_empty(),
+    }
+}
+
+/// KerML 8.3.3.3.4 checkFeatureFeatureMembershipTypeFeaturing: a feature owned through a
+/// FeatureMembership has a featuring type that `isFeaturingType` accepts.
+pub fn check_feature_feature_membership_type_featuring(
+    db: &dyn salsa::Database,
+    project: Project,
+    x: Global,
+) -> bool {
+    if !is(db, project, x, M::Feature)
+        || !d::owning_membership(db, project, x)
+            .is_some_and(|m| is(db, project, m, M::FeatureMembership))
+    {
+        return true;
+    }
+    d::featuring_type(db, project, x)
+        .clone()
+        .into_iter()
+        .any(|t| d::is_featuring_type(db, project, x, t))
+}
+
+/// KerML 8.3.3.3.4 checkFeatureOwnedCrossFeatureTypeFeaturing: an owned cross feature is featured
+/// by the type of the other end or, for more ends, by one Cartesian product of the other ends'
+/// types that specializes the featuring types of the cross features of the features its end
+/// redefines.
+pub fn check_feature_owned_cross_feature_type_featuring(
+    db: &dyn salsa::Database,
+    project: Project,
+    x: Global,
+) -> bool {
+    if !is(db, project, x, M::Feature) || !d::is_owned_cross_feature(db, project, x) {
+        return true;
+    }
+    let Some(e) = d::owner(db, project, x) else {
+        return true;
+    };
+    let others: Vec<Global> = d::owning_type(db, project, e)
+        .map(|t| d::end_feature(db, project, t))
+        .unwrap_or_default()
+        .into_iter()
+        .filter(|o| *o != e)
+        .collect();
+    let featuring = d::featuring_type(db, project, x).clone();
+    match others[..] {
+        [other] => return same_types(&featuring, &d::r#type(db, project, other)),
+        // An end that is the only one has no other ends to be featured by (ADR 0020).
+        [] => return featuring.is_empty(),
+        _ => {}
+    }
+    let [product] = featuring[..] else {
+        return false;
+    };
+    let types: Vec<Global> = others
+        .iter()
+        .flat_map(|o| d::r#type(db, project, *o))
+        .collect();
+    let redefined: Vec<Global> = d::owned_redefinition(db, project, e)
+        .into_iter()
+        .filter_map(|r| end(db, project, r, Slot::Target, 0))
+        .filter_map(|r| d::cross_feature(db, project, r))
+        .filter(|c| *c != x)
+        .flat_map(|c| d::featuring_type(db, project, c).clone())
+        .collect();
+    let supertypes = d::all_supertypes(db, project, product);
+    d::is_cartesian_product(db, project, product)
+        && d::as_cartesian_product(db, project, product) == types
+        && redefined.iter().all(|t| supertypes.contains(t))
+}
+
+/// KerML 8.3.4.5.3 checkConnectorTypeFeaturing: every related feature is featured within each
+/// featuring type of the connector, or within none (`isFeaturedWithin(null)`) if it has none.
+pub fn check_connector_type_featuring(
+    db: &dyn salsa::Database,
+    project: Project,
+    x: Global,
+) -> bool {
+    if !is(db, project, x, M::Connector) {
+        return true;
+    }
+    let featuring = d::featuring_type(db, project, x).clone();
+    d::related_feature(db, project, x).into_iter().all(|f| {
+        if featuring.is_empty() {
+            d::is_featured_within(db, project, f, None)
+        } else {
+            featuring
+                .iter()
+                .all(|t| d::is_featured_within(db, project, f, Some(*t)))
+        }
+    })
+}
+
+/// KerML 8.3.4.7.3 checkExpressionTypeFeaturing: the value of a FeatureValue has the featuring
+/// types of the feature with the value.
+pub fn check_expression_type_featuring(
+    db: &dyn salsa::Database,
+    project: Project,
+    x: Global,
+) -> bool {
+    if !is(db, project, x, M::Expression) {
+        return true;
+    }
+    let Some(fv) =
+        d::owning_membership(db, project, x).filter(|m| is(db, project, *m, M::FeatureValue))
+    else {
+        return true;
+    };
+    d::owner(db, project, fv).is_none_or(|f| {
+        same_types(
+            d::featuring_type(db, project, x),
+            d::featuring_type(db, project, f),
+        )
+    })
+}
+
+/// KerML 8.3.4.11.2 checkMultiplicityRangeExpressionTypeFeaturing: the bounds have the featuring
+/// types of the MultiplicityRange.
+pub fn check_multiplicity_range_expression_type_featuring(
+    db: &dyn salsa::Database,
+    project: Project,
+    x: Global,
+) -> bool {
+    if !is(db, project, x, M::MultiplicityRange) {
+        return true;
+    }
+    let own = d::featuring_type(db, project, x).clone();
+    d::bound(db, project, x)
+        .into_iter()
+        .all(|b| same_types(d::featuring_type(db, project, b), &own))
 }
 
 // ---- Kernel: classifiers (KerML 8.3.4.1–8.3.4.4) ----

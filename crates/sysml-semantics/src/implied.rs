@@ -137,6 +137,21 @@ pub(crate) fn feature_types(db: &dyn salsa::Database, project: Project, f: Globa
     feature_types_except(db, project, f, None)
 }
 
+/// `type` (KerML 8.3.3.3.4 deriveFeatureType): the feature's types without those that another of
+/// them specializes, as the derived property gives them.
+pub(crate) fn feature_type(db: &dyn salsa::Database, project: Project, f: Global) -> Vec<Global> {
+    let types = feature_types(db, project, f);
+    types
+        .iter()
+        .copied()
+        .filter(|t| {
+            !types
+                .iter()
+                .any(|o| o != t && supertypes(db, project, o.file, o.index).contains(t))
+        })
+        .collect()
+}
+
 /// [`feature_types`], without following one feature: an end's owned cross feature, whose own
 /// types are the end's (`checkFeatureOwnedCrossFeatureSpecialization`).
 fn feature_types_except(
@@ -197,7 +212,7 @@ fn end_of(
 
 /// The kind of an implied specialization of a feature by a type: a FeatureTyping by a
 /// Classifier, a Subsetting of a Feature, else a Specialization (KerML 8.3.3.1, 8.3.3.3).
-fn feature_specialization(db: &dyn salsa::Database, t: Global) -> M {
+pub(crate) fn feature_specialization(db: &dyn salsa::Database, t: Global) -> M {
     let m = metaclass(db, t);
     if m.specializes(M::Classifier) {
         M::FeatureTyping
@@ -302,7 +317,7 @@ pub(crate) fn typed_feature_generals(
 
 /// `ownedCrossFeature()` (KerML 8.3.3.3.4): for an end feature with an owning type, its first
 /// owned member that is a Feature, not a Multiplicity or a MetadataFeature, and not owned through
-/// a FeatureMembership.
+/// a FeatureMembership or a FeatureValue.
 pub(crate) fn owned_cross_feature(g: &Graph, f: ElementIx) -> Option<ElementIx> {
     if !g.flag(f, Attr::IsEnd) || owning_type(g, f).is_none() {
         return None;
@@ -310,8 +325,11 @@ pub(crate) fn owned_cross_feature(g: &Graph, f: ElementIx) -> Option<ElementIx> 
     g.owned_relationships(f)
         .iter()
         .filter(|r| {
+            // Not the value of a FeatureValue (the OCL's `oclIsKindOf(FeatureValue)`; ADR 0020).
             let m = g.metaclass(**r);
-            m.specializes(M::OwningMembership) && !m.specializes(M::FeatureMembership)
+            m.specializes(M::OwningMembership)
+                && !m.specializes(M::FeatureMembership)
+                && !m.specializes(M::FeatureValue)
         })
         .filter_map(|r| g.owned_related_elements(*r).first().copied())
         .find(|e| {
@@ -1139,4 +1157,279 @@ fn no_implied(
     _ty: u32,
 ) -> Vec<Implied> {
     Vec::new()
+}
+
+// ---- type featurings (KerML 8.4.2, type-featuring constraints) ----
+
+/// A featuring type that a type-featuring constraint implies: a type of the model, or one the
+/// overlay constructs (ADR 0022).
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+pub enum Featuring {
+    /// A type of the model or the libraries.
+    Type(Global),
+    /// The feature redefining `Occurrences::Occurrence::snapshots` that the overlay constructs
+    /// for this variable feature (KerML 8.4.4.3).
+    Snapshots(Global),
+    /// The Cartesian-product feature that the overlay constructs for this owned cross feature of
+    /// an end of more than two (KerML 8.4.4.5.1).
+    Product(Global),
+}
+
+settle!(
+    settle_featurings,
+    Vec<Featuring>,
+    (Project, SourceFile, u32)
+);
+
+fn no_featurings(
+    _db: &dyn salsa::Database,
+    _id: salsa::Id,
+    _project: Project,
+    _file: SourceFile,
+    _x: u32,
+) -> Vec<Featuring> {
+    Vec::new()
+}
+
+/// The featuring types of a feature's written TypeFeaturings, whose `featureOfType` is the
+/// feature (KerML 8.3.3.3.11).
+fn written_featurings(db: &dyn salsa::Database, project: Project, f: Global) -> Vec<Global> {
+    let l = structure(db, f.file);
+    let g = l.graph();
+    g.owned_relationships(f.ix())
+        .iter()
+        .filter(|r| g.metaclass(**r) == M::TypeFeaturing)
+        .filter(|r| match g.source(**r).first() {
+            None => true,
+            Some(sysml_model::Endpoint::Element(e)) => *e == f.ix(),
+            Some(sysml_model::Endpoint::Name(_)) => false,
+        })
+        .filter_map(|r| end_of(db, project, at(f.file, *r), sysml_model::Slot::Target))
+        .collect()
+}
+
+/// `featuringType` (KerML 8.3.3.3.4 deriveFeatureFeaturingType) as the fragments and the
+/// type-featuring constraints give it: the written featurings, the implied ones, and those of
+/// the first chaining feature. The view reads the same from the overlay. A fixpoint from none.
+#[salsa::tracked(returns(ref), cycle_initial = no_featurings, cycle_fn = settle_featurings)]
+pub fn featuring_types(
+    db: &dyn salsa::Database,
+    project: Project,
+    file: SourceFile,
+    x: u32,
+) -> Vec<Featuring> {
+    if !crate::resolve::in_fragment(db, file, x) {
+        return Vec::new();
+    }
+    let here = Global { file, index: x };
+    let l = structure(db, file);
+    let g = l.graph();
+    if !g.metaclass(ix(x)).specializes(M::Feature) {
+        return Vec::new();
+    }
+    let mut out: Vec<Featuring> = written_featurings(db, project, here)
+        .into_iter()
+        .map(Featuring::Type)
+        .collect();
+    out.extend(implied_featurings(db, project, file, x).iter().copied());
+    let first = g
+        .owned_relationships(ix(x))
+        .iter()
+        .find(|r| g.metaclass(**r) == M::FeatureChaining)
+        .and_then(|r| end_of(db, project, at(file, *r), sysml_model::Slot::Target));
+    if let Some(c) = first.filter(|c| *c != here) {
+        out.extend(
+            featuring_types(db, project, c.file, c.index)
+                .iter()
+                .copied(),
+        );
+    }
+    let mut seen = std::collections::HashSet::new();
+    out.retain(|f| seen.insert(*f));
+    out
+}
+
+/// The featuring types the type-featuring constraints imply for a feature, beyond its written
+/// ones, in the order of KerML's tables. A fixpoint from none.
+///
+/// - KerML 8.3.3.3.4 checkFeatureFeatureMembershipTypeFeaturing (8.4.3.1 Table 9 Note 1): a
+///   feature owned through a FeatureMembership is featured by its owning type or, if it is
+///   variable, by `Occurrences::Occurrence::snapshots` for `Occurrence` itself, else by a
+///   constructed snapshots feature of its owning type (8.4.4.3).
+/// - checkFeatureOwnedCrossFeatureTypeFeaturing (Table 9 Note 3): an owned cross feature is
+///   featured by the types of the other end, or by a constructed Cartesian product of the other
+///   ends' types (8.4.4.5.1).
+/// - KerML 8.3.3.1.9 checkMultiplicityTypeFeaturing: a multiplicity has the featuring types of
+///   the Feature that is its owning namespace (the OCL's `owningType`, which a multiplicity never
+///   has; the text of 8.4.4.12.1 says owning namespace; ADR 0020).
+/// - KerML 8.3.4.11.2 checkMultiplicityRangeExpressionTypeFeaturing: a bound has those of its
+///   MultiplicityRange.
+/// - KerML 8.3.4.7.3 checkExpressionTypeFeaturing: the value of a FeatureValue has those of the
+///   feature with the value.
+///
+/// A copied featuring that is written already is not implied again. The connector constraint
+/// needs `defaultFeaturingType`, so the overlay computes it (ADR 0022).
+#[salsa::tracked(returns(ref), cycle_initial = no_featurings, cycle_fn = settle_featurings)]
+pub fn implied_featurings(
+    db: &dyn salsa::Database,
+    project: Project,
+    file: SourceFile,
+    x: u32,
+) -> Vec<Featuring> {
+    if !crate::resolve::in_fragment(db, file, x) {
+        return Vec::new();
+    }
+    let here = Global { file, index: x };
+    let l = structure(db, file);
+    let g = l.graph();
+    let f = ix(x);
+    let m = g.metaclass(f);
+    if !m.specializes(M::Feature) {
+        return Vec::new();
+    }
+    let written = written_featurings(db, project, here);
+    let mut out: Vec<Featuring> = Vec::new();
+    let copy = |from: Global, out: &mut Vec<Featuring>| {
+        for t in featuring_types(db, project, from.file, from.index) {
+            if !matches!(t, Featuring::Type(w) if written.contains(w)) && !out.contains(t) {
+                out.push(*t);
+            }
+        }
+    };
+    // checkFeatureFeatureMembershipTypeFeaturing
+    if let Some(t) = owning_type(g, f) {
+        let tg = at(file, t);
+        let variable = g.flag(f, Attr::IsVariable);
+        let occurrence = *library(db, project, "Occurrences::Occurrence");
+        let snapshots = *library(db, project, "Occurrences::Occurrence::snapshots");
+        // `isFeaturingType` of a written featuring (KerML 8.3.3.3.4)
+        let satisfied = written.iter().any(|w| {
+            if !variable {
+                *w == tg
+            } else if occurrence == Some(tg) {
+                Some(*w) == snapshots
+            } else {
+                metaclass(db, *w).specializes(M::Feature)
+                    && written_featurings(db, project, *w).contains(&tg)
+                    && snapshots.is_some_and(|s| redefines_written(db, project, *w, s))
+            }
+        });
+        if !satisfied {
+            if !variable {
+                out.push(Featuring::Type(tg));
+            } else if occurrence == Some(tg) {
+                out.extend(snapshots.map(Featuring::Type));
+            } else {
+                out.push(Featuring::Snapshots(here));
+            }
+        }
+    }
+    // checkFeatureOwnedCrossFeatureTypeFeaturing
+    if let Some(e) = crossed_end(g, f) {
+        let eg = at(file, e);
+        if let Some(t) = owning_type(g, e) {
+            let others: Vec<Global> = end_features(db, project, file, t.index() as u32)
+                .iter()
+                .copied()
+                .filter(|o| *o != eg)
+                .collect();
+            if let [other] = others[..] {
+                for ty in feature_type(db, project, other) {
+                    if !written.contains(&ty) {
+                        out.push(Featuring::Type(ty));
+                    }
+                }
+            } else if others.len() > 1 {
+                out.push(Featuring::Product(here));
+            }
+        }
+    }
+    let owner = g.owner(f);
+    let via = g.owning_relationship(f).map(|r| g.metaclass(r));
+    // checkMultiplicityTypeFeaturing
+    if m.specializes(M::Multiplicity) {
+        if let Some(o) = owner.filter(|o| g.metaclass(*o).specializes(M::Feature)) {
+            copy(at(file, o), &mut out);
+        }
+    }
+    // checkMultiplicityRangeExpressionTypeFeaturing
+    if m.specializes(M::Expression) {
+        if let Some(o) = owner.filter(|o| g.metaclass(*o).specializes(M::MultiplicityRange)) {
+            if via.is_some_and(|v| !v.specializes(M::FeatureMembership)) {
+                copy(at(file, o), &mut out);
+            }
+        }
+    }
+    // checkExpressionTypeFeaturing
+    if m.specializes(M::Expression) && via.is_some_and(|v| v.specializes(M::FeatureValue)) {
+        if let Some(o) = owner {
+            copy(at(file, o), &mut out);
+        }
+    }
+    out
+}
+
+/// Whether a feature has a written Redefinition of a feature.
+fn redefines_written(
+    db: &dyn salsa::Database,
+    project: Project,
+    f: Global,
+    redefined: Global,
+) -> bool {
+    let l = structure(db, f.file);
+    let g = l.graph();
+    g.owned_relationships(f.ix())
+        .iter()
+        .filter(|r| g.metaclass(**r) == M::Redefinition)
+        .filter_map(|r| end_of(db, project, at(f.file, *r), sysml_model::Slot::Target))
+        .any(|t| t == redefined)
+}
+
+/// The other ends of the end that owns a cross feature, in order (KerML 8.3.3.3.4
+/// checkFeatureOwnedCrossFeatureTypeFeaturing `otherEnds`).
+pub(crate) fn other_ends(db: &dyn salsa::Database, project: Project, cross: Global) -> Vec<Global> {
+    let l = structure(db, cross.file);
+    let g = l.graph();
+    let Some(e) = crossed_end(g, cross.ix()) else {
+        return Vec::new();
+    };
+    let eg = at(cross.file, e);
+    let Some(t) = owning_type(g, e) else {
+        return Vec::new();
+    };
+    end_features(db, project, cross.file, t.index() as u32)
+        .iter()
+        .copied()
+        .filter(|o| *o != eg)
+        .collect()
+}
+
+/// The cross features of the features that the end owning a cross feature redefines (KerML
+/// 8.3.3.3.4 `owner.ownedRedefinition.redefinedFeature->select(crossFeature() <> null)
+/// .crossFeature()`).
+pub(crate) fn redefined_cross_features(
+    db: &dyn salsa::Database,
+    project: Project,
+    cross: Global,
+) -> Vec<Global> {
+    let l = structure(db, cross.file);
+    let g = l.graph();
+    let Some(e) = crossed_end(g, cross.ix()) else {
+        return Vec::new();
+    };
+    let eg = at(cross.file, e);
+    let written: Vec<Global> = g
+        .owned_relationships(e)
+        .iter()
+        .filter(|r| g.metaclass(**r) == M::Redefinition)
+        .filter_map(|r| end_of(db, project, at(cross.file, *r), sysml_model::Slot::Target))
+        .collect();
+    let implied = implied_redefinitions(db, project, cross.file, e.index() as u32);
+    written
+        .into_iter()
+        .chain(implied.iter().map(|i| i.general))
+        .filter(|r| *r != eg)
+        .filter_map(|r| cross_feature(db, project, r))
+        .filter(|c| *c != cross)
+        .collect()
 }
