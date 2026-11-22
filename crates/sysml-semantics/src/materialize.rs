@@ -92,6 +92,8 @@ pub fn overlay(db: &dyn salsa::Database, project: Project, file: SourceFile) -> 
             let r = b.relationship(Owner::Fragment(x), i.kind, here, None);
             if i.kind == M::CrossSubsetting {
                 b.crossing(db, project, x, r, i.general);
+            } else if let Some(first) = i.chain {
+                b.chain(r, &[first, i.general]);
             } else {
                 b.end(r, Slot::Target, i.general);
             }
@@ -186,6 +188,24 @@ impl Build {
         } else {
             ends.1.push(end);
         }
+    }
+
+    /// A feature chain of `features` as the owned related element and target of the implied
+    /// relationship `r` (KerML 8.3.3.3.4 `subsetsChain`): a Feature with one FeatureChaining per
+    /// feature. Its supertype is its last feature (`featureTarget`).
+    fn chain(&mut self, r: u32, features: &[Global]) -> u32 {
+        let chain = self.element(M::Feature);
+        self.o.graph.add_owned_related_element(
+            ElementIx::from_index(r as usize),
+            ElementIx::from_index(chain as usize),
+        );
+        let chain_g = self.global(chain);
+        self.end(r, Slot::Target, chain_g);
+        for f in features {
+            let ch = self.relationship(Owner::Implied(chain), M::FeatureChaining, chain_g, None);
+            self.end(ch, Slot::Target, *f);
+        }
+        chain
     }
 
     /// The target of the implied CrossSubsetting `r` of the end `x` (KerML 8.3.3.3.4

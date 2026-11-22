@@ -91,6 +91,26 @@ pub const CHECKS: &[(M, &str, Check)] = &[
         "checkFeatureValuationSpecialization",
         check_feature_valuation_specialization,
     ),
+    (
+        M::Feature,
+        "checkFeatureEndRedefinition",
+        check_feature_end_redefinition,
+    ),
+    (
+        M::Feature,
+        "checkFeatureParameterRedefinition",
+        check_feature_parameter_redefinition,
+    ),
+    (
+        M::Feature,
+        "checkFeatureResultRedefinition",
+        check_feature_result_redefinition,
+    ),
+    (
+        M::Feature,
+        "checkFeatureFlowFeatureRedefinition",
+        check_feature_flow_feature_redefinition,
+    ),
     // ---- Kernel (KerML 8.3.4) ----
     (
         M::DataType,
@@ -218,6 +238,26 @@ pub const CHECKS: &[(M, &str, Check)] = &[
         check_constructor_expression_result_specialization,
     ),
     (
+        M::ConstructorExpression,
+        "checkConstructorExpressionResultFeatureRedefinition",
+        check_constructor_expression_result_feature_redefinition,
+    ),
+    (
+        M::FeatureChainExpression,
+        "checkFeatureChainExpressionResultSpecialization",
+        check_feature_chain_expression_result_specialization,
+    ),
+    (
+        M::FeatureChainExpression,
+        "checkFeatureChainExpressionSourceTargetRedefinition",
+        check_feature_chain_expression_source_target_redefinition,
+    ),
+    (
+        M::FeatureChainExpression,
+        "checkFeatureChainExpressionTargetRedefinition",
+        check_feature_chain_expression_target_redefinition,
+    ),
+    (
         M::FeatureReferenceExpression,
         "checkFeatureReferenceExpressionResultSpecialization",
         check_feature_reference_expression_result_specialization,
@@ -291,6 +331,11 @@ pub const CHECKS: &[(M, &str, Check)] = &[
         M::Flow,
         "checkFlowWithEndsSpecialization",
         check_flow_with_ends_specialization,
+    ),
+    (
+        M::PayloadFeature,
+        "checkPayloadFeatureRedefinition",
+        check_payload_feature_redefinition,
     ),
     (
         M::SuccessionFlow,
@@ -608,6 +653,158 @@ fn target_element(db: &dyn salsa::Database, project: Project, r: Global) -> Opti
         file: r.file,
         index: e.index() as u32,
     })
+}
+
+/// The generals of a type's owned specializations, written and implied, without the type itself
+/// (`ownedSpecialization.general`).
+fn owned_generals(db: &dyn salsa::Database, project: Project, t: Global) -> Vec<Global> {
+    d::owned_specialization(db, project, t)
+        .into_iter()
+        .filter_map(|r| end(db, project, r, Slot::Target, 0))
+        .filter(|g| *g != t)
+        .collect()
+}
+
+fn is_result_parameter(db: &dyn salsa::Database, project: Project, f: Global) -> bool {
+    d::owning_membership(db, project, f)
+        .is_some_and(|m| is(db, project, m, M::ReturnParameterMembership))
+}
+
+/// The owned features of a type with a direction that are not its result (the OCL's
+/// `ownedFeature->select(direction <> null)->reject(…ReturnParameterMembership)`).
+fn owned_parameters(db: &dyn salsa::Database, project: Project, t: Global) -> Vec<Global> {
+    d::owned_feature(db, project, t)
+        .into_iter()
+        .filter(|f| {
+            crate::view(db, project, f.file)
+                .values(f.ix(), Attr::Direction)
+                .next()
+                .is_some()
+                && !is_result_parameter(db, project, *f)
+        })
+        .collect()
+}
+
+/// KerML 8.3.3.3.4 checkFeatureEndRedefinition: the i-th owned end of a type redefines the i-th
+/// end feature of each general of the type's owned specializations that has one.
+pub fn check_feature_end_redefinition(
+    db: &dyn salsa::Database,
+    project: Project,
+    x: Global,
+) -> bool {
+    if !is(db, project, x, M::Feature) || !flag(db, project, x, Attr::IsEnd) {
+        return true;
+    }
+    let Some(t) = d::owning_type(db, project, x) else {
+        return true;
+    };
+    let Some(i) = d::owned_end_feature(db, project, t)
+        .iter()
+        .position(|e| *e == x)
+    else {
+        return true;
+    };
+    owned_generals(db, project, t).into_iter().all(|s| {
+        d::end_feature(db, project, s)
+            .get(i)
+            .is_none_or(|e| d::redefines(db, project, x, *e))
+    })
+}
+
+/// KerML 8.3.3.3.4 checkFeatureParameterRedefinition: the i-th parameter of a Behavior or Step,
+/// other than its result, redefines the i-th parameter of each general of its owning type's owned
+/// specializations; for an InvocationExpression, unless it has a written redefinition.
+pub fn check_feature_parameter_redefinition(
+    db: &dyn salsa::Database,
+    project: Project,
+    x: Global,
+) -> bool {
+    if !is(db, project, x, M::Feature) || is_result_parameter(db, project, x) {
+        return true;
+    }
+    let Some(t) = d::owning_type(db, project, x) else {
+        return true;
+    };
+    let written = d::owned_redefinition(db, project, x)
+        .into_iter()
+        .any(|r| !flag(db, project, r, Attr::IsImplied));
+    let applies = is(db, project, t, M::Behavior)
+        || (is(db, project, t, M::Step)
+            && !(is(db, project, t, M::InvocationExpression) && written));
+    if !applies {
+        return true;
+    }
+    let Some(i) = owned_parameters(db, project, t)
+        .iter()
+        .position(|p| *p == x)
+    else {
+        return true;
+    };
+    owned_generals(db, project, t).into_iter().all(|s| {
+        owned_parameters(db, project, s)
+            .get(i)
+            .is_none_or(|p| d::redefines(db, project, x, *p))
+    })
+}
+
+/// KerML 8.3.3.3.4 checkFeatureResultRedefinition: the result of a Function or Expression
+/// redefines the result of each Function or Expression its owning type specializes directly.
+pub fn check_feature_result_redefinition(
+    db: &dyn salsa::Database,
+    project: Project,
+    x: Global,
+) -> bool {
+    if !is(db, project, x, M::Feature) {
+        return true;
+    }
+    let Some(t) = d::owning_type(db, project, x) else {
+        return true;
+    };
+    let function = |y: Global| is(db, project, y, M::Function) || is(db, project, y, M::Expression);
+    if !function(t) || d::result(db, project, t) != Some(x) {
+        return true;
+    }
+    owned_generals(db, project, t)
+        .into_iter()
+        .filter(|s| function(*s))
+        .all(|s| d::result(db, project, s).is_none_or(|r| d::redefines(db, project, x, r)))
+}
+
+/// KerML 8.3.3.3.4 checkFeatureFlowFeatureRedefinition: the feature of the first FlowEnd of a
+/// flow redefines `Transfers::Transfer::source::sourceOutput`, and that of the second
+/// `Transfers::Transfer::target::targetInput` (the OCL's `source::targetInput`; the position is
+/// counted among the FlowEnds; ADR 0020).
+pub fn check_feature_flow_feature_redefinition(
+    db: &dyn salsa::Database,
+    project: Project,
+    x: Global,
+) -> bool {
+    if !is(db, project, x, M::Feature) {
+        return true;
+    }
+    let Some(end) = d::owning_type(db, project, x).filter(|e| is(db, project, *e, M::FlowEnd))
+    else {
+        return true;
+    };
+    if d::owned_feature(db, project, end).first() != Some(&x) {
+        return true;
+    }
+    let Some(flow) = d::owning_type(db, project, end) else {
+        return true;
+    };
+    let ends: Vec<Global> = d::owned_feature(db, project, flow)
+        .into_iter()
+        .filter(|f| is(db, project, *f, M::FlowEnd))
+        .collect();
+    match ends.iter().position(|e| *e == end) {
+        Some(0) => {
+            d::redefines_from_library(db, project, x, "Transfers::Transfer::source::sourceOutput")
+        }
+        Some(1) => {
+            d::redefines_from_library(db, project, x, "Transfers::Transfer::target::targetInput")
+        }
+        _ => true,
+    }
 }
 
 // ---- Kernel: classifiers (KerML 8.3.4.1–8.3.4.4) ----
@@ -929,6 +1126,109 @@ pub fn check_constructor_expression_result_specialization(
         || result_specializes(db, project, x, d::instantiated_type(db, project, x))
 }
 
+/// KerML 8.3.4.8.3 checkConstructorExpressionResultFeatureRedefinition: each owned feature of
+/// the result redefines exactly one public feature of the instantiated type.
+pub fn check_constructor_expression_result_feature_redefinition(
+    db: &dyn salsa::Database,
+    project: Project,
+    x: Global,
+) -> bool {
+    if !is(db, project, x, M::ConstructorExpression) {
+        return true;
+    }
+    let (Some(t), Some(r)) = (
+        d::instantiated_type(db, project, x),
+        d::result(db, project, x),
+    ) else {
+        return true;
+    };
+    let features: Vec<Global> = d::feature(db, project, t)
+        .into_iter()
+        .filter(|f| {
+            d::owning_membership(db, project, *f).is_some_and(|m| {
+                crate::view(db, project, m.file).visibility(m.ix()) == crate::Visibility::Public
+            })
+        })
+        .collect();
+    d::owned_feature(db, project, r).into_iter().all(|f| {
+        let redefined: Vec<Global> = d::owned_redefinition(db, project, f)
+            .into_iter()
+            .filter_map(|r| end(db, project, r, Slot::Target, 0))
+            .collect();
+        {
+            let mut seen = std::collections::HashSet::new();
+            redefined
+                .into_iter()
+                .filter(|g| seen.insert(*g))
+                .collect::<Vec<_>>()
+        }
+        .into_iter()
+        .filter(|g| features.contains(g))
+        .count()
+            == 1
+    })
+}
+
+/// KerML 8.3.4.8.4 checkFeatureChainExpressionResultSpecialization: there is a
+/// sourceTargetFeature, and the result, owned by the expression, subsets the chain of the first
+/// input parameter and it (`subsetsChain`).
+pub fn check_feature_chain_expression_result_specialization(
+    db: &dyn salsa::Database,
+    project: Project,
+    x: Global,
+) -> bool {
+    if !is(db, project, x, M::FeatureChainExpression) {
+        return true;
+    }
+    let input = d::owned_feature(db, project, x).into_iter().find(|f| {
+        matches!(
+            crate::view(db, project, f.file)
+                .values(f.ix(), Attr::Direction)
+                .next(),
+            Some(sysml_model::Value::Enumeration("in"))
+        )
+    });
+    let (Some(input), Some(stf), Some(r)) = (
+        input,
+        d::source_target_feature(db, project, x),
+        d::result(db, project, x),
+    ) else {
+        return false;
+    };
+    d::subsets_chain(db, project, r, input, stf) && d::owning_type(db, project, r) == Some(x)
+}
+
+/// KerML 8.3.4.8.4 checkFeatureChainExpressionSourceTargetRedefinition: the sourceTargetFeature
+/// redefines the target feature.
+pub fn check_feature_chain_expression_source_target_redefinition(
+    db: &dyn salsa::Database,
+    project: Project,
+    x: Global,
+) -> bool {
+    if !is(db, project, x, M::FeatureChainExpression) {
+        return true;
+    }
+    let Some(stf) = d::source_target_feature(db, project, x) else {
+        return false;
+    };
+    d::chain_target_feature(db, project, x).is_none_or(|t| d::redefines(db, project, stf, t))
+}
+
+/// KerML 8.3.4.8.4 checkFeatureChainExpressionTargetRedefinition: the sourceTargetFeature
+/// redefines `ControlFunctions::'.'::source::target`.
+pub fn check_feature_chain_expression_target_redefinition(
+    db: &dyn salsa::Database,
+    project: Project,
+    x: Global,
+) -> bool {
+    if !is(db, project, x, M::FeatureChainExpression) {
+        return true;
+    }
+    d::source_target_feature(db, project, x).is_some_and(|stf| {
+        d::redefines_from_library(db, project, stf, "ControlFunctions::'.'::source::target")
+    })
+}
+
 /// KerML 8.3.4.8.5 checkFeatureReferenceExpressionResultSpecialization: `result.owningType() =
 /// self and result.specializes(referent)`.
 pub fn check_feature_reference_expression_result_specialization(
@@ -1171,6 +1471,17 @@ pub fn check_succession_flow_specialization(
         M::SuccessionFlow,
         "Transfers::flowTransfersBefore",
     )
+}
+
+/// KerML 8.3.4.9.5 checkPayloadFeatureRedefinition:
+/// `redefinesFromLibrary('Transfers::Transfer::payload')`.
+pub fn check_payload_feature_redefinition(
+    db: &dyn salsa::Database,
+    project: Project,
+    x: Global,
+) -> bool {
+    !is(db, project, x, M::PayloadFeature)
+        || d::redefines_from_library(db, project, x, "Transfers::Transfer::payload")
 }
 
 // ---- Kernel: metadata (KerML 8.3.4.12) ----

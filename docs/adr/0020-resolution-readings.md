@@ -38,7 +38,11 @@ Added in step 1a.9 (ADR 0022), and computed here because most of them change wha
 - `checkFeatureValuationSpecialization`: a feature without a direction or a written specialization subsets the result of each of its values;
 - the cross-feature constraints: an owned cross feature specializes the types of its end and subsets the cross features of the features its end redefines, and an end with an owned cross feature crosses it (`checkFeatureCrossingSpecialization`), through a feature chain that the overlay builds.
 
-Still to come in step 1a.9: the type-featuring and binding-connector constraints, and the source-target redefinitions of FeatureChainExpressions, which need an implied `sourceTargetFeature`, with the result specialization that depends on it. `checkMetadataFeatureSemanticSpecialization` needs model-level evaluation, which reads the view, so it is computed in the overlay, not here (ADR 0022).
+Also added in step 1a.9, in its second PR:
+- the redefinitions of a FeatureChainExpression's `sourceTargetFeature`, which the grammar writes (ADR 0018): it redefines `ControlFunctions::'.'::source::target` and the target feature (`checkFeatureChainExpressionTargetRedefinition`, `…SourceTargetRedefinition`). The result subsets the chain of the first input parameter and the `sourceTargetFeature` (`checkFeatureChainExpressionResultSpecialization`), which the overlay builds. The rules of 8.4.2 do not filter that subsetting, since its target is a new element;
+- `checkConstructorExpressionResultFeatureRedefinition`: a feature of the result of `new T(…)` without a written redefinition, a positional argument, redefines the public feature of T at its position (8.4.4.1 Table 11 Note 6). T's features are read as `feature` does: owned, then inherited, without an inherited feature that an owned one redefines.
+
+Still to come in step 1a.9: the type-featuring and binding-connector constraints. `checkMetadataFeatureSemanticSpecialization` needs model-level evaluation, which reads the view, so it is computed in the overlay, not here (ADR 0022).
 
 More readings, from step 1a.9:
 - **Owned, not only implied.** `checkFeatureCrossingSpecialization` reads `crossFeature`, and `checkFeatureOwnedCrossFeatureRedefinitionSpecialization` reads `ownedSubsetting`: both need the relationship to be owned, not implied by a supertype. The redundancy rules of 8.4.2 would drop one whose target a supertype already has, so they do not apply to these two, as they do not to redefinitions.

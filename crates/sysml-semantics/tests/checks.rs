@@ -890,6 +890,194 @@ fn check_metadata_feature_semantic_specialization() {
     );
 }
 
+// ---- Table 9 and 11: redefinitions (KerML 8.4.3.1, 8.4.4.1) ----
+
+/// Whether the element has the implied relationship.
+fn has(m: &Model, x: Global, expected: &str) -> bool {
+    implied(m, x).iter().any(|s| s == expected)
+}
+
+#[test]
+fn check_feature_end_redefinition() {
+    // the i-th owned end redefines the i-th end of each general of the owning type
+    let text = "assoc A { end feature a; end feature b; }
+        assoc B specializes A { end feature c; end feature d; }";
+    let m = model_with_library(text);
+    assert!(has(&m, m.get("B::d"), "Redefinition A::b"));
+    // and those of the library's BinaryLink, which a binary association specializes
+    assert!(has(
+        &m,
+        m.get("A::a"),
+        "Redefinition Links::BinaryLink::source"
+    ));
+    for path in ["A::a", "A::b", "B::c", "B::d"] {
+        assert!(
+            holds(&m, c::check_feature_end_redefinition, m.get(path)),
+            "{path}"
+        );
+    }
+    not_applicable(text, "A", c::check_feature_end_redefinition);
+}
+
+#[test]
+fn check_feature_parameter_redefinition() {
+    // the i-th parameter of a Behavior or Step redefines the i-th parameter of each general
+    let text = "behavior P { in x; in y; } behavior Q specializes P { in a; in b; }
+        function F { in x; in y; return r; } feature v = F(y = 2);";
+    let m = model_with_library(text);
+    assert!(has(&m, m.get("Q::b"), "Redefinition P::y"));
+    assert!(holds(
+        &m,
+        c::check_feature_parameter_redefinition,
+        m.get("Q::b")
+    ));
+    // the argument of an invocation with a written redefinition: none is implied
+    let named = m.get("v::InvocationExpression#1::Feature#1");
+    assert!(!implied(&m, named)
+        .iter()
+        .any(|s| s.starts_with("Redefinition")));
+    assert!(holds(&m, c::check_feature_parameter_redefinition, named));
+}
+
+#[test]
+fn check_feature_result_redefinition() {
+    // the result of a Function redefines the result of each Function it specializes
+    let m = model_with_library("function F { return r; } function G specializes F { return s; }");
+    assert!(has(&m, m.get("G::s"), "Redefinition F::r"));
+    assert!(holds(
+        &m,
+        c::check_feature_result_redefinition,
+        m.get("G::s")
+    ));
+    // and that of Performances::Evaluation, which F specializes by implication
+    assert!(has(
+        &m,
+        m.get("F::r"),
+        "Redefinition Performances::Evaluation::result"
+    ));
+}
+
+#[test]
+fn check_feature_flow_feature_redefinition() {
+    // the features of the first and second FlowEnds redefine sourceOutput and targetInput
+    golden(
+        FLOWS,
+        "B::Flow#1::FlowEnd#1::Feature#1",
+        c::check_feature_flow_feature_redefinition,
+        "Redefinition Transfers::Transfer::source::sourceOutput",
+    );
+    golden(
+        FLOWS,
+        "B::Flow#1::FlowEnd#2::Feature#1",
+        c::check_feature_flow_feature_redefinition,
+        "Redefinition Transfers::Transfer::target::targetInput",
+    );
+}
+
+#[test]
+fn check_payload_feature_redefinition() {
+    // redefinesFromLibrary('Transfers::Transfer::payload')
+    golden(
+        "behavior B { step s { out o; } step t { in i; }
+            flow of ScalarValues::Integer from s.o to t.i; }",
+        "B::Flow#1::PayloadFeature#1",
+        c::check_payload_feature_redefinition,
+        "Redefinition Transfers::Transfer::payload",
+    );
+}
+
+#[test]
+fn check_constructor_expression_result_feature_redefinition() {
+    // each argument redefines one public feature of the instantiated type: a positional one
+    // the feature at its position (8.4.4.1 Table 11 Note 6), a named one the feature it names
+    let text = "class T { feature a; private feature p; feature b; }
+        feature f = new T(1, 2); feature g = new T(b = 3);";
+    let m = model_with_library(text);
+    let (db, p) = (&m.db, m.project);
+    let x = m.get("f::ConstructorExpression#1");
+    let args = d::owned_feature(db, p, d::result(db, p, x).unwrap());
+    assert!(has(&m, args[0], "Redefinition T::a"));
+    assert!(has(&m, args[1], "Redefinition T::b"));
+    assert!(holds(
+        &m,
+        c::check_constructor_expression_result_feature_redefinition,
+        x
+    ));
+    let y = m.get("g::ConstructorExpression#1");
+    let named = d::owned_feature(db, p, d::result(db, p, y).unwrap())[0];
+    assert!(!implied(&m, named)
+        .iter()
+        .any(|s| s.starts_with("Redefinition")));
+    assert!(holds(
+        &m,
+        c::check_constructor_expression_result_feature_redefinition,
+        y
+    ));
+}
+
+const CHAIN: &str = "classifier C { feature d; } feature c : C; feature e = c.d;";
+
+#[test]
+fn check_feature_chain_expression_source_target_redefinition() {
+    // the sourceTargetFeature redefines the target feature
+    let m = model_with_library(CHAIN);
+    let (db, p) = (&m.db, m.project);
+    let x = m.get("e::FeatureChainExpression#1");
+    let stf = d::source_target_feature(db, p, x).unwrap();
+    assert!(has(&m, stf, "Redefinition C::d"));
+    assert!(holds(
+        &m,
+        c::check_feature_chain_expression_source_target_redefinition,
+        x
+    ));
+}
+
+#[test]
+fn check_feature_chain_expression_target_redefinition() {
+    // the sourceTargetFeature redefines ControlFunctions::'.'::source::target
+    let m = model_with_library(CHAIN);
+    let (db, p) = (&m.db, m.project);
+    let x = m.get("e::FeatureChainExpression#1");
+    let stf = d::source_target_feature(db, p, x).unwrap();
+    let target = d::library(db, p, "ControlFunctions::'.'::source::target").unwrap();
+    assert!(has(&m, stf, &format!("Redefinition {}", name(&m, target))));
+    assert!(holds(
+        &m,
+        c::check_feature_chain_expression_target_redefinition,
+        x
+    ));
+    let bare = model(CHAIN);
+    assert!(!holds(
+        &bare,
+        c::check_feature_chain_expression_target_redefinition,
+        bare.get("e::FeatureChainExpression#1")
+    ));
+}
+
+#[test]
+fn check_feature_chain_expression_result_specialization() {
+    // the result subsets the chain of the first input parameter and the sourceTargetFeature,
+    // which the overlay builds
+    let m = model_with_library(CHAIN);
+    let (db, p) = (&m.db, m.project);
+    let x = m.get("e::FeatureChainExpression#1");
+    let stf = d::source_target_feature(db, p, x).unwrap();
+    let input = d::owner(db, p, stf).unwrap();
+    let result = d::result(db, p, x).unwrap();
+    let chains: Vec<Vec<Global>> = d::owned_subsetting(db, p, result)
+        .into_iter()
+        .flat_map(|r| d::target(db, p, r))
+        .map(|t| d::chaining_feature(db, p, t))
+        .collect();
+    assert!(chains.contains(&vec![input, stf]), "{chains:?}");
+    assert!(holds(
+        &m,
+        c::check_feature_chain_expression_result_specialization,
+        x
+    ));
+    assert!(holds(&m, c::check_feature_specialization, result));
+}
+
 // ---- KerML 8.4.2: the redundancy rules ----
 
 #[test]
@@ -925,11 +1113,14 @@ fn the_redundancy_rules() {
 // ---- implied elements (ADR 0022) ----
 
 /// A model with every kind of implied element and relationship: specializations, redefinitions,
-/// and the chain and features of an implied CrossSubsetting.
+/// the chain and features of an implied CrossSubsetting, and the chain a FeatureChainExpression's
+/// result subsets.
 const IMPLIED: &str = "classifier T; classifier U;
     assoc A { end [1] feature a : T; end feature b : U; }
     assoc B specializes A { end [0..1] feature a2 : T; end feature b2 : U; }
-    behavior P { in x; } feature v = P(1); feature w = v;";
+    behavior P { in x; } feature v = P(1); feature w = v;
+    classifier C { feature d; } feature c : C; feature e = c.d;
+    class K { feature k; } feature n = new K(1);";
 
 #[test]
 fn derived_properties_of_implied_elements() {
