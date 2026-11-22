@@ -454,6 +454,23 @@ fn a_feature_of_metadata_has_no_value_on_other_metadata() {
 }
 
 #[test]
+fn filters_do_not_depend_on_the_overlay() {
+    // Resolution evaluates filter conditions before any derived property is asked for: a
+    // feature's featuring types come from resolution, not the overlay, which is empty on the
+    // first pass of that fixpoint (ADR 0022). The imports are as above.
+    let m = model_with_library(
+        "metaclass Approved { feature level : ScalarValues::Integer; }
+        package D { class A { @Approved { level = 2; } } class B { @Approved { level = 0; } } class C; }
+        package P { private import D::*; filter Approved::level != 0; }
+        package Q { private import D::*; filter @Approved and Approved::level != 0; }",
+    );
+    let (db, p) = (&m.db, m.project);
+    let imported = |pkg: &str| m.labels(d::package_imported_memberships(db, p, m.get(pkg)));
+    assert_eq!(imported("Q"), ["OwningMembership(D::A)"]);
+    assert_eq!(imported("P").len(), 3);
+}
+
+#[test]
 fn metadata_and_feature_values_by_the_rules_of_8_4_4_9_8() {
     // Each metadata feature once; a target feature without a value gives the referent; a feature
     // that subsets self is the target; enumeration values are the library's literals.

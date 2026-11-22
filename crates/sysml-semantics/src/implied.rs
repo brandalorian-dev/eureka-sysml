@@ -1173,6 +1173,9 @@ pub enum Featuring {
     /// The Cartesian-product feature that the overlay constructs for this owned cross feature of
     /// an end of more than two (KerML 8.4.4.5.1).
     Product(Global),
+    /// The `defaultFeaturingType` of this connector, if it has one, which the overlay computes from
+    /// the derived properties (KerML 8.4.4.1 Table 11 Note 2; ADR 0022).
+    Default(Global),
 }
 
 settle!(
@@ -1302,18 +1305,47 @@ pub fn implied_featurings(
         let variable = g.flag(f, Attr::IsVariable);
         let occurrence = *library(db, project, "Occurrences::Occurrence");
         let snapshots = *library(db, project, "Occurrences::Occurrence::snapshots");
-        // `isFeaturingType` of a written featuring (KerML 8.3.3.3.4)
-        let satisfied = written.iter().any(|w| {
+        // `featuringType->exists(isFeaturingType)` (KerML 8.3.3.3.4) over the featuring types
+        // that are not this constraint's: the written ones and the first chaining feature's.
+        let first = g
+            .owned_relationships(f)
+            .iter()
+            .find(|r| g.metaclass(**r) == M::FeatureChaining)
+            .and_then(|r| end_of(db, project, at(file, *r), sysml_model::Slot::Target))
+            .filter(|c| *c != here);
+        let mut others: Vec<Global> = written.clone();
+        if let Some(c) = first {
+            others.extend(
+                featuring_types(db, project, c.file, c.index)
+                    .iter()
+                    .filter_map(|t| match t {
+                        Featuring::Type(t) => Some(*t),
+                        _ => None,
+                    }),
+            );
+        }
+        let satisfied = others.iter().any(|w| {
             if !variable {
                 *w == tg
             } else if occurrence == Some(tg) {
                 Some(*w) == snapshots
             } else {
-                metaclass(db, *w).specializes(M::Feature)
-                    && written_featurings(db, project, *w).contains(&tg)
-                    && snapshots.is_some_and(|s| redefines_written(db, project, *w, s))
+                in_fragment_global(db, *w)
+                    && metaclass(db, *w).specializes(M::Feature)
+                    && featuring_types(db, project, w.file, w.index).contains(&Featuring::Type(tg))
+                    && snapshots.is_some_and(|s| {
+                        *w == s || crate::resolve::redefined_features(db, project, *w).contains(&s)
+                    })
             }
         });
+        // A constructed featuring type of the chain also counts.
+        let satisfied = satisfied
+            || (variable
+                && first.is_some_and(|c| {
+                    featuring_types(db, project, c.file, c.index)
+                        .iter()
+                        .any(|t| matches!(t, Featuring::Snapshots(_)))
+                }));
         if !satisfied {
             if !variable {
                 out.push(Featuring::Type(tg));
@@ -1325,23 +1357,15 @@ pub fn implied_featurings(
         }
     }
     // checkFeatureOwnedCrossFeatureTypeFeaturing
-    if let Some(e) = crossed_end(g, f) {
-        let eg = at(file, e);
-        if let Some(t) = owning_type(g, e) {
-            let others: Vec<Global> = end_features(db, project, file, t.index() as u32)
-                .iter()
-                .copied()
-                .filter(|o| *o != eg)
-                .collect();
-            if let [other] = others[..] {
-                for ty in feature_type(db, project, other) {
-                    if !written.contains(&ty) {
-                        out.push(Featuring::Type(ty));
-                    }
+    if crossed_end(g, f).is_some() {
+        if let [other] = other_ends(db, project, here)[..] {
+            for ty in feature_type(db, project, other) {
+                if !written.contains(&ty) {
+                    out.push(Featuring::Type(ty));
                 }
-            } else if others.len() > 1 {
-                out.push(Featuring::Product(here));
             }
+        } else if product_types(db, project, here).is_some() {
+            out.push(Featuring::Product(here));
         }
     }
     let owner = g.owner(f);
@@ -1366,23 +1390,60 @@ pub fn implied_featurings(
             copy(at(file, o), &mut out);
         }
     }
+    // KerML 8.3.4.5.3 checkConnectorTypeFeaturing: a connector without an owning type or a
+    // written featuring is featured by its defaultFeaturingType, if it has one (8.4.4.1 Table 11
+    // Note 2), which the overlay computes.
+    if m.specializes(M::Connector) && owning_type(g, f).is_none() && written.is_empty() {
+        out.push(Featuring::Default(here));
+    }
     out
 }
 
-/// Whether a feature has a written Redefinition of a feature.
-fn redefines_written(
+fn in_fragment_global(db: &dyn salsa::Database, x: Global) -> bool {
+    crate::resolve::in_fragment(db, x.file, x.index)
+}
+
+/// `endFeature` (KerML 8.3.3.1.10) as the derived property gives it: the owned end features,
+/// then the inherited ones that an owned feature does not redefine.
+pub(crate) fn all_end_features(
     db: &dyn salsa::Database,
     project: Project,
-    f: Global,
-    redefined: Global,
-) -> bool {
-    let l = structure(db, f.file);
-    let g = l.graph();
-    g.owned_relationships(f.ix())
+    t: Global,
+) -> Vec<Global> {
+    let owned = crate::resolve::owned_memberships(db, project, t.file, t.index);
+    let inherited = crate::resolve::inherited_memberships(db, project, t.file, t.index, false);
+    owned
         .iter()
-        .filter(|r| g.metaclass(**r) == M::Redefinition)
-        .filter_map(|r| end_of(db, project, at(f.file, *r), sysml_model::Slot::Target))
-        .any(|t| t == redefined)
+        .chain(inherited.iter().filter(|e| !e.hidden))
+        .filter(|e| metaclass(db, e.membership).specializes(M::FeatureMembership))
+        .filter_map(|e| member_element(db, project, e))
+        .filter(|x| {
+            in_fragment_global(db, *x) && structure(db, x.file).graph().flag(x.ix(), Attr::IsEnd)
+        })
+        .collect()
+}
+
+/// The types of the other ends of an owned cross feature's end, if a Cartesian product of them
+/// can be built: more than one other end, each typed. The product's factors are all their types,
+/// in order (KerML 8.3.3.3.4 checkFeatureOwnedCrossFeatureTypeFeaturing `otherEnds.type`).
+pub(crate) fn product_types(
+    db: &dyn salsa::Database,
+    project: Project,
+    cross: Global,
+) -> Option<Vec<Global>> {
+    let others = other_ends(db, project, cross);
+    if others.len() < 2 {
+        return None;
+    }
+    let mut types = Vec::new();
+    for o in others {
+        let t = feature_type(db, project, o);
+        if t.is_empty() {
+            return None;
+        }
+        types.extend(t);
+    }
+    Some(types)
 }
 
 /// The other ends of the end that owns a cross feature, in order (KerML 8.3.3.3.4
@@ -1397,9 +1458,8 @@ pub(crate) fn other_ends(db: &dyn salsa::Database, project: Project, cross: Glob
     let Some(t) = owning_type(g, e) else {
         return Vec::new();
     };
-    end_features(db, project, cross.file, t.index() as u32)
-        .iter()
-        .copied()
+    all_end_features(db, project, at(cross.file, t))
+        .into_iter()
         .filter(|o| *o != eg)
         .collect()
 }

@@ -62,6 +62,19 @@ fn qualified(db: &dyn salsa::Database, project: Project, x: Global) -> Option<Ar
 }
 
 /// The value Expression of a feature's FeatureValue (KerML 8.3.4.10).
+/// Whether a feature has featuring types, as resolution computes them (`featuring_types`), not
+/// through the view. Resolution evaluates filter conditions, so this keeps their evaluation from
+/// depending on the overlay, which is empty on the first pass of that fixpoint (ADR 0022). A
+/// connector's default featuring type is not counted, since only the overlay knows it.
+fn has_featuring_types(db: &dyn salsa::Database, project: Project, f: Global) -> bool {
+    if !crate::resolve::in_fragment(db, f.file, f.index) {
+        return !featuring_type(db, project, f).is_empty();
+    }
+    crate::implied::featuring_types(db, project, f.file, f.index)
+        .iter()
+        .any(|t| !matches!(t, crate::implied::Featuring::Default(_)))
+}
+
 fn valuation(db: &dyn salsa::Database, project: Project, f: Global) -> Option<Global> {
     let g = view(db, project, f.file);
     let r = g
@@ -321,7 +334,7 @@ impl Evaluation<'_> {
         }
         // A referent with featuring types that the target does not give a value has none (the
         // OCL's `else Sequence{}`), so a filter does not hold on metadata without that feature.
-        if !featuring_type(db, project, r).is_empty() {
+        if has_featuring_types(db, project, r) {
             return Vec::new();
         }
         if let Some(v) = valuation(db, project, r) {
@@ -961,7 +974,7 @@ fn feature_reference_evaluable(
             return true;
         }
     }
-    featuring_type(db, project, r).is_empty()
+    !has_featuring_types(db, project, r)
         && valuation(db, project, r).is_none_or(|v| model_level_evaluable(db, project, v, &visited))
 }
 
