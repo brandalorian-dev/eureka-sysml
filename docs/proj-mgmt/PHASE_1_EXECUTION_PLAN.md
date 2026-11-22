@@ -1,6 +1,6 @@
 # Eureka SysML: Phase 1 execution plan
 
-Status: Draft v1.17 · 2026-11-21 · Covers PROJECT_PLAN v0.7 §6, Phases 1a and 1b (Release 0.1 "Language")
+Status: Draft v1.18 · 2026-11-21 · Covers PROJECT_PLAN v0.7 §6, Phases 1a and 1b (Release 0.1 "Language")
 
 This plan breaks Phase 1 into ordered steps, each small enough for one or a few pull requests. PROJECT_PLAN.md remains the source of truth for scope, architecture and budgets. Where this plan finds something the project plan does not settle, it is listed under [decisions](#24-decisions-and-their-recommended-defaults), and settled by the [decision methodology](#25-decision-methodology): each recommended default is evaluated during the step that first depends on it.
 
@@ -23,6 +23,7 @@ Change history:
 - v1.15: step 1a.9 in progress: the overlay and the view of ADR 0022, and 58 of the 59 specialization constraints, which the KerML libraries satisfy. ADRs 0020 and 0022 record the readings and the implied elements.
 - v1.16: step 1a.9: all 59 specialization and 8 redefinition constraints done, and the KerML libraries satisfy them.
 - v1.17: step 1a.9: the 6 type-featuring constraints done, with the constructed snapshots and Cartesian-product features. The KerML libraries satisfy all 73 implemented constraints.
+- v1.18: step 1a.9 done: all 78 `check…` constraints that have OCL are implemented and tested, and the KerML libraries satisfy them, implied elements included. The 2 without OCL are deferred.
 
 ## 1. Executive summary
 
@@ -315,12 +316,11 @@ Each step below gives its goal, the spec clauses, what it delivers, the tests to
 - **Effort:** 0.75–1
 
 #### 1a.9 Implied relationships
-- **Status:** in progress, one PR per table.
+- **Status:** done 2026-11-21, in five PRs: the overlay with the specialization constraints, then one per table.
   - **The overlay** (ADR 0022): each file's implied relationships, and the elements they own, are a query of their own, which the derived properties read with the lowered fragment as one view. Resolution's implied queries (ADR 0020) feed it, so the 1a.7 and 1a.8 oracles still pass.
-  - **Specialization constraints:** all 59 done, each with a check function in `checks.rs` and a golden test. The new implied relationships are the expression results, feature values, cross features and semantic metadata. The inventory is `crates/sysml-semantics/checks.json`.
-  - **Redefinition constraints:** all 8 done. The new ones are the redefinitions of a FeatureChainExpression's `sourceTargetFeature` and those of positional constructor arguments.
-  - **Type-featuring constraints:** all 6 done. The overlay constructs the snapshots feature of a variable feature and the Cartesian product of an n-ary cross feature. A connector without an owning type is featured by its `defaultFeaturingType`.
-  - **The KerML libraries** satisfy every implemented check, their implied elements included (`tests/checks.rs`).
+  - **The constraints:** all 59 specialization, 8 redefinition, 6 type-featuring and 5 binding-connector constraints that have OCL, each with a check function in `checks.rs` and a golden test. The implied elements are crossing and result chains, snapshots and Cartesian-product features, and binding connectors. Two binding-connector constraints read "TBD" in KerML 1.0 and are deferred. The inventory is `crates/sysml-semantics/checks.json`.
+  - **The criterion is a test:** the KerML libraries satisfy all 78 checks, their 53,090 implied elements included (`tests/checks.rs`). ADR 0020 records the readings, among them the places where the OCL and the libraries disagree.
+  - **Speed:** on the KerML libraries from nothing, resolution takes 73 ms, the overlays 173 ms and every check 1.5 s, in release.
 - **Goal:** add the relationships the semantic constraints require (KerML 8.4.2).
 - **Clauses:**
   - KerML 8.4.2 (the four kinds and the two redundancy rules)
@@ -333,7 +333,7 @@ Each step below gives its goal, the spec clauses, what it delivers, the tests to
   - The redundancy rules: the clause's Structure/Class/Classifier example, and same-general duplicates.
   - **The KerML libraries satisfy every `check…` constraint after implication.**
   - Optionally, a behavioral comparison with the pilot on the libraries.
-- **Done when:** all 80 KerML `check…` constraints are implemented and tested, and the libraries satisfy them.
+- **Done when:** all 80 KerML `check…` constraints are implemented and tested, and the libraries satisfy them. *All 78 with OCL are; the 2 without are deferred.*
 - **Effort:** 1.5–2.5
 
 #### 1a.10 Validation constraints

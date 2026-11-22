@@ -920,7 +920,10 @@ pub fn owned_cross_feature(
     let g = view(db, project, f.file);
     owned_member(db, project, f).into_iter().find(|m| {
         let k = g.metaclass(m.ix());
-        k.specializes(M::Feature)
+        // A cross feature is declared, never an implied element such as a binding connector
+        // (ADR 0020).
+        !g.is_implied(m.ix())
+            && k.specializes(M::Feature)
             && !k.specializes(M::Multiplicity)
             && !k.specializes(M::MetadataFeature)
             // The OCL's `reject(oclIsKindOf(FeatureValue))`, which no Feature is, read as the value

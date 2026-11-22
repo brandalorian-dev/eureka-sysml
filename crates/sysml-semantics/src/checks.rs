@@ -243,6 +243,16 @@ pub const CHECKS: &[(M, &str, Check)] = &[
         check_expression_type_featuring,
     ),
     (
+        M::Function,
+        "checkFunctionResultBindingConnector",
+        check_function_result_binding_connector,
+    ),
+    (
+        M::Expression,
+        "checkExpressionResultBindingConnector",
+        check_expression_result_binding_connector,
+    ),
+    (
         M::BooleanExpression,
         "checkBooleanExpressionSpecialization",
         check_boolean_expression_specialization,
@@ -281,6 +291,21 @@ pub const CHECKS: &[(M, &str, Check)] = &[
         M::FeatureChainExpression,
         "checkFeatureChainExpressionTargetRedefinition",
         check_feature_chain_expression_target_redefinition,
+    ),
+    (
+        M::FeatureReferenceExpression,
+        "checkFeatureReferenceExpressionBindingConnector",
+        check_feature_reference_expression_binding_connector,
+    ),
+    (
+        M::InvocationExpression,
+        "checkInvocationExpressionBehaviorBindingConnector",
+        check_invocation_expression_behavior_binding_connector,
+    ),
+    (
+        M::FeatureValue,
+        "checkFeatureValueBindingConnector",
+        check_feature_value_binding_connector,
     ),
     (
         M::FeatureReferenceExpression,
@@ -937,13 +962,21 @@ pub fn check_feature_owned_cross_feature_type_featuring(
 }
 
 /// KerML 8.3.4.5.3 checkConnectorTypeFeaturing: every related feature is featured within each
-/// featuring type of the connector, or within none (`isFeaturedWithin(null)`) if it has none.
+/// featuring type of the connector, or within none (`isFeaturedWithin(null)`) if it has none. It
+/// does not apply to the binding connectors that the binding-connector constraints imply.
 pub fn check_connector_type_featuring(
     db: &dyn salsa::Database,
     project: Project,
     x: Global,
 ) -> bool {
     if !is(db, project, x, M::Connector) {
+        return true;
+    }
+    // A binding connector that a binding-connector constraint implies has the ends and the
+    // featuring that constraint gives it, which this one would contradict (ADR 0020).
+    if is(db, project, x, M::BindingConnector)
+        && crate::view(db, project, x.file).is_implied(x.ix())
+    {
         return true;
     }
     let featuring = d::featuring_type(db, project, x).clone();
@@ -995,6 +1028,150 @@ pub fn check_multiplicity_range_expression_type_featuring(
     d::bound(db, project, x)
         .into_iter()
         .all(|b| same_types(d::featuring_type(db, project, b), &own))
+}
+
+// ---- binding connectors ----
+
+/// Whether one of the binding connectors among `xs` relates both features.
+fn binds(
+    db: &dyn salsa::Database,
+    project: Project,
+    xs: Vec<Global>,
+    a: Global,
+    b: Global,
+) -> bool {
+    xs.into_iter()
+        .filter(|c| is(db, project, *c, M::BindingConnector))
+        .any(|c| {
+            let related = d::related_feature(db, project, c);
+            related.contains(&a) && related.contains(&b)
+        })
+}
+
+/// KerML 8.3.4.8.8 checkInvocationExpressionBehaviorBindingConnector: an invocation of a type
+/// that is neither a Function nor a Feature typed by one owns a binding connector between itself
+/// and its result.
+pub fn check_invocation_expression_behavior_binding_connector(
+    db: &dyn salsa::Database,
+    project: Project,
+    x: Global,
+) -> bool {
+    if !is(db, project, x, M::InvocationExpression) {
+        return true;
+    }
+    let Some(t) = d::instantiated_type(db, project, x) else {
+        return true;
+    };
+    let function = |y: Global| is(db, project, y, M::Function);
+    if function(t)
+        || (is(db, project, t, M::Feature) && d::r#type(db, project, t).into_iter().any(function))
+    {
+        return true;
+    }
+    d::result(db, project, x)
+        .is_none_or(|r| binds(db, project, d::owned_feature(db, project, x), x, r))
+}
+
+/// KerML 8.3.4.8.5 checkFeatureReferenceExpressionBindingConnector: the expression owns a binding
+/// connector between its referent (the OCL's `targetFeature`) and its result.
+pub fn check_feature_reference_expression_binding_connector(
+    db: &dyn salsa::Database,
+    project: Project,
+    x: Global,
+) -> bool {
+    if !is(db, project, x, M::FeatureReferenceExpression) {
+        return true;
+    }
+    let (Some(t), Some(r)) = (d::referent(db, project, x), d::result(db, project, x)) else {
+        return true;
+    };
+    binds(db, project, d::owned_member(db, project, x), t, r)
+}
+
+/// The result expressions of a Function or Expression (`ResultExpressionMembership`).
+fn result_expressions(db: &dyn salsa::Database, project: Project, x: Global) -> Vec<Global> {
+    d::owned_membership(db, project, x)
+        .into_iter()
+        .filter(|m| is(db, project, *m, M::ResultExpressionMembership))
+        .filter_map(|m| target_element(db, project, m))
+        .collect()
+}
+
+fn result_binding(db: &dyn salsa::Database, project: Project, x: Global) -> bool {
+    let Some(r) = d::result(db, project, x) else {
+        return true;
+    };
+    result_expressions(db, project, x).into_iter().all(|e| {
+        d::result(db, project, e)
+            .is_none_or(|er| binds(db, project, d::owned_feature(db, project, x), r, er))
+    })
+}
+
+/// KerML 8.3.4.7.4 checkFunctionResultBindingConnector: a Function owns a binding connector
+/// between its result and the result of each of its result expressions.
+pub fn check_function_result_binding_connector(
+    db: &dyn salsa::Database,
+    project: Project,
+    x: Global,
+) -> bool {
+    !is(db, project, x, M::Function) || result_binding(db, project, x)
+}
+
+/// KerML 8.3.4.7.3 checkExpressionResultBindingConnector: an Expression owns a binding connector
+/// between its result and the result of each of its result expressions.
+pub fn check_expression_result_binding_connector(
+    db: &dyn salsa::Database,
+    project: Project,
+    x: Global,
+) -> bool {
+    !is(db, project, x, M::Expression) || result_binding(db, project, x)
+}
+
+/// KerML 8.3.4.10.2 checkFeatureValueBindingConnector: unless the value is a default, the feature
+/// with the value owns a binding connector between itself and the chain of the value and its
+/// result, featured as the feature is or, for an initial value, by `that.startShot`.
+pub fn check_feature_value_binding_connector(
+    db: &dyn salsa::Database,
+    project: Project,
+    x: Global,
+) -> bool {
+    if !is(db, project, x, M::FeatureValue) || flag(db, project, x, Attr::IsDefault) {
+        return true;
+    }
+    let (Some(f), Some(value)) = (d::owner(db, project, x), target_element(db, project, x)) else {
+        return true;
+    };
+    let Some(result) = d::result(db, project, value) else {
+        return true;
+    };
+    let featuring = d::featuring_type(db, project, f).clone();
+    let initial = flag(db, project, x, Attr::IsInitial);
+    let start = [
+        d::library(db, project, "Base::things::that"),
+        d::library(db, project, "Occurrences::Occurrence::startShot"),
+    ];
+    d::owned_member(db, project, f)
+        .into_iter()
+        .filter(|b| is(db, project, *b, M::BindingConnector))
+        .any(|b| {
+            let related = d::related_feature(db, project, b);
+            let bf = d::featuring_type(db, project, b).clone();
+            related.contains(&f)
+                && related
+                    .iter()
+                    .any(|r| d::chaining_feature(db, project, *r) == [value, result])
+                && if initial {
+                    bf.iter().any(|t| {
+                        is(db, project, *t, M::Feature)
+                            && d::chaining_feature(db, project, *t)
+                                .into_iter()
+                                .map(Some)
+                                .eq(start)
+                    })
+                } else {
+                    same_types(&bf, &featuring)
+                }
+        })
 }
 
 // ---- Kernel: classifiers (KerML 8.3.4.1–8.3.4.4) ----
