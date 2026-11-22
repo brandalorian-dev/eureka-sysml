@@ -2,10 +2,9 @@
 //! The Core layer (KerML 8.3.3): types, classifiers and features.
 //!
 //! A relationship-valued property (`ownedSpecialization`, `ownedTyping` …) lists the relationships
-//! in the graph: those written and, once step 1a.9 includes them, the implied ones. A property or
-//! operation over types (`supertypes`, `type`, `featuringType` …) also sees the implied
-//! specializations and redefinitions that resolution computes (ADR 0020), and the implied type
-//! featuring of an owned feature (ADR 0021).
+//! of the view: those written, then the implied ones of the overlay (ADR 0022). A property or
+//! operation over types (`supertypes`, `type`, `featuringType` …) therefore sees the implied
+//! specializations, redefinitions and type featurings.
 
 use std::collections::HashSet;
 use sysml_model::{Attr, Metaclass as M, Slot, Value};
@@ -750,12 +749,10 @@ pub fn owned_feature_inverting(
         .collect()
 }
 
-/// `featuringType` (deriveFeatureFeaturingType): the types of the feature's featurings, and for a
-/// chained feature those of its first chaining feature. The featurings are the owned
-/// TypeFeaturings and, for a feature owned through a FeatureMembership, the one
-/// `checkFeatureFeatureMembershipTypeFeaturing` implies (8.4.3.1, Table 9): the owning type, or
-/// for a variable feature of `Occurrences::Occurrence`, its `snapshots`. The other implied type
-/// featurings follow in step 1a.9 (ADR 0021).
+/// `featuringType` (deriveFeatureFeaturingType): the types of the feature's owned
+/// TypeFeaturings, written and implied (ADR 0022), and for a chained feature those of its first
+/// chaining feature. The implied ones are those of the type-featuring constraints (KerML 8.4.2;
+/// `implied_featurings`), such as the owning type of a feature owned through a FeatureMembership.
 ///
 /// Chains and featurings may be circular: a fixpoint from none.
 #[salsa::tracked(returns(ref), cycle_initial = no_featuring, cycle_fn = settle_all_supertypes)]
@@ -764,15 +761,6 @@ pub fn featuring_type(db: &dyn salsa::Database, project: Project, f: Global) -> 
         .into_iter()
         .filter_map(|r| first_end(db, project, r))
         .collect();
-    if let Some(t) = owning_type(db, project, f) {
-        if !out.iter().any(|x| is_featuring_type(db, project, f, *x)) {
-            if !flag(db, project, f, Attr::IsVariable) {
-                out.push(t);
-            } else if library(db, project, "Occurrences::Occurrence") == Some(t) {
-                out.extend(library(db, project, "Occurrences::Occurrence::snapshots"));
-            }
-        }
-    }
     if let Some(first) = chaining_feature(db, project, f).first() {
         if *first != f {
             out.extend(featuring_type(db, project, *first).iter().copied());
@@ -919,8 +907,8 @@ pub fn subsets_chain(
 }
 
 /// `ownedCrossFeature()` (KerML 8.3.3.3.4): for an end feature with an owning type, its first
-/// owned member feature that is not owned through a FeatureMembership and is not a Multiplicity
-/// or a MetadataFeature.
+/// owned member feature that is not owned through a FeatureMembership or a FeatureValue and is
+/// not a Multiplicity or a MetadataFeature.
 pub fn owned_cross_feature(
     db: &dyn salsa::Database,
     project: Project,
@@ -935,9 +923,12 @@ pub fn owned_cross_feature(
         k.specializes(M::Feature)
             && !k.specializes(M::Multiplicity)
             && !k.specializes(M::MetadataFeature)
-            && !g
-                .owning_relationship(m.ix())
-                .is_some_and(|r| g.metaclass(r).specializes(M::FeatureMembership))
+            // The OCL's `reject(oclIsKindOf(FeatureValue))`, which no Feature is, read as the value
+            // of a FeatureValue (ADR 0020).
+            && !g.owning_relationship(m.ix()).is_some_and(|r| {
+                let rm = g.metaclass(r);
+                rm.specializes(M::FeatureMembership) || rm.specializes(M::FeatureValue)
+            })
     })
 }
 

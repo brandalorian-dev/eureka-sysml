@@ -1109,6 +1109,147 @@ fn check_feature_chain_expression_result_specialization() {
     assert!(holds(&m, c::check_feature_specialization, result));
 }
 
+// ---- Tables 9 and 11: type featurings (KerML 8.4.3.1, 8.4.4.1) ----
+
+#[test]
+fn check_feature_feature_membership_type_featuring() {
+    // a feature owned through a FeatureMembership is featured by its owning type
+    let text = "classifier C { feature f; } class K { var feature v; }
+        classifier D { feature g featured by D; }";
+    let m = model_with_library(text);
+    let (db, p) = (&m.db, m.project);
+    assert!(has(&m, m.get("C::f"), "TypeFeaturing C"));
+    // a written featuring that satisfies the constraint: none is implied
+    assert!(!implied(&m, m.get("D::g"))
+        .iter()
+        .any(|s| s.starts_with("TypeFeaturing")));
+    // a variable feature, by a constructed feature that redefines Occurrence::snapshots and is
+    // featured by the owning type (KerML 8.4.4.3)
+    let v = m.get("K::v");
+    let snapshots = d::featuring_type(db, p, v).clone();
+    assert_eq!(snapshots.len(), 1);
+    assert!(sysml_semantics::view(db, p, m.file).is_implied(snapshots[0].ix()));
+    assert!(d::redefines_from_library(
+        db,
+        p,
+        snapshots[0],
+        "Occurrences::Occurrence::snapshots"
+    ));
+    assert_eq!(m.labels(d::featuring_type(db, p, snapshots[0])), ["K"]);
+    // a variable feature of Occurrence itself, by Occurrence::snapshots
+    let incoming = d::library(db, p, "Occurrences::Occurrence::incomingTransfers").unwrap();
+    let featuring: Vec<String> = d::featuring_type(db, p, incoming)
+        .iter()
+        .map(|t| name(&m, *t))
+        .collect();
+    assert_eq!(featuring, ["Occurrences::Occurrence::snapshots"]);
+    for path in ["C::f", "K::v", "D::g"] {
+        assert!(holds(
+            &m,
+            c::check_feature_feature_membership_type_featuring,
+            m.get(path)
+        ));
+    }
+    assert!(holds(&m, c::check_feature_specialization, snapshots[0]));
+}
+
+#[test]
+fn check_feature_owned_cross_feature_type_featuring() {
+    // an owned cross feature is featured by the type of the other end
+    let m = model_with_library(CROSSING);
+    let (db, p) = (&m.db, m.project);
+    let cross = d::owned_cross_feature(db, p, m.get("A::a")).unwrap();
+    assert!(has(&m, cross, "TypeFeaturing U"));
+    assert!(holds(
+        &m,
+        c::check_feature_owned_cross_feature_type_featuring,
+        cross
+    ));
+    // or, for more ends, by a Cartesian product of the other ends' types (KerML 8.4.4.5.1),
+    // which also types the first feature of the end's crossing chain
+    let m = model_with_library(
+        "classifier T; classifier U; classifier V;
+        assoc A { end [1] feature a : T; end feature b : U; end feature c : V; }",
+    );
+    let (db, p) = (&m.db, m.project);
+    let a = m.get("A::a");
+    let cross = d::owned_cross_feature(db, p, a).unwrap();
+    let featuring = d::featuring_type(db, p, cross).clone();
+    let [product] = featuring[..] else {
+        panic!("{featuring:?}");
+    };
+    assert!(d::is_cartesian_product(db, p, product));
+    assert_eq!(
+        m.labels(d::as_cartesian_product(db, p, product)),
+        ["U", "V"]
+    );
+    let chain = d::target(db, p, d::owned_cross_subsetting(db, p, a).unwrap())[0];
+    let first = d::chaining_feature(db, p, chain)[0];
+    assert_eq!(d::r#type(db, p, first), [product]);
+    assert!(holds(
+        &m,
+        c::check_feature_owned_cross_feature_type_featuring,
+        cross
+    ));
+    assert!(holds(&m, c::check_feature_specialization, product));
+}
+
+#[test]
+fn check_multiplicity_type_featuring() {
+    // a multiplicity has the featuring types of the feature that owns it, or none
+    let text = "classifier C { feature f[1]; } feature g[1];";
+    let m = model_with_library(text);
+    let (db, p) = (&m.db, m.project);
+    let mult = m.get("C::f::MultiplicityRange#1");
+    assert!(has(&m, mult, "TypeFeaturing C"));
+    assert!(holds(&m, c::check_multiplicity_type_featuring, mult));
+    let package = m.get("g::MultiplicityRange#1");
+    assert!(d::featuring_type(db, p, package).is_empty());
+    assert!(holds(&m, c::check_multiplicity_type_featuring, package));
+}
+
+#[test]
+fn check_multiplicity_range_expression_type_featuring() {
+    // the bounds of a MultiplicityRange have its featuring types
+    let m = model_with_library("classifier C { feature n : ScalarValues::Natural; feature f[n]; }");
+    let (db, p) = (&m.db, m.project);
+    let range = m.get("C::f::MultiplicityRange#1");
+    let bound = d::bound(db, p, range)[0];
+    assert!(has(&m, bound, "TypeFeaturing C"));
+    assert!(holds(
+        &m,
+        c::check_multiplicity_range_expression_type_featuring,
+        range
+    ));
+}
+
+#[test]
+fn check_expression_type_featuring() {
+    // the value of a FeatureValue has the featuring types of the feature with the value
+    let m = model_with_library("classifier C { feature a; feature b = a; }");
+    let x = m.get("C::b::FeatureReferenceExpression#1");
+    assert!(has(&m, x, "TypeFeaturing C"));
+    assert!(holds(&m, c::check_expression_type_featuring, x));
+}
+
+#[test]
+fn check_connector_type_featuring() {
+    // a connector without an owning type is featured by its defaultFeaturingType (8.4.4.1
+    // Table 11 Note 2); one with an owning type is featured by it
+    let m = model_with_library(
+        "classifier C { feature x; feature y; connector j from x to y; }
+        connector k from C::x to C::y;",
+    );
+    let k = m.get("k");
+    assert!(has(&m, k, "TypeFeaturing C"));
+    for path in ["k", "C::j"] {
+        assert!(
+            holds(&m, c::check_connector_type_featuring, m.get(path)),
+            "{path}"
+        );
+    }
+}
+
 // ---- KerML 8.4.2: the redundancy rules ----
 
 #[test]
@@ -1151,7 +1292,9 @@ const IMPLIED: &str = "classifier T; classifier U;
     assoc B specializes A { end [0..1] feature a2 : T; end feature b2 : U; }
     behavior P { in x; } feature v = P(1); feature w = v;
     classifier C { feature d; } feature c : C; feature e = c.d;
-    class K { feature k; } feature n = new K(1);";
+    class K { feature k; var feature w; } feature n = new K(1);
+    classifier V; assoc N { end [1] feature a : C; end feature b : K; end feature c : V; }
+    connector j from C::d to K::k;";
 
 #[test]
 fn derived_properties_of_implied_elements() {

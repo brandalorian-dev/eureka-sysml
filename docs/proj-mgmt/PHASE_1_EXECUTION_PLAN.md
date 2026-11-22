@@ -1,6 +1,6 @@
 # Eureka SysML: Phase 1 execution plan
 
-Status: Draft v1.16 · 2026-11-21 · Covers PROJECT_PLAN v0.7 §6, Phases 1a and 1b (Release 0.1 "Language")
+Status: Draft v1.17 · 2026-11-21 · Covers PROJECT_PLAN v0.7 §6, Phases 1a and 1b (Release 0.1 "Language")
 
 This plan breaks Phase 1 into ordered steps, each small enough for one or a few pull requests. PROJECT_PLAN.md remains the source of truth for scope, architecture and budgets. Where this plan finds something the project plan does not settle, it is listed under [decisions](#24-decisions-and-their-recommended-defaults), and settled by the [decision methodology](#25-decision-methodology): each recommended default is evaluated during the step that first depends on it.
 
@@ -22,6 +22,7 @@ Change history:
 - v1.14: D10 adopted (ADR 0022), from the step 1a.9 materialization spike, which also found and fixed a scaling bug in resolution (ADR 0020 decision 5a).
 - v1.15: step 1a.9 in progress: the overlay and the view of ADR 0022, and 58 of the 59 specialization constraints, which the KerML libraries satisfy. ADRs 0020 and 0022 record the readings and the implied elements.
 - v1.16: step 1a.9: all 59 specialization and 8 redefinition constraints done, and the KerML libraries satisfy them.
+- v1.17: step 1a.9: the 6 type-featuring constraints done, with the constructed snapshots and Cartesian-product features. The KerML libraries satisfy all 73 implemented constraints.
 
 ## 1. Executive summary
 
@@ -318,6 +319,7 @@ Each step below gives its goal, the spec clauses, what it delivers, the tests to
   - **The overlay** (ADR 0022): each file's implied relationships, and the elements they own, are a query of their own, which the derived properties read with the lowered fragment as one view. Resolution's implied queries (ADR 0020) feed it, so the 1a.7 and 1a.8 oracles still pass.
   - **Specialization constraints:** all 59 done, each with a check function in `checks.rs` and a golden test. The new implied relationships are the expression results, feature values, cross features and semantic metadata. The inventory is `crates/sysml-semantics/checks.json`.
   - **Redefinition constraints:** all 8 done. The new ones are the redefinitions of a FeatureChainExpression's `sourceTargetFeature` and those of positional constructor arguments.
+  - **Type-featuring constraints:** all 6 done. The overlay constructs the snapshots feature of a variable feature and the Cartesian product of an n-ary cross feature. A connector without an owning type is featured by its `defaultFeaturingType`.
   - **The KerML libraries** satisfy every implemented check, their implied elements included (`tests/checks.rs`).
 - **Goal:** add the relationships the semantic constraints require (KerML 8.4.2).
 - **Clauses:**

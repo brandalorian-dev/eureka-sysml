@@ -63,9 +63,9 @@
       "function": "check_connector_specialization"
     },
     "Connector::checkConnectorTypeFeaturing": {
-      "status": "open",
+      "status": "done",
       "table": "TypeFeaturing",
-      "pending": "step 1a.9, with the type-featuring constraints"
+      "function": "check_connector_type_featuring"
     },
     "ConstructorExpression::checkConstructorExpressionResultDefaultValueBindingConnector": {
       "status": "deferred",
@@ -103,9 +103,9 @@
       "function": "check_expression_specialization"
     },
     "Expression::checkExpressionTypeFeaturing": {
-      "status": "open",
+      "status": "done",
       "table": "TypeFeaturing",
-      "pending": "step 1a.9, with the type-featuring constraints"
+      "function": "check_expression_type_featuring"
     },
     "Feature::checkFeatureCrossingSpecialization": {
       "status": "done",
@@ -128,9 +128,9 @@
       "function": "check_feature_end_specialization"
     },
     "Feature::checkFeatureFeatureMembershipTypeFeaturing": {
-      "status": "open",
+      "status": "done",
       "table": "TypeFeaturing",
-      "pending": "step 1a.9, with the type-featuring constraints"
+      "function": "check_feature_feature_membership_type_featuring"
     },
     "Feature::checkFeatureFlowFeatureRedefinition": {
       "status": "done",
@@ -158,9 +158,9 @@
       "function": "check_feature_owned_cross_feature_specialization"
     },
     "Feature::checkFeatureOwnedCrossFeatureTypeFeaturing": {
-      "status": "open",
+      "status": "done",
       "table": "TypeFeaturing",
-      "pending": "step 1a.9, with the type-featuring constraints"
+      "function": "check_feature_owned_cross_feature_type_featuring"
     },
     "Feature::checkFeatureParameterRedefinition": {
       "status": "done",
@@ -333,14 +333,14 @@
       "function": "check_multiplicity_specialization"
     },
     "Multiplicity::checkMultiplicityTypeFeaturing": {
-      "status": "open",
+      "status": "done",
       "table": "TypeFeaturing",
-      "pending": "step 1a.9, with the type-featuring constraints"
+      "function": "check_multiplicity_type_featuring"
     },
     "MultiplicityRange::checkMultiplicityRangeExpressionTypeFeaturing": {
-      "status": "open",
+      "status": "done",
       "table": "TypeFeaturing",
-      "pending": "step 1a.9, with the type-featuring constraints"
+      "function": "check_multiplicity_range_expression_type_featuring"
     },
     "NullExpression::checkNullExpressionSpecialization": {
       "status": "done",
