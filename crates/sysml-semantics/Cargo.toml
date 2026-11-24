@@ -15,14 +15,13 @@ workspace = true
 [dependencies]
 sysml-model.workspace = true
 sysml-syntax.workspace = true
-uuid.workspace = true
+uuid = { workspace = true, features = ["v5"] }
 salsa.workspace = true
 
 [dev-dependencies]
 sysml-corpus.workspace = true
 expect-test.workspace = true
 serde_json.workspace = true
-uuid = { workspace = true, features = ["v5"] }
 
 [target.'cfg(target_arch = "wasm32")'.dev-dependencies]
 # Runs the tests as WebAssembly under Node (step 1a.1).

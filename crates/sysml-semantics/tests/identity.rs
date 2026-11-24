@@ -39,6 +39,36 @@ fn a_top_level_library_package_has_the_uuid_of_its_url() {
 }
 
 #[test]
+fn a_sysml_library_package_has_the_sysml_url() {
+    // SysML 9.1: the prefix of the SysML libraries, here for ISQ, computed apart from the engine
+    assert_eq!(
+        identity::library_package_id(identity::SYSML, "ISQ").to_string(),
+        "3fcc2ef4-a31c-522b-b69d-717d74bccfa6"
+    );
+    // a package written in SysML notation is one of the SysML libraries (ADR 0009)
+    let db = sysml_semantics::Database::default();
+    let file = sysml_semantics::SourceFile::new(
+        &db,
+        sysml_model::FileId(0),
+        "ISQ.sysml".into(),
+        sysml_syntax::Language::SysML,
+        "standard library package ISQ { }".into(),
+    );
+    let project = sysml_semantics::Project::new(&db, vec![file]);
+    let root = sysml_semantics::lowered(&db, file).root;
+    let g = &sysml_semantics::lowered(&db, file).graph;
+    let package = g.owned_elements(root).next().unwrap();
+    let x = Global {
+        file,
+        index: package.index() as u32,
+    };
+    assert_eq!(
+        identity::element_id(&db, project, x).map(|u| u.to_string()),
+        Some("3fcc2ef4-a31c-522b-b69d-717d74bccfa6".to_owned())
+    );
+}
+
+#[test]
 fn an_element_of_a_library_package_has_the_uuid_of_its_path() {
     // uuid5(the package's id, path())
     let m = model_with_library("");
@@ -59,23 +89,27 @@ fn implied_elements_of_the_libraries_have_distinct_uuids() {
     let m = model_with_library("");
     let (db, p) = (&m.db, m.project);
     let mut ids: HashMap<Uuid, Global> = HashMap::new();
-    let mut implied = 0;
+    let (mut implied, mut implied_with_id) = (0, 0);
     for f in p.files(db) {
         let v = sysml_semantics::view(db, p, *f);
         for index in 0..v.len() as u32 {
             let x = Global { file: *f, index };
-            let Some(id) = identity::element_id(db, p, x) else {
-                continue;
-            };
+            let id = identity::element_id(db, p, x);
             if v.is_implied(x.ix()) {
                 implied += 1;
+                implied_with_id += usize::from(id.is_some());
             }
-            if let Some(other) = ids.insert(id, x) {
-                panic!("{id}: {x:?} and {other:?}");
+            if let Some(id) = id {
+                if let Some(other) = ids.insert(id, x) {
+                    panic!("{id}: {x:?} and {other:?}");
+                }
             }
         }
     }
-    assert!(implied > 50_000, "{implied} implied elements with ids");
+    // every implied element of a library file is in its package, and so has an id; the count
+    // is that of the libraries' overlays since step 1a.10
+    assert_eq!(implied_with_id, implied);
+    assert_eq!(implied, 52_327);
 }
 
 #[test]

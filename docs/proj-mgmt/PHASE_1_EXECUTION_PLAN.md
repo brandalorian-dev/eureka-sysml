@@ -353,7 +353,7 @@ Each step below gives its goal, the spec clauses, what it delivers, the tests to
 
 #### 1a.11 Library UUIDs, the snapshot and the first budget
 - **Status:** in progress, in three PRs as the owner chose on 2026-11-23: the UUIDs, then the D5 and D6 evaluation, then the snapshot, the benchmark and the gate.
-  - **UUIDs:** `identity::element_id` gives the KerML 9.1 id of every element of a top-level standard library package, with the KerML or SysML URL prefix by the file's language. All 24,859 written elements of the KerML libraries have the pilot's ids (`tests/derived_oracle.rs`). The 53,090 implied elements get theirs from `path()` too (ADR 0022), and every id in the libraries is distinct. The top-level package ids are also tested against values computed apart from the engine.
+  - **UUIDs:** `identity::element_id` gives the KerML 9.1 id of every element of a top-level standard library package, with the KerML or SysML URL prefix by the file's language. All 24,859 written elements of the KerML libraries have the pilot's ids (`tests/derived_oracle.rs`). Their 52,327 implied elements, as many as the overlays hold since step 1a.10, get theirs from `path()` too (ADR 0022), and every id in the libraries is distinct. ADR 0009 records the readings of 9.1. The top-level package ids are also tested against values computed apart from the engine.
 - **Goal:** normative library identity, and fast library loading.
 - **Evaluates:** D5 (snapshot format) and D6 (CI timing gates).
 - **Clauses:** KerML 9.1, the v5 UUID scheme: the `NameSpace_URL` namespace, the package URL `https://www.omg.org/spec/KerML/<package>`, and `path()` for the elements inside.
