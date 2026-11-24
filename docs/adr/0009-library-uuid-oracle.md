@@ -79,3 +79,12 @@ Adopt option 1, at release **2025-02**. The files are pinned under `docs/specs/S
 - After step 1a.9 (implied relationships), the ids the script cannot recompute become checkable as well, through our engine.
 - The oracle stays tied to the normative library version. If the pinned `.kpar` files change, this evaluation is repeated: find the matching release, re-pin, and rerun the script.
 - The pilot's output is used only as data. None of its code is used.
+
+## Amendment: step 1a.11, the ids the engine computes (2026-11-23)
+
+Step 1a.11 computes the ids of KerML 9.1 in the engine (`sysml_semantics::identity`), and checks them against this oracle. The clause leaves a few points open, which are read as follows.
+
+- **Which package.** 9.1 names "the top-level standard library package" of a library model. An element has a library id when its nearest LibraryPackage, its `libraryNamespace`, has `isStandard` set and is owned by its root namespace. An element of a nested library package, or of one that is not standard, has none: 9.1 assigns it no URL, and its id is an API DataIdentity id (ADR 0019). The root namespaces and their memberships of the packages have none either, as before.
+- **Which prefix.** 9.1 takes `https://www.omg.org/spec/KerML/` for the KerML libraries and SysML 9.1 `https://www.omg.org/spec/SysML/` for the SysML ones. The engine knows a file's notation, not its library, so it takes the prefix from the notation. The two agree for every normative library: the three KerML archives hold only `.kerml` files, and the seven SysML archives only `.sysml` files.
+- **Implied elements.** 9.1 does not mention them. Their `path()` counts their position after the owned relationships (ADR 0022), so they get ids in the same way, all distinct from each other and from the written elements'. The oracle has no implied elements, so these ids are tested for uniqueness only.
+

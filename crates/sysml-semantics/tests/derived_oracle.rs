@@ -75,7 +75,9 @@ fn every_kerml_library_element_has_the_pilots_element_id() {
         // The top-level library packages, by their position in the walk, with their ids.
         for (i, x) in ours.iter().enumerate() {
             let element = at(*x);
-            // Elements of the root namespace's own, and the root itself, are not in a package.
+            // Elements without a KerML 9.1 id are skipped: the root namespaces and their
+            // memberships of the packages. The exact count below catches any other element
+            // that loses its id, as one of a package no longer lowered as standard would.
             let Some(expected) = identity::element_id(&db, project, element) else {
                 continue;
             };
