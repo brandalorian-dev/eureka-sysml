@@ -42,6 +42,7 @@ mod implied;
 mod lower;
 mod materialize;
 mod resolve;
+pub mod validate;
 
 pub use implied::{
     featuring_types, implied_bindings, implied_featurings, implied_generals, implied_redefinitions,

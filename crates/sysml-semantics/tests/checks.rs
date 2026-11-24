@@ -222,7 +222,9 @@ const CROSSING: &str = "classifier T; classifier U;
 fn check_feature_crossing_specialization() {
     // ownedCrossFeature() <> null implies crossFeature = ownedCrossFeature(): an implied
     // CrossSubsetting of a chain whose first feature is typed by the other end's types and
-    // featured by the association, and whose second is the owned cross feature (Table 9 Note 2)
+    // featured by the association, and whose second is the owned cross feature (Table 9 Note 2).
+    // For a binary association that first feature is the other end itself, as
+    // validateCrossSubsettingCrossedFeature requires (ADR 0023).
     let m = model_with_library(CROSSING);
     let (db, p) = (&m.db, m.project);
     let a = m.get("A::a");
@@ -234,6 +236,7 @@ fn check_feature_crossing_specialization() {
     let chain = d::target(db, p, subsetting)[0];
     let chaining = d::chaining_feature(db, p, chain);
     assert_eq!(chaining.len(), 2);
+    assert_eq!(chaining[0], m.get("A::b"));
     assert_eq!(chaining[1], cross);
     assert_eq!(m.labels(d::r#type(db, p, chaining[0])), ["U"]);
     assert_eq!(m.labels(d::featuring_type(db, p, chaining[0])), ["A"]);
