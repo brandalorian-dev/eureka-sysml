@@ -1,6 +1,6 @@
 # Eureka SysML: Phase 1 execution plan
 
-Status: Draft v1.21 · 2026-11-23 · Covers PROJECT_PLAN v0.7 §6, Phases 1a and 1b (Release 0.1 "Language")
+Status: Draft v1.22 · 2026-11-24 · Covers PROJECT_PLAN v0.7 §6, Phases 1a and 1b (Release 0.1 "Language")
 
 This plan breaks Phase 1 into ordered steps, each small enough for one or a few pull requests. PROJECT_PLAN.md remains the source of truth for scope, architecture and budgets. Where this plan finds something the project plan does not settle, it is listed under [decisions](#24-decisions-and-their-recommended-defaults), and settled by the [decision methodology](#25-decision-methodology): each recommended default is evaluated during the step that first depends on it.
 
@@ -27,6 +27,7 @@ Change history:
 - v1.19: step 1a.10 in progress: the 39 Root and Core validation constraints, with zero diagnostics on the KerML libraries. The negative tests of 14 constraints that no text can violate move to step 1b.6, where models can be read from KerML JSON, as the owner chose. ADR 0023 records the readings.
 - v1.20: step 1a.10 done: all 88 validation constraints, and the KerML libraries produce zero diagnostics. The negative tests of 38 constraints that no text can violate move to step 1b.6.
 - v1.21: step 1a.11 in progress, in three PRs as the owner chose: the library UUIDs, then the D5 and D6 evaluation, then the snapshot, the benchmark and the gate. The UUIDs of all 24,859 written KerML library elements match the oracle.
+- v1.22: D5 adopted (ADR 0024): a hand-built library image in postcard, which loads the KerML libraries ten times faster than text. D6 adopted (ADR 0025): CI gates on Cachegrind instruction counts, reproducible to 0.005% across GitHub runners where wall-clock times differ by 46%.
 
 ## 1. Executive summary
 
@@ -125,8 +126,8 @@ Each recommended default is a starting hypothesis, not a decision. It is evaluat
 | D2 | `salsa` version and the boundaries of the incremental query graph (file → tree → elements → resolution → semantics) | 1a.7, **adopted** (ADR 0019) | The current `salsa` release, provided the 1a.0 spike shows it builds for wasm32 and on Rust 1.89. *1a.0 spike: `salsa` 0.28.5 builds and works on wasm32 and on Rust 1.89, with the minimal features `macros` and `inventory`. It needs `Zlib` in `deny.toml` (for `foldhash`, which cannot be turned off). The owner approved adding `Zlib` on 2026-11-20, so the license policy no longer blocks D2.* *Adopted: recomputing everything takes 0.66–1.03 s at 1.1M elements with a minimal resolver alone, while `salsa` takes about 3 ms per edit. Its event log shows exactly what reran, and circular imports converge by fixpoint iteration. Elements are (file, local index) inside the query graph.* |
 | D3 | Arena and ID design for the element graph: element ids as API `DataIdentity` ids (PROJECT_PLAN §4.3), and storage of implied versus owned relationships | 1a.6, **adopted** (ADR 0017) | Interned dense indices in an arena, mapped to UUIDs. Implied relationships are kept apart from owned ones, so serialization can include or omit them (KerML 10.3 `includesImplied`). *Adopted: the graph stores the canonical core of the abstract syntax, since all 30 relationship-end attributes redefine `source` or `target`; the typed properties are views generated from `KerML.xmi`. Against a property bag keyed by UUID it is 3 times smaller and 35–65 times faster to walk.* |
 | D4 | Diagnostics model: codes, severity, spans, the constraint name and the spec clause | 1a.2, **adopted** (ADR 0012) | One diagnostic type across the parser, resolver and validator. Every semantic diagnostic names its constraint, for example `validateFeatureMultiplicityDomain`. *Adopted: works as a `salsa` query result; ranges are bytes, converted to UTF-16 columns at the Language Server Protocol boundary.* |
-| D5 | Snapshot format for the pre-resolved libraries | 1a.11 | A versioned binary format through a serde-compatible crate such as `postcard`, keyed by metamodel IRI, library version and crate version |
-| D6 | How CI gates timings (ADR 0007): a dedicated runner or instruction counts | 1a.11 | Instruction counts on GitHub-hosted runners (for example a Cachegrind-based harness), with wall-clock budgets measured but not gated until a dedicated runner exists |
+| D5 | Snapshot format for the pre-resolved libraries | 1a.11, **adopted** (ADR 0024) | A versioned binary format through a serde-compatible crate such as `postcard`, keyed by metamodel IRI, library version and crate version. *Adopted: a hand-built image in postcard, of each file's lowered fragment, resolved name ends and overlay, which three queries read. It loads the KerML libraries in about 25 ms, against 240 ms from text; salsa's own persistence was 135 MB and slower than text.* |
+| D6 | How CI gates timings (ADR 0007): a dedicated runner or instruction counts | 1a.11, **adopted** (ADR 0025) | Instruction counts on GitHub-hosted runners (for example a Cachegrind-based harness), with wall-clock budgets measured but not gated until a dedicated runner exists. *Adopted: a 2% gate on Cachegrind counts against a baseline taken on CI, by a standard-library Python script. The counts agree to 0.005% across GitHub runners, whose wall-clock means differ by 46%.* |
 | D7 | Library UUID oracle (§2.3) | 1a.0, **adopted** (ADR 0009) | The library serializations in the SysML-v2-Release repository, if they carry element ids. *Adopted at release 2025-02.* |
 | D8 | VS Code extension tooling. The extension is TypeScript, but PROJECT_PLAN v0.7 moved the pnpm/TypeScript workspace to Phase 3. | 1b.8 | A self-contained `editors/vscode` npm package: a thin `vscode-languageclient` wrapper, with its own lockfile and `npm audit` and an npm SBOM in its CI job. The pnpm workspace still waits for Phase 3. |
 | D9 | Release 0.1: which crates go to crates.io, their license (Apache-2.0, or MIT OR Apache-2.0 per PROJECT_PLAN §13.1), and whether to sign the 0.1 artifacts | 1b.10 (owner decision) | Publish nothing to crates.io at 0.1; ship binaries through GitHub Releases. Attach the SBOMs (§4.8 requires an SBOM for every release) and sign with Sigstore now, since that is cheap to do from the first release. |
@@ -353,9 +354,10 @@ Each step below gives its goal, the spec clauses, what it delivers, the tests to
 
 #### 1a.11 Library UUIDs, the snapshot and the first budget
 - **Status:** in progress, in three PRs as the owner chose on 2026-11-23: the UUIDs, then the D5 and D6 evaluation, then the snapshot, the benchmark and the gate.
+  - **D5 and D6** (ADRs 0024 and 0025; evidence in `docs/proj-mgmt/evidence/1a.11-library-snapshot-and-timing-gates.md`): the snapshot is a hand-built image in postcard, and CI gates on instruction counts.
   - **UUIDs:** `identity::element_id` gives the KerML 9.1 id of every element of a top-level standard library package, with the KerML or SysML URL prefix by the file's language. All 24,859 written elements of the KerML libraries have the pilot's ids (`tests/derived_oracle.rs`). Their 52,327 implied elements, as many as the overlays hold since step 1a.10, get theirs from `path()` too (ADR 0022), and every id in the libraries is distinct. ADR 0009 records the readings of 9.1. The top-level package ids are also tested against values computed apart from the engine.
 - **Goal:** normative library identity, and fast library loading.
-- **Evaluates:** D5 (snapshot format) and D6 (CI timing gates).
+- **Evaluates:** D5 (snapshot format) and D6 (CI timing gates). *Adopted (ADRs 0024, 0025).*
 - **Clauses:** KerML 9.1, the v5 UUID scheme: the `NameSpace_URL` namespace, the package URL `https://www.omg.org/spec/KerML/<package>`, and `path()` for the elements inside.
 - **Delivers:**
   - UUID assignment for library elements
