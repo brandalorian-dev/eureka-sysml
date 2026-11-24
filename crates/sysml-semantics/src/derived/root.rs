@@ -605,7 +605,7 @@ pub fn is_distinguishable_from(
 
 /// A membership as resolution sees it: its member names (an OwningMembership's are its owned
 /// element's, `ownedMemberName` and `ownedMemberShortName`).
-fn membership_entry(db: &dyn salsa::Database, project: Project, m: Global) -> Entry {
+pub(crate) fn membership_entry(db: &dyn salsa::Database, project: Project, m: Global) -> Entry {
     let g = view(db, project, m.file);
     let owned = g
         .owned_related_elements(m.ix())

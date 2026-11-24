@@ -629,9 +629,14 @@ pub fn check_feature_crossing_specialization(
     project: Project,
     x: Global,
 ) -> bool {
+    // An end that is its owning type's only end has no CrossSubsetting, which
+    // validateCrossSubsettingCrossingFeature forbids it (ADR 0023).
+    let only = || {
+        d::owning_type(db, project, x).is_some_and(|t| d::end_feature(db, project, t).len() <= 1)
+    };
     !is(db, project, x, M::Feature)
         || d::owned_cross_feature(db, project, x)
-            .is_none_or(|c| d::cross_feature(db, project, x) == Some(c))
+            .is_none_or(|c| only() || d::cross_feature(db, project, x) == Some(c))
 }
 
 /// KerML 8.3.3.3.4 checkFeatureOwnedCrossFeatureSpecialization: an owned cross feature
@@ -723,9 +728,11 @@ fn target_element(db: &dyn salsa::Database, project: Project, r: Global) -> Opti
 /// The generals of a type's owned specializations, written and implied, without the type itself
 /// (`ownedSpecialization.general`).
 fn owned_generals(db: &dyn salsa::Database, project: Project, t: Global) -> Vec<Global> {
+    // A general that is a feature chain stands for its featureTarget (ADR 0023).
     d::owned_specialization(db, project, t)
         .into_iter()
         .filter_map(|r| end(db, project, r, Slot::Target, 0))
+        .map(|g| d::feature_target(db, project, g))
         .filter(|g| *g != t)
         .collect()
 }
@@ -1957,7 +1964,8 @@ mod tests {
     #[test]
     fn binds_needs_a_binding_connector_of_both_features() {
         let (db, p, f) = model(
-            "classifier C { feature x; feature y; feature z; binding b of x = y; connector k from x to z; }",
+            "classifier C { feature x; feature y; feature z;
+                binding b of x = y; connector k from x to z; }",
         );
         let c = get(&db, p, f, "C");
         let member = |n: &str| {

@@ -293,6 +293,33 @@ pub(crate) fn invokes_non_function(
     (!invokes_function).then_some(t)
 }
 
+/// `featureTarget` (KerML 8.3.3.3.4) of a feature in the fragments: the last chaining feature's,
+/// for a feature chain; the feature itself otherwise.
+fn chain_target(db: &dyn salsa::Database, project: Project, f: Global) -> Global {
+    let mut x = f;
+    let mut seen = vec![f];
+    loop {
+        if !crate::resolve::in_fragment(db, x.file, x.index) {
+            return x;
+        }
+        let l = structure(db, x.file);
+        let g = l.graph();
+        let last = g
+            .owned_relationships(x.ix())
+            .iter()
+            .rev()
+            .find(|r| g.metaclass(**r) == M::FeatureChaining)
+            .and_then(|r| end_of(db, project, at(x.file, *r), sysml_model::Slot::Target));
+        match last {
+            Some(t) if !seen.contains(&t) => {
+                seen.push(t);
+                x = t;
+            }
+            _ => return x,
+        }
+    }
+}
+
 /// The first argument of an invocation (KerML 8.3.4.8.8 `argument->first()`): the value of the
 /// FeatureValue of its first owned parameter, which redefines the first input of the
 /// instantiated type (`checkFeatureParameterRedefinition`).
@@ -906,11 +933,14 @@ pub fn implied_generals(
     if m.specializes(M::Feature) {
         // KerML 8.3.3.3.4 checkFeatureCrossingSpecialization: an end with an owned cross feature
         // and no CrossSubsetting crosses it, through a chain the overlay builds (Table 9 Note 2).
+        // Not for the only end of its owning type, which validateCrossSubsettingCrossingFeature
+        // forbids a CrossSubsetting (ADR 0023).
         if let Some(c) = owned_cross_feature(g, x) {
-            if !g
-                .owned_relationships(x)
-                .iter()
-                .any(|r| g.metaclass(*r) == M::CrossSubsetting)
+            if !other_ends(db, project, at(file, c)).is_empty()
+                && !g
+                    .owned_relationships(x)
+                    .iter()
+                    .any(|r| g.metaclass(*r) == M::CrossSubsetting)
             {
                 direct.push(Implied {
                     kind: M::CrossSubsetting,
@@ -1057,7 +1087,13 @@ pub fn implied_redefinitions(
         };
         if let Some(t) = owning_type(g, x) {
             let tg = at(file, t);
-            let supers = generals(db, project, tg).clone();
+            // A general that is a feature chain stands for its featureTarget, as in
+            // `step :> monitor.startObservation { in observer; }` (KerML 8.3.3.3.4 `supertypes`;
+            // ADR 0023).
+            let supers: Vec<Global> = generals(db, project, tg)
+                .iter()
+                .map(|s| chain_target(db, project, *s))
+                .collect();
             // KerML 8.3.3.3.4 checkFeatureEndRedefinition
             if g.flag(x, Attr::IsEnd) {
                 let ends: Vec<ElementIx> = owned_features(g, t)

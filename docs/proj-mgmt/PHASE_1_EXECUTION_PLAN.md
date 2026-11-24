@@ -1,6 +1,6 @@
 # Eureka SysML: Phase 1 execution plan
 
-Status: Draft v1.18 · 2026-11-21 · Covers PROJECT_PLAN v0.7 §6, Phases 1a and 1b (Release 0.1 "Language")
+Status: Draft v1.19 · 2026-11-23 · Covers PROJECT_PLAN v0.7 §6, Phases 1a and 1b (Release 0.1 "Language")
 
 This plan breaks Phase 1 into ordered steps, each small enough for one or a few pull requests. PROJECT_PLAN.md remains the source of truth for scope, architecture and budgets. Where this plan finds something the project plan does not settle, it is listed under [decisions](#24-decisions-and-their-recommended-defaults), and settled by the [decision methodology](#25-decision-methodology): each recommended default is evaluated during the step that first depends on it.
 
@@ -24,6 +24,7 @@ Change history:
 - v1.16: step 1a.9: all 59 specialization and 8 redefinition constraints done, and the KerML libraries satisfy them.
 - v1.17: step 1a.9: the 6 type-featuring constraints done, with the constructed snapshots and Cartesian-product features. The KerML libraries satisfy all 73 implemented constraints.
 - v1.18: step 1a.9 done: all 78 `check…` constraints that have OCL are implemented and tested, and the KerML libraries satisfy them, implied elements included. The 2 without OCL are deferred.
+- v1.19: step 1a.10 in progress: the 39 Root and Core validation constraints, with zero diagnostics on the KerML libraries. The negative tests of 14 constraints that no text can violate move to step 1b.6, where models can be read from KerML JSON, as the owner chose. ADR 0023 records the readings.
 
 ## 1. Executive summary
 
@@ -337,6 +338,10 @@ Each step below gives its goal, the spec clauses, what it delivers, the tests to
 - **Effort:** 1.5–2.5
 
 #### 1a.10 Validation constraints
+- **Status:** in progress, in two PRs: Root and Core, then Kernel.
+  - **Root and Core:** all 39 done, each with a function in `validate.rs` and a test. The KerML libraries produce zero diagnostics, implied elements included. Every violation is an error, with the constraint's name as its code and its metaclass's clause (ADRs 0012, 0023).
+  - **Negative tests:** 14 of these constraints cannot be violated by any text. Their negative tests come with interchange input in step 1b.6, as the owner chose on 2026-11-23 (`validations.json`). The Phase 1a exit therefore has them as a known exception.
+  - **Readings** (ADR 0023): inherited members that redefine a common feature are one member, a general that is a feature chain is its feature target, a binary crossing chains through the other end, and two validations do not apply to the implied relationships that the semantic constraints require.
 - **Goal:** report every KerML well-formedness violation as a diagnostic.
 - **Clauses:** the 88 `validate…` constraints of KerML 8.3, from their OCL.
 - **Tests first:** one positive and one negative test per constraint. **The KerML libraries produce zero diagnostics.**
@@ -431,6 +436,7 @@ Each step below gives its goal, the spec clauses, what it delivers, the tests to
   - `.kpar` import and export, with `.project.json`, `.meta.json`, the index and checksums. The archive reading moves here from `sysml-corpus` (ADR 0006), and the corpus then uses this crate.
 - **Tests first:**
   - The JSON output validates against `SysML.json`, and the API `OpenAPI.json` element examples import.
+  - The negative tests of the validation constraints that no text can violate (step 1a.10, ADR 0023): a model read from JSON violates each one (`crates/sysml-semantics/validations.json`).
   - text → JSON → model gives the same model.
   - `.kpar` export → import round-trips the libraries.
   - The errata of ADR 0006 are applied on import and never written on export.

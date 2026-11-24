@@ -1,0 +1,372 @@
+{
+  "version": 1,
+  "about": "Every validate\u2026 constraint of the KerML metaclasses (KerML.xmi), with its status in sysml-semantics (step 1a.10). Kept equal to KerML.xmi by tests/validations_inventory.rs. done: implemented by the function in sysml_semantics::validate, listed in VALIDATIONS, and tested by the test of the same name in tests/validate.rs, with a model that violates it unless negative says why no text can, and that the negative test comes with interchange input in step 1b.6; open: not yet, with what it waits for.",
+  "validations": {
+    "Annotation::validateAnnotationAnnotatedElementOwnership": {
+      "status": "done",
+      "function": "validate_annotation_annotated_element_ownership",
+      "negative": "step 1b.6: the grammar owns an annotation by its annotated element only together with its annotating element"
+    },
+    "Annotation::validateAnnotationAnnotatingElement": {
+      "status": "done",
+      "function": "validate_annotation_annotating_element",
+      "negative": "step 1b.6: the grammar makes an annotation either owned by its annotating element or the owner of it"
+    },
+    "Association::validateAssociationBinarySpecialization": {
+      "status": "open",
+      "pending": "step 1a.10, with the Kernel constraints"
+    },
+    "Association::validateAssociationEndTypes": {
+      "status": "open",
+      "pending": "step 1a.10, with the Kernel constraints"
+    },
+    "Association::validateAssociationRelatedTypes": {
+      "status": "open",
+      "pending": "step 1a.10, with the Kernel constraints"
+    },
+    "Association::validateAssociationStructureIntersection": {
+      "status": "open",
+      "pending": "step 1a.10, with the Kernel constraints"
+    },
+    "Behavior::validateBehaviorSpecialization": {
+      "status": "open",
+      "pending": "step 1a.10, with the Kernel constraints"
+    },
+    "BindingConnector::validateBindingConnectorIsBinary": {
+      "status": "open",
+      "pending": "step 1a.10, with the Kernel constraints"
+    },
+    "Class::validateClassSpecialization": {
+      "status": "open",
+      "pending": "step 1a.10, with the Kernel constraints"
+    },
+    "Classifier::validateClassifierMultiplicityDomain": {
+      "status": "done",
+      "function": "validate_classifier_multiplicity_domain",
+      "negative": "step 1b.6: the grammar gives a multiplicity no featuring, and a classifier's implies none"
+    },
+    "CollectExpression::validateCollectExpressionOperator": {
+      "status": "open",
+      "pending": "step 1a.10, with the Kernel constraints"
+    },
+    "Connector::validateConnectorBinarySpecialization": {
+      "status": "open",
+      "pending": "step 1a.10, with the Kernel constraints"
+    },
+    "Connector::validateConnectorRelatedFeatures": {
+      "status": "open",
+      "pending": "step 1a.10, with the Kernel constraints"
+    },
+    "ConstructorExpression::validateConstructorExpressionNoDuplicateFeatureRedefinition": {
+      "status": "open",
+      "pending": "step 1a.10, with the Kernel constraints"
+    },
+    "ConstructorExpression::validateConstructorExpressionOwnedFeatures": {
+      "status": "open",
+      "pending": "step 1a.10, with the Kernel constraints"
+    },
+    "CrossSubsetting::validateCrossSubsettingCrossedFeature": {
+      "status": "done",
+      "function": "validate_cross_subsetting_crossed_feature"
+    },
+    "CrossSubsetting::validateCrossSubsettingCrossingFeature": {
+      "status": "done",
+      "function": "validate_cross_subsetting_crossing_feature"
+    },
+    "DataType::validateDataTypeSpecialization": {
+      "status": "open",
+      "pending": "step 1a.10, with the Kernel constraints"
+    },
+    "Element::validateElementIsImpliedIncluded": {
+      "status": "done",
+      "function": "validate_element_is_implied_included",
+      "negative": "step 1b.6: the view includes every implied relationship of an element, so isImpliedIncluded is true wherever there is one"
+    },
+    "ElementFilterMembership::validateElementFilterMembershipConditionIsBoolean": {
+      "status": "open",
+      "pending": "step 1a.10, with the Kernel constraints"
+    },
+    "ElementFilterMembership::validateElementFilterMembershipConditionIsModelLevelEvaluable": {
+      "status": "open",
+      "pending": "step 1a.10, with the Kernel constraints"
+    },
+    "EndFeatureMembership::validateEndFeatureMembershipIsEnd": {
+      "status": "done",
+      "function": "validate_end_feature_membership_is_end",
+      "negative": "step 1b.6: the lowering makes the feature of an EndFeatureMembership an end"
+    },
+    "Expression::validateExpressionResultExpressionMembership": {
+      "status": "open",
+      "pending": "step 1a.10, with the Kernel constraints"
+    },
+    "Expression::validateExpressionResultParameterMembership": {
+      "status": "open",
+      "pending": "step 1a.10, with the Kernel constraints"
+    },
+    "Feature::validateFeatureChainingFeatureConformance": {
+      "status": "done",
+      "function": "validate_feature_chaining_feature_conformance",
+      "negative": "step 1b.6: name resolution finds each chaining feature in the one before"
+    },
+    "Feature::validateFeatureChainingFeatureNotOne": {
+      "status": "done",
+      "function": "validate_feature_chaining_feature_not_one",
+      "negative": "step 1b.6: the grammar writes two chaining features or more"
+    },
+    "Feature::validateFeatureChainingFeaturesNotSelf": {
+      "status": "done",
+      "function": "validate_feature_chaining_features_not_self"
+    },
+    "Feature::validateFeatureConstantIsVariable": {
+      "status": "done",
+      "function": "validate_feature_constant_is_variable",
+      "negative": "step 1b.6: the grammar makes a constant feature variable"
+    },
+    "Feature::validateFeatureCrossFeatureSpecialization": {
+      "status": "done",
+      "function": "validate_feature_cross_feature_specialization"
+    },
+    "Feature::validateFeatureCrossFeatureType": {
+      "status": "done",
+      "function": "validate_feature_cross_feature_type"
+    },
+    "Feature::validateFeatureEndIsConstant": {
+      "status": "done",
+      "function": "validate_feature_end_is_constant",
+      "negative": "step 1b.6: the grammar makes a variable end constant"
+    },
+    "Feature::validateFeatureEndMultiplicity": {
+      "status": "done",
+      "function": "validate_feature_end_multiplicity"
+    },
+    "Feature::validateFeatureEndNoDirection": {
+      "status": "done",
+      "function": "validate_feature_end_no_direction",
+      "negative": "step 1b.6: the grammar gives an end no direction"
+    },
+    "Feature::validateFeatureEndNotDerivedAbstractCompositeOrPortion": {
+      "status": "done",
+      "function": "validate_feature_end_not_derived_abstract_composite_or_portion",
+      "negative": "step 1b.6: the grammar gives an end none of these"
+    },
+    "Feature::validateFeatureIsVariable": {
+      "status": "done",
+      "function": "validate_feature_is_variable"
+    },
+    "Feature::validateFeatureMultiplicityDomain": {
+      "status": "done",
+      "function": "validate_feature_multiplicity_domain",
+      "negative": "step 1b.6: the grammar gives a multiplicity no featuring, and the type featurings copy the feature's"
+    },
+    "Feature::validateFeatureOwnedCrossSubsetting": {
+      "status": "done",
+      "function": "validate_feature_owned_cross_subsetting"
+    },
+    "Feature::validateFeatureOwnedReferenceSubsetting": {
+      "status": "done",
+      "function": "validate_feature_owned_reference_subsetting"
+    },
+    "Feature::validateFeaturePortionNotVariable": {
+      "status": "done",
+      "function": "validate_feature_portion_not_variable"
+    },
+    "FeatureChainExpression::validateFeatureChainExpressionConformance": {
+      "status": "open",
+      "pending": "step 1a.10, with the Kernel constraints"
+    },
+    "FeatureChainExpression::validateFeatureChainExpressionOperator": {
+      "status": "open",
+      "pending": "step 1a.10, with the Kernel constraints"
+    },
+    "FeatureReferenceExpression::validateFeatureReferenceExpressionReferentIsFeature": {
+      "status": "open",
+      "pending": "step 1a.10, with the Kernel constraints"
+    },
+    "FeatureReferenceExpression::validateFeatureReferenceExpressionResult": {
+      "status": "open",
+      "pending": "step 1a.10, with the Kernel constraints"
+    },
+    "FeatureValue::validateFeatureValueIsInitial": {
+      "status": "open",
+      "pending": "step 1a.10, with the Kernel constraints"
+    },
+    "FeatureValue::validateFeatureValueOverriding": {
+      "status": "open",
+      "pending": "step 1a.10, with the Kernel constraints"
+    },
+    "Flow::validateFlowPayloadFeature": {
+      "status": "open",
+      "pending": "step 1a.10, with the Kernel constraints"
+    },
+    "FlowEnd::validateFlowEndIsEnd": {
+      "status": "open",
+      "pending": "step 1a.10, with the Kernel constraints"
+    },
+    "FlowEnd::validateFlowEndNestedFeature": {
+      "status": "open",
+      "pending": "step 1a.10, with the Kernel constraints"
+    },
+    "FlowEnd::validateFlowEndOwningType": {
+      "status": "open",
+      "pending": "step 1a.10, with the Kernel constraints"
+    },
+    "Function::validateFunctionResultExpressionMembership": {
+      "status": "open",
+      "pending": "step 1a.10, with the Kernel constraints"
+    },
+    "Function::validateFunctionResultParameterMembership": {
+      "status": "open",
+      "pending": "step 1a.10, with the Kernel constraints"
+    },
+    "Import::validateImportTopLevelVisibility": {
+      "status": "done",
+      "function": "validate_import_top_level_visibility"
+    },
+    "IndexExpression::validateIndexExpressionOperator": {
+      "status": "open",
+      "pending": "step 1a.10, with the Kernel constraints"
+    },
+    "InstantiationExpression::validateInstantiationExpressionInstantiatedType": {
+      "status": "open",
+      "pending": "step 1a.10, with the Kernel constraints"
+    },
+    "InstantiationExpression::validateInstantiationExpressionResult": {
+      "status": "open",
+      "pending": "step 1a.10, with the Kernel constraints"
+    },
+    "InvocationExpression::validateInvocationExpressionInstantiatedType": {
+      "status": "open",
+      "pending": "step 1a.10, with the Kernel constraints"
+    },
+    "InvocationExpression::validateInvocationExpressionNoDuplicateParameterRedefinition": {
+      "status": "open",
+      "pending": "step 1a.10, with the Kernel constraints"
+    },
+    "InvocationExpression::validateInvocationExpressionOwnedFeatures": {
+      "status": "open",
+      "pending": "step 1a.10, with the Kernel constraints"
+    },
+    "InvocationExpression::validateInvocationExpressionParameterRedefinition": {
+      "status": "open",
+      "pending": "step 1a.10, with the Kernel constraints"
+    },
+    "MetadataAccessExpression::validateMetadataAccessExpressionReferencedElement": {
+      "status": "open",
+      "pending": "step 1a.10, with the Kernel constraints"
+    },
+    "MetadataFeature::validateMetadataFeatureAnnotatedElement": {
+      "status": "open",
+      "pending": "step 1a.10, with the Kernel constraints"
+    },
+    "MetadataFeature::validateMetadataFeatureBody": {
+      "status": "open",
+      "pending": "step 1a.10, with the Kernel constraints"
+    },
+    "MetadataFeature::validateMetadataFeatureMetaclass": {
+      "status": "open",
+      "pending": "step 1a.10, with the Kernel constraints"
+    },
+    "MetadataFeature::validateMetadataFeatureMetaclassNotAbstract": {
+      "status": "open",
+      "pending": "step 1a.10, with the Kernel constraints"
+    },
+    "MultiplicityRange::validateMultiplicityRangeBoundResultTypes": {
+      "status": "open",
+      "pending": "step 1a.10, with the Kernel constraints"
+    },
+    "MultiplicityRange::validateMultiplicityRangeBounds": {
+      "status": "open",
+      "pending": "step 1a.10, with the Kernel constraints"
+    },
+    "Namespace::validateNamespaceDistinguishibility": {
+      "status": "done",
+      "function": "validate_namespace_distinguishibility"
+    },
+    "ParameterMembership::validateParameterMembershipOwningType": {
+      "status": "open",
+      "pending": "step 1a.10, with the Kernel constraints"
+    },
+    "ParameterMembership::validateParameterMembershipParameterDirection": {
+      "status": "open",
+      "pending": "step 1a.10, with the Kernel constraints"
+    },
+    "Redefinition::validateRedefinitionDirectionConformance": {
+      "status": "done",
+      "function": "validate_redefinition_direction_conformance"
+    },
+    "Redefinition::validateRedefinitionEndConformance": {
+      "status": "done",
+      "function": "validate_redefinition_end_conformance"
+    },
+    "Redefinition::validateRedefinitionFeaturingTypes": {
+      "status": "done",
+      "function": "validate_redefinition_featuring_types"
+    },
+    "ResultExpressionMembership::validateResultExpressionMembershipOwningType": {
+      "status": "open",
+      "pending": "step 1a.10, with the Kernel constraints"
+    },
+    "ReturnParameterMembership::validateReturnParameterMembershipOwningType": {
+      "status": "open",
+      "pending": "step 1a.10, with the Kernel constraints"
+    },
+    "SelectExpression::validateSelectExpressionOperator": {
+      "status": "open",
+      "pending": "step 1a.10, with the Kernel constraints"
+    },
+    "Specialization::validateSpecificationSpecificNotConjugated": {
+      "status": "done",
+      "function": "validate_specification_specific_not_conjugated",
+      "negative": "step 1b.6: the grammar writes no specialization of a conjugated type"
+    },
+    "Structure::validateStructureSpecialization": {
+      "status": "open",
+      "pending": "step 1a.10, with the Kernel constraints"
+    },
+    "Subsetting::validateSubsettingConstantConformance": {
+      "status": "done",
+      "function": "validate_subsetting_constant_conformance"
+    },
+    "Subsetting::validateSubsettingFeaturingTypes": {
+      "status": "done",
+      "function": "validate_subsetting_featuring_types"
+    },
+    "Subsetting::validateSubsettingUniquenessConformance": {
+      "status": "done",
+      "function": "validate_subsetting_uniqueness_conformance"
+    },
+    "Type::validateTypeAtMostOneConjugator": {
+      "status": "done",
+      "function": "validate_type_at_most_one_conjugator",
+      "negative": "step 1b.6: the grammar writes at most one conjugation of a type"
+    },
+    "Type::validateTypeDifferencingTypesNotSelf": {
+      "status": "done",
+      "function": "validate_type_differencing_types_not_self"
+    },
+    "Type::validateTypeIntersectingTypesNotSelf": {
+      "status": "done",
+      "function": "validate_type_intersecting_types_not_self"
+    },
+    "Type::validateTypeOwnedDifferencingNotOne": {
+      "status": "done",
+      "function": "validate_type_owned_differencing_not_one"
+    },
+    "Type::validateTypeOwnedIntersectingNotOne": {
+      "status": "done",
+      "function": "validate_type_owned_intersecting_not_one"
+    },
+    "Type::validateTypeOwnedMultiplicity": {
+      "status": "done",
+      "function": "validate_type_owned_multiplicity"
+    },
+    "Type::validateTypeOwnedUnioningNotOne": {
+      "status": "done",
+      "function": "validate_type_owned_unioning_not_one"
+    },
+    "Type::validateTypeUnioningTypesNotSelf": {
+      "status": "done",
+      "function": "validate_type_unioning_types_not_self"
+    }
+  }
+}

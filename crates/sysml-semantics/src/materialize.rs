@@ -485,6 +485,14 @@ impl Build {
         r: u32,
         cross: Global,
     ) {
+        let others = crate::implied::other_ends(db, project, cross);
+        // For a binary owning type, the other end itself is the first feature: it is typed by the
+        // cross feature's featuring type and featured by the owning type, as Table 9 Note 2 asks,
+        // and validateCrossSubsettingCrossedFeature requires it (ADR 0023).
+        if let [other] = others[..] {
+            self.chain(r, &[other, cross]);
+            return;
+        }
         let chain = self.element(M::Feature);
         self.o.graph.add_owned_related_element(
             ElementIx::from_index(r as usize),
@@ -509,37 +517,26 @@ impl Build {
             index: x,
         };
         let owning = crate::implied::owning_type(structure(db, self.file).graph(), end.ix());
-        if let Some(t) = owning.map(|t| Global {
+        let Some(t) = owning.map(|t| Global {
             file: self.file,
             index: t.index() as u32,
-        }) {
-            let others = crate::implied::other_ends(db, project, cross);
-            let types = match others[..] {
-                [other] => crate::implied::feature_type(db, project, other),
-                _ => Vec::new(),
-            };
-            // For more ends, the featuring type of the cross feature is the product the overlay
-            // constructs for it, when it can (KerML 8.4.4.5.1).
-            if crate::implied::product_types(db, project, cross).is_some() {
-                let typing =
-                    self.relationship(Owner::Implied(first), M::FeatureTyping, first_g, None);
-                self.featuring(typing, Slot::Target, Featuring::Product(cross));
-            }
-            for ty in &types {
-                let typing =
-                    self.relationship(Owner::Implied(first), M::FeatureTyping, first_g, None);
-                self.end(typing, Slot::Target, *ty);
-            }
-            // The feature constraints on the first feature, which is no element of the fragment.
-            for general in crate::implied::typed_feature_generals(db, project, &types) {
-                let subsetting =
-                    self.relationship(Owner::Implied(first), M::Subsetting, first_g, None);
-                self.end(subsetting, Slot::Target, general);
-            }
-            let featuring =
-                self.relationship(Owner::Implied(first), M::TypeFeaturing, first_g, None);
-            self.end(featuring, Slot::Target, t);
+        }) else {
+            return;
+        };
+        // For more ends, the first feature is typed by the product the overlay constructs for
+        // the cross feature, when it can (KerML 8.4.4.5.1).
+        if crate::implied::product_types(db, project, cross).is_some() {
+            let typing = self.relationship(Owner::Implied(first), M::FeatureTyping, first_g, None);
+            self.featuring(typing, Slot::Target, Featuring::Product(cross));
         }
+        // The feature constraints on the first feature, which is no element of the fragment: it is
+        // typed by a feature, so only checkFeatureSpecialization applies.
+        for general in crate::implied::typed_feature_generals(db, project, &[]) {
+            let subsetting = self.relationship(Owner::Implied(first), M::Subsetting, first_g, None);
+            self.end(subsetting, Slot::Target, general);
+        }
+        let featuring = self.relationship(Owner::Implied(first), M::TypeFeaturing, first_g, None);
+        self.end(featuring, Slot::Target, t);
     }
 }
 
@@ -835,8 +832,15 @@ impl<'db> View<'db> {
         v.into_iter()
     }
 
-    /// A Boolean attribute, or the metamodel's default.
+    /// A Boolean attribute, or the metamodel's default. `isImpliedIncluded` is true for an element
+    /// that owns implied relationships, which the view includes (KerML 8.3.2.1.2; ADR 0022).
     pub fn flag(&self, ix: ElementIx, attr: Attr) -> bool {
+        if attr == Attr::IsImpliedIncluded
+            && self.implied(ix).is_none()
+            && self.overlay.owned.contains_key(&(ix.index() as u32))
+        {
+            return true;
+        }
         match self.implied(ix) {
             Some(l) => self.overlay.graph.flag(l, attr),
             None => self.base().flag(ix, attr),

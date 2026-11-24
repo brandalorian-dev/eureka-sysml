@@ -1013,6 +1013,11 @@ pub fn is_featured_within(
 pub fn can_access(db: &dyn salsa::Database, project: Project, f: Global, other: Global) -> bool {
     let anything = library(db, project, "Base::Anything");
     let mut all = featuring_type(db, project, f).clone();
+    // A feature without featuring types is featured by Anything, as the OCL reads the features in
+    // its closure (`if featuringTypes->isEmpty() then Sequence{anythingType}`; ADR 0021).
+    if all.is_empty() {
+        all.extend(anything);
+    }
     let mut seen: HashSet<Global> = all.iter().copied().collect();
     let mut i = 0;
     while i < all.len() {
