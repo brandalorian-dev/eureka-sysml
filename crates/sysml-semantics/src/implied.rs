@@ -309,6 +309,30 @@ fn chain_target(db: &dyn salsa::Database, project: Project, f: Global) -> Global
         .unwrap_or(f)
 }
 
+/// The general whose parameters a feature's parameters redefine by position
+/// (`checkFeatureParameterRedefinition`): a Behavior or a Step; for a Feature typed by one
+/// Behavior, as an invoked feature such as `incomingTransferSort(a, b)` is, that Behavior
+/// (validateInvocationExpressionInstantiatedType; ADR 0023). Shared with the check.
+pub(crate) fn parameter_general(
+    db: &dyn salsa::Database,
+    project: Project,
+    s: Global,
+) -> Option<Global> {
+    if !crate::resolve::in_fragment(db, s.file, s.index) {
+        return None;
+    }
+    if is_behavior_or_step(db, s) {
+        return Some(s);
+    }
+    if !metaclass(db, s).specializes(M::Feature) {
+        return None;
+    }
+    match feature_type(db, project, s)[..] {
+        [t] if metaclass(db, t).specializes(M::Behavior) => Some(t),
+        _ => None,
+    }
+}
+
 /// The first argument of an invocation (KerML 8.3.4.8.8 `argument->first()`): the value of the
 /// FeatureValue of its first owned parameter, which redefines the first input of the
 /// instantiated type (`checkFeatureParameterRedefinition`).
@@ -574,13 +598,9 @@ pub(crate) fn instantiated_type(
         let op = g.string(x.ix(), Attr::Operator)?;
         return *operator_function(db, project, op.to_owned());
     }
-    let r = g.owned_relationships(x.ix()).iter().find(|r| {
-        let m = g.metaclass(**r);
-        m.specializes(M::Membership) && !m.specializes(M::FeatureMembership)
-    })?;
-    let e = resolve_end(db, project, at(x.file, *r), sysml_model::Slot::Target, 0)
-        .as_ref()
-        .and_then(|e| member_element(db, project, e))?;
+    // The member element, written or, for an owned feature chain such as
+    // `changeSignal.signalCondition()`, owned (KerML 8.2.5.8.3 InstantiatedTypeMember).
+    let e = first_member_not(db, project, x, M::FeatureMembership)?;
     metaclass(db, e).specializes(M::Type).then_some(e)
 }
 
@@ -1108,7 +1128,8 @@ pub fn implied_redefinitions(
                 if let Some(i) = owned_parameters(g, t).iter().position(|f| *f == x) {
                     for s in supers
                         .iter()
-                        .filter(|s| **s != tg && is_behavior_or_step(db, **s))
+                        .filter(|s| **s != tg)
+                        .filter_map(|s| parameter_general(db, project, *s))
                     {
                         let sl = structure(db, s.file);
                         let p = owned_parameters(sl.graph(), s.ix()).get(i).copied();

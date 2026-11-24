@@ -8,7 +8,7 @@
 
 Step 1a.10 implements the 88 `validate…` constraints of KerML 8.3 from their OCL, one function each in `crates/sysml-semantics/src/validate.rs`. Each violation becomes a diagnostic (ADR 0012). The step's criterion is that the KerML libraries produce zero diagnostics, with the implied relationships and elements of step 1a.9 included (ADR 0022).
 
-Run on the libraries, the constraints as written reported violations in five groups. Some were in what the libraries declare; most were in the relationships that the semantic constraints of KerML 8.4.2 require. This ADR records how each group is read, and the other decisions of the step. The Root and Core constraints come first; the Kernel constraints follow in the step's second PR.
+Run on the libraries, the constraints as written reported violations in five groups. Some were in what the libraries declare; most were in the relationships that the semantic constraints of KerML 8.4.2 require. This ADR records how each group is read, and the other decisions of the step. The Root and Core constraints came in the step's first PR, the Kernel constraints in its second (decisions 8 to 11).
 
 ## Decisions
 
@@ -21,7 +21,7 @@ Run on the libraries, the constraints as written reported violations in five gro
 
 ### 2. Negative tests that no text can write
 
-The plan asks for one positive and one negative test per constraint. For 14 of the 39 Root and Core constraints, no valid KerML text produces a violation: the grammar, the lowering or name resolution already ensure them. One example is `validateFeatureChainingFeatureNotOne`, since the grammar writes two chaining features or more. Their positive tests are written now. The owner chose on 2026-11-23 that their negative tests come when models can be read from KerML JSON, which can express any graph: step 1b.6 (JSON and `.kpar` interchange). They are thus an exception to Phase 1a's exit. `validations.json` records each one's reason, and its inventory test checks that every other constraint has a negative test.
+The plan asks for one positive and one negative test per constraint. For 36 of the 88 constraints, 14 of the 39 Root and Core ones and 22 of the 49 Kernel ones, no valid KerML text produces a violation: the grammar, the lowering or name resolution already ensure them. One example is `validateFeatureChainingFeatureNotOne`, since the grammar writes two chaining features or more. Their positive tests are written now. The owner chose on 2026-11-23 that their negative tests come when models can be read from KerML JSON, which can express any graph: step 1b.6 (JSON and `.kpar` interchange). They are thus an exception to Phase 1a's exit. `validations.json` records each one's reason, and its inventory test checks that every other constraint has a negative test.
 
 ### 3. Inherited members that redefine a common feature
 
@@ -54,8 +54,30 @@ Both are read as applying to the relationships written, not to those the overlay
 - `validateCrossSubsettingCrossedFeature` says in its text that the crossed feature "must have exactly two chainingFeatures". Its OCL asks for the other end only of a chain of two, and so lets a crossed feature that is no chain pass. The text is followed: the crossed feature of an end's CrossSubsetting is a chain of two features.
 - An end of an N-ary association must have multiplicity 1..1 as written. `validateFeatureEndMultiplicity` finds none otherwise, and KerML 8.4.4.5.1 shows the ends written `[1..1]`. A binary association's ends get it from `Links::BinaryLink`.
 
+### 8. Invocations and their arguments
+
+- **The inputs of an invocation.** `validateInvocationExpressionParameterRedefinition` and `…NoDuplicateParameterRedefinition` take the invocation's `input`, which also contains the inputs it inherits from the instantiated type. An argument left to its default, as `endIndex` is in `subsequence(seq, 2)` in `SequenceFunctions::tail`, is such an input, and it redefines nothing. These constraints are read with the invocation's own inputs, its arguments.
+- **Named arguments.** The grammar writes a named argument as `NamedArgumentMember : FeatureMembership` (8.2.5.8.3), without a direction. Read literally, `validateInvocationExpressionOwnedFeatures` rejects every invocation with named arguments. An owned feature without a direction that redefines an input of the instantiated type is read as an input.
+- **An invoked feature.** `incomingTransferSort(accT, accableT)` in `StatePerformances` invokes a feature typed by a predicate, which `validateInvocationExpressionInstantiatedType` allows. `checkFeatureParameterRedefinition` takes the parameters of the generals that are Behaviors or Steps (ADR 0020), so the arguments redefined nothing. A general that is a Feature typed by one Behavior is read as that Behavior for its parameters, in the implied redefinitions and in the check.
+- **The binding connector of an invocation.** `checkInvocationExpressionBehaviorBindingConnector` implies a binding connector owned by the invocation, which `validateInvocationExpressionOwnedFeatures` would count as an owned feature without a direction. The implied binding connectors are not counted, as in `modelLevelEvaluable` (ADR 0021).
+- **An invoked feature chain.** `changeSignal.signalCondition()` in `Observation` invokes a feature chain, which the grammar owns through an OwningMembership (InstantiatedTypeMember). That chain is the instantiated type; the implied relationships now read it so too.
+
+### 9. Multiplicity bounds
+
+`validateMultiplicityRangeBoundResultTypes` requires a bound's value, as an UnlimitedNatural, to be at least 0. A negative number is no UnlimitedNatural, so `valueOf` gives none for it, and the constraint would hold. The value the bound evaluates to is read instead, so a bound of -1 violates it.
+
+### 10. Metadata features
+
+- `validateMetadataFeatureBody` writes `f.declaredName = null and f.declaredShortName = null and f.valuation <> null implies …`. With OCL's precedence, that makes a feature's having no name a condition rather than a requirement. Its text is followed: each feature of the body, at any depth, has no declared name, redefines one feature, and has no value or a model-level evaluable one. `redefinition` is read as `ownedRedefinition`, here and in `validateFeatureValueOverriding`.
+- `validateMetadataFeatureMetaclass` has `.size()` for `->size()`. A metadata feature typed by a classifier that is no metaclass is also typed by `Metaobjects::Metaobject`, through its implied subsetting of `Metaobjects::metaobjects`, so it has one metaclass; that one is abstract, which `validateMetadataFeatureMetaclassNotAbstract` reports.
+
+### 11. Smaller readings
+
+- `validateInvocationExpressionInstantiatedType` has `type->size(1)`, read as `type->size() = 1`.
+- `validateConstructorExpressionOwnedFeatures` has `ownedFeatures`, read as `ownedFeature`. Neither it nor the invocation constraint counts the implied binding connectors.
+
 ## Consequences
 
-- The KerML libraries produce zero diagnostics, of the checks and of the Root and Core validations, their 53,090 implied elements included.
+- The KerML libraries produce zero diagnostics, of the checks and of all 88 validations, their implied elements included.
 - The implied relationships of step 1a.9 change in two places: a binary crossing chain, and an only end. The step 1a.9 checks still hold on the libraries.
-- Step 1b.6 adds the 14 negative tests listed in `validations.json`.
+- Step 1b.6 adds the 36 negative tests listed in `validations.json`.

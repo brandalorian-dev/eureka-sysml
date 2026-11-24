@@ -13,32 +13,34 @@
       "negative": "step 1b.6: the grammar makes an annotation either owned by its annotating element or the owner of it"
     },
     "Association::validateAssociationBinarySpecialization": {
-      "status": "open",
-      "pending": "step 1a.10, with the Kernel constraints"
+      "status": "done",
+      "function": "validate_association_binary_specialization"
     },
     "Association::validateAssociationEndTypes": {
-      "status": "open",
-      "pending": "step 1a.10, with the Kernel constraints"
+      "status": "done",
+      "function": "validate_association_end_types"
     },
     "Association::validateAssociationRelatedTypes": {
-      "status": "open",
-      "pending": "step 1a.10, with the Kernel constraints"
+      "status": "done",
+      "function": "validate_association_related_types"
     },
     "Association::validateAssociationStructureIntersection": {
-      "status": "open",
-      "pending": "step 1a.10, with the Kernel constraints"
+      "status": "done",
+      "function": "validate_association_structure_intersection",
+      "negative": "step 1b.6: the metaclasses make a Structure that is an Association an AssociationStructure"
     },
     "Behavior::validateBehaviorSpecialization": {
-      "status": "open",
-      "pending": "step 1a.10, with the Kernel constraints"
+      "status": "done",
+      "function": "validate_behavior_specialization"
     },
     "BindingConnector::validateBindingConnectorIsBinary": {
-      "status": "open",
-      "pending": "step 1a.10, with the Kernel constraints"
+      "status": "done",
+      "function": "validate_binding_connector_is_binary",
+      "negative": "step 1b.6: the grammar writes two ends of a binding connector"
     },
     "Class::validateClassSpecialization": {
-      "status": "open",
-      "pending": "step 1a.10, with the Kernel constraints"
+      "status": "done",
+      "function": "validate_class_specialization"
     },
     "Classifier::validateClassifierMultiplicityDomain": {
       "status": "done",
@@ -46,24 +48,26 @@
       "negative": "step 1b.6: the grammar gives a multiplicity no featuring, and a classifier's implies none"
     },
     "CollectExpression::validateCollectExpressionOperator": {
-      "status": "open",
-      "pending": "step 1a.10, with the Kernel constraints"
+      "status": "done",
+      "function": "validate_collect_expression_operator",
+      "negative": "step 1b.6: the grammar sets the operator"
     },
     "Connector::validateConnectorBinarySpecialization": {
-      "status": "open",
-      "pending": "step 1a.10, with the Kernel constraints"
+      "status": "done",
+      "function": "validate_connector_binary_specialization"
     },
     "Connector::validateConnectorRelatedFeatures": {
-      "status": "open",
-      "pending": "step 1a.10, with the Kernel constraints"
+      "status": "done",
+      "function": "validate_connector_related_features"
     },
     "ConstructorExpression::validateConstructorExpressionNoDuplicateFeatureRedefinition": {
-      "status": "open",
-      "pending": "step 1a.10, with the Kernel constraints"
+      "status": "done",
+      "function": "validate_constructor_expression_no_duplicate_feature_redefinition"
     },
     "ConstructorExpression::validateConstructorExpressionOwnedFeatures": {
-      "status": "open",
-      "pending": "step 1a.10, with the Kernel constraints"
+      "status": "done",
+      "function": "validate_constructor_expression_owned_features",
+      "negative": "step 1b.6: the grammar owns the arguments of a constructor by its result"
     },
     "CrossSubsetting::validateCrossSubsettingCrossedFeature": {
       "status": "done",
@@ -74,8 +78,8 @@
       "function": "validate_cross_subsetting_crossing_feature"
     },
     "DataType::validateDataTypeSpecialization": {
-      "status": "open",
-      "pending": "step 1a.10, with the Kernel constraints"
+      "status": "done",
+      "function": "validate_data_type_specialization"
     },
     "Element::validateElementIsImpliedIncluded": {
       "status": "done",
@@ -83,12 +87,12 @@
       "negative": "step 1b.6: the view includes every implied relationship of an element, so isImpliedIncluded is true wherever there is one"
     },
     "ElementFilterMembership::validateElementFilterMembershipConditionIsBoolean": {
-      "status": "open",
-      "pending": "step 1a.10, with the Kernel constraints"
+      "status": "done",
+      "function": "validate_element_filter_membership_condition_is_boolean"
     },
     "ElementFilterMembership::validateElementFilterMembershipConditionIsModelLevelEvaluable": {
-      "status": "open",
-      "pending": "step 1a.10, with the Kernel constraints"
+      "status": "done",
+      "function": "validate_element_filter_membership_condition_is_model_level_evaluable"
     },
     "EndFeatureMembership::validateEndFeatureMembershipIsEnd": {
       "status": "done",
@@ -96,12 +100,12 @@
       "negative": "step 1b.6: the lowering makes the feature of an EndFeatureMembership an end"
     },
     "Expression::validateExpressionResultExpressionMembership": {
-      "status": "open",
-      "pending": "step 1a.10, with the Kernel constraints"
+      "status": "done",
+      "function": "validate_expression_result_expression_membership"
     },
     "Expression::validateExpressionResultParameterMembership": {
-      "status": "open",
-      "pending": "step 1a.10, with the Kernel constraints"
+      "status": "done",
+      "function": "validate_expression_result_parameter_membership"
     },
     "Feature::validateFeatureChainingFeatureConformance": {
       "status": "done",
@@ -171,124 +175,139 @@
       "function": "validate_feature_portion_not_variable"
     },
     "FeatureChainExpression::validateFeatureChainExpressionConformance": {
-      "status": "open",
-      "pending": "step 1a.10, with the Kernel constraints"
+      "status": "done",
+      "function": "validate_feature_chain_expression_conformance",
+      "negative": "step 1b.6: name resolution finds the target feature in the result of the source"
     },
     "FeatureChainExpression::validateFeatureChainExpressionOperator": {
-      "status": "open",
-      "pending": "step 1a.10, with the Kernel constraints"
+      "status": "done",
+      "function": "validate_feature_chain_expression_operator",
+      "negative": "step 1b.6: the grammar sets the operator"
     },
     "FeatureReferenceExpression::validateFeatureReferenceExpressionReferentIsFeature": {
-      "status": "open",
-      "pending": "step 1a.10, with the Kernel constraints"
+      "status": "done",
+      "function": "validate_feature_reference_expression_referent_is_feature"
     },
     "FeatureReferenceExpression::validateFeatureReferenceExpressionResult": {
-      "status": "open",
-      "pending": "step 1a.10, with the Kernel constraints"
+      "status": "done",
+      "function": "validate_feature_reference_expression_result",
+      "negative": "step 1b.6: the grammar writes the result of a feature reference"
     },
     "FeatureValue::validateFeatureValueIsInitial": {
-      "status": "open",
-      "pending": "step 1a.10, with the Kernel constraints"
+      "status": "done",
+      "function": "validate_feature_value_is_initial"
     },
     "FeatureValue::validateFeatureValueOverriding": {
-      "status": "open",
-      "pending": "step 1a.10, with the Kernel constraints"
+      "status": "done",
+      "function": "validate_feature_value_overriding"
     },
     "Flow::validateFlowPayloadFeature": {
-      "status": "open",
-      "pending": "step 1a.10, with the Kernel constraints"
+      "status": "done",
+      "function": "validate_flow_payload_feature",
+      "negative": "step 1b.6: the grammar writes at most one payload"
     },
     "FlowEnd::validateFlowEndIsEnd": {
-      "status": "open",
-      "pending": "step 1a.10, with the Kernel constraints"
+      "status": "done",
+      "function": "validate_flow_end_is_end",
+      "negative": "step 1b.6: the lowering makes a flow end an end"
     },
     "FlowEnd::validateFlowEndNestedFeature": {
-      "status": "open",
-      "pending": "step 1a.10, with the Kernel constraints"
+      "status": "done",
+      "function": "validate_flow_end_nested_feature",
+      "negative": "step 1b.6: the grammar writes one feature in a flow end"
     },
     "FlowEnd::validateFlowEndOwningType": {
-      "status": "open",
-      "pending": "step 1a.10, with the Kernel constraints"
+      "status": "done",
+      "function": "validate_flow_end_owning_type",
+      "negative": "step 1b.6: the grammar writes flow ends only in flows"
     },
     "Function::validateFunctionResultExpressionMembership": {
-      "status": "open",
-      "pending": "step 1a.10, with the Kernel constraints"
+      "status": "done",
+      "function": "validate_function_result_expression_membership"
     },
     "Function::validateFunctionResultParameterMembership": {
-      "status": "open",
-      "pending": "step 1a.10, with the Kernel constraints"
+      "status": "done",
+      "function": "validate_function_result_parameter_membership"
     },
     "Import::validateImportTopLevelVisibility": {
       "status": "done",
       "function": "validate_import_top_level_visibility"
     },
     "IndexExpression::validateIndexExpressionOperator": {
-      "status": "open",
-      "pending": "step 1a.10, with the Kernel constraints"
+      "status": "done",
+      "function": "validate_index_expression_operator",
+      "negative": "step 1b.6: the grammar sets the operator"
     },
     "InstantiationExpression::validateInstantiationExpressionInstantiatedType": {
-      "status": "open",
-      "pending": "step 1a.10, with the Kernel constraints"
+      "status": "done",
+      "function": "validate_instantiation_expression_instantiated_type"
     },
     "InstantiationExpression::validateInstantiationExpressionResult": {
-      "status": "open",
-      "pending": "step 1a.10, with the Kernel constraints"
+      "status": "done",
+      "function": "validate_instantiation_expression_result",
+      "negative": "step 1b.6: the grammar writes the result of an instantiation expression"
     },
     "InvocationExpression::validateInvocationExpressionInstantiatedType": {
-      "status": "open",
-      "pending": "step 1a.10, with the Kernel constraints"
+      "status": "done",
+      "function": "validate_invocation_expression_instantiated_type"
     },
     "InvocationExpression::validateInvocationExpressionNoDuplicateParameterRedefinition": {
-      "status": "open",
-      "pending": "step 1a.10, with the Kernel constraints"
+      "status": "done",
+      "function": "validate_invocation_expression_no_duplicate_parameter_redefinition"
     },
     "InvocationExpression::validateInvocationExpressionOwnedFeatures": {
-      "status": "open",
-      "pending": "step 1a.10, with the Kernel constraints"
+      "status": "done",
+      "function": "validate_invocation_expression_owned_features",
+      "negative": "step 1b.6: the grammar writes only arguments and the result in an invocation"
     },
     "InvocationExpression::validateInvocationExpressionParameterRedefinition": {
-      "status": "open",
-      "pending": "step 1a.10, with the Kernel constraints"
+      "status": "done",
+      "function": "validate_invocation_expression_parameter_redefinition"
     },
     "MetadataAccessExpression::validateMetadataAccessExpressionReferencedElement": {
-      "status": "open",
-      "pending": "step 1a.10, with the Kernel constraints"
+      "status": "done",
+      "function": "validate_metadata_access_expression_referenced_element",
+      "negative": "step 1b.6: the grammar writes the referenced element"
     },
     "MetadataFeature::validateMetadataFeatureAnnotatedElement": {
-      "status": "open",
-      "pending": "step 1a.10, with the Kernel constraints"
+      "status": "done",
+      "function": "validate_metadata_feature_annotated_element"
     },
     "MetadataFeature::validateMetadataFeatureBody": {
-      "status": "open",
-      "pending": "step 1a.10, with the Kernel constraints"
+      "status": "done",
+      "function": "validate_metadata_feature_body"
     },
     "MetadataFeature::validateMetadataFeatureMetaclass": {
-      "status": "open",
-      "pending": "step 1a.10, with the Kernel constraints"
+      "status": "done",
+      "function": "validate_metadata_feature_metaclass",
+      "negative": "step 1b.6: the grammar types a metadata feature by one type"
     },
     "MetadataFeature::validateMetadataFeatureMetaclassNotAbstract": {
-      "status": "open",
-      "pending": "step 1a.10, with the Kernel constraints"
+      "status": "done",
+      "function": "validate_metadata_feature_metaclass_not_abstract"
     },
     "MultiplicityRange::validateMultiplicityRangeBoundResultTypes": {
-      "status": "open",
-      "pending": "step 1a.10, with the Kernel constraints"
+      "status": "done",
+      "function": "validate_multiplicity_range_bound_result_types"
     },
     "MultiplicityRange::validateMultiplicityRangeBounds": {
-      "status": "open",
-      "pending": "step 1a.10, with the Kernel constraints"
+      "status": "done",
+      "function": "validate_multiplicity_range_bounds",
+      "negative": "step 1b.6: the grammar owns the bounds in order"
     },
     "Namespace::validateNamespaceDistinguishibility": {
       "status": "done",
       "function": "validate_namespace_distinguishibility"
     },
     "ParameterMembership::validateParameterMembershipOwningType": {
-      "status": "open",
-      "pending": "step 1a.10, with the Kernel constraints"
+      "status": "done",
+      "function": "validate_parameter_membership_owning_type",
+      "negative": "step 1b.6: the grammar writes parameters only in behaviors, steps, expressions and constructor results"
     },
     "ParameterMembership::validateParameterMembershipParameterDirection": {
-      "status": "open",
-      "pending": "step 1a.10, with the Kernel constraints"
+      "status": "done",
+      "function": "validate_parameter_membership_parameter_direction",
+      "negative": "step 1b.6: the lowering gives a parameter the direction its membership requires"
     },
     "Redefinition::validateRedefinitionDirectionConformance": {
       "status": "done",
@@ -303,16 +322,19 @@
       "function": "validate_redefinition_featuring_types"
     },
     "ResultExpressionMembership::validateResultExpressionMembershipOwningType": {
-      "status": "open",
-      "pending": "step 1a.10, with the Kernel constraints"
+      "status": "done",
+      "function": "validate_result_expression_membership_owning_type",
+      "negative": "step 1b.6: the grammar writes result expressions only in functions and expressions"
     },
     "ReturnParameterMembership::validateReturnParameterMembershipOwningType": {
-      "status": "open",
-      "pending": "step 1a.10, with the Kernel constraints"
+      "status": "done",
+      "function": "validate_return_parameter_membership_owning_type",
+      "negative": "step 1b.6: the grammar writes results only in functions and expressions"
     },
     "SelectExpression::validateSelectExpressionOperator": {
-      "status": "open",
-      "pending": "step 1a.10, with the Kernel constraints"
+      "status": "done",
+      "function": "validate_select_expression_operator",
+      "negative": "step 1b.6: the grammar sets the operator"
     },
     "Specialization::validateSpecificationSpecificNotConjugated": {
       "status": "done",
@@ -320,8 +342,8 @@
       "negative": "step 1b.6: the grammar writes no specialization of a conjugated type"
     },
     "Structure::validateStructureSpecialization": {
-      "status": "open",
-      "pending": "step 1a.10, with the Kernel constraints"
+      "status": "done",
+      "function": "validate_structure_specialization"
     },
     "Subsetting::validateSubsettingConstantConformance": {
       "status": "done",

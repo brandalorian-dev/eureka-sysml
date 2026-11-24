@@ -93,7 +93,8 @@ fn validate_annotation_annotating_element() {
 fn validate_annotation_annotated_element_ownership() {
     // owned by the annotated element exactly when it owns the annotating element
     let m = model_with_library(
-        "classifier C; comment about C /* x */ classifier D { doc /* d */ } metaclass M; #M classifier E;",
+        "classifier C; comment about C /* x */ classifier D { doc /* d */ }
+        metaclass M; #M classifier E;",
     );
     for x in v::violations(&m.db, m.project, m.file) {
         assert_ne!(x.constraint, "validateAnnotationAnnotatedElementOwnership");
@@ -553,12 +554,14 @@ fn validate_redefinition_end_conformance() {
     );
     relationship_violates(
         &format!(
-            "{base} assoc B specializes A {{ feature c redefines a; end feature d; end feature e; }}"
+            "{base} assoc B specializes A {{
+                feature c redefines a; end feature d; end feature e; }}"
         ),
         "B::c",
         kind,
         1,
-        c);
+        c,
+    );
 }
 
 #[test]
@@ -649,6 +652,638 @@ fn validate_cross_subsetting_crossed_feature() {
         Metaclass::CrossSubsetting,
         1,
         "validateCrossSubsettingCrossedFeature",
+    );
+}
+
+// ---- Kernel (KerML 8.3.4) ----
+
+#[test]
+fn validate_data_type_specialization() {
+    satisfies(
+        "datatype D; datatype E specializes D;",
+        "E",
+        "validateDataTypeSpecialization",
+    );
+    violates(
+        "class C; datatype D specializes C;",
+        "D",
+        "validateDataTypeSpecialization",
+    );
+}
+
+#[test]
+fn validate_class_specialization() {
+    satisfies(
+        "class C; class E specializes C;",
+        "E",
+        "validateClassSpecialization",
+    );
+    violates(
+        "datatype D; class C specializes D;",
+        "C",
+        "validateClassSpecialization",
+    );
+    violates(
+        "assoc A { end feature a; end feature b; } class C specializes A;",
+        "C",
+        "validateClassSpecialization",
+    );
+}
+
+#[test]
+fn validate_structure_specialization() {
+    satisfies(
+        "struct S; struct T specializes S;",
+        "T",
+        "validateStructureSpecialization",
+    );
+    violates(
+        "behavior B; struct S specializes B;",
+        "S",
+        "validateStructureSpecialization",
+    );
+}
+
+#[test]
+fn validate_association_structure_intersection() {
+    // an Association is a Structure only as an AssociationStructure, as the metaclasses are
+    satisfies(
+        "assoc struct A { end feature a; end feature b; }",
+        "A",
+        "validateAssociationStructureIntersection",
+    );
+}
+
+#[test]
+fn validate_association_binary_specialization() {
+    satisfies(
+        "assoc A { end feature a; end feature b; }",
+        "A",
+        "validateAssociationBinarySpecialization",
+    );
+    violates(
+        "assoc A specializes Links::BinaryLink { end feature a; end feature b; end feature c; }",
+        "A",
+        "validateAssociationBinarySpecialization",
+    );
+}
+
+#[test]
+fn validate_association_related_types() {
+    // a concrete association relates two types or more
+    satisfies(
+        "assoc A { end feature a; end feature b; } abstract assoc B { end feature a; }",
+        "B",
+        "validateAssociationRelatedTypes",
+    );
+    violates(
+        "assoc A { end feature a; }",
+        "A",
+        "validateAssociationRelatedTypes",
+    );
+}
+
+#[test]
+fn validate_association_end_types() {
+    satisfies(
+        "classifier T; assoc A { end feature a : T; end feature b : T; }",
+        "A",
+        "validateAssociationEndTypes",
+    );
+    violates(
+        "classifier T; classifier U; assoc A { end feature a : T, U; end feature b : T; }",
+        "A",
+        "validateAssociationEndTypes",
+    );
+}
+
+#[test]
+fn validate_connector_binary_specialization() {
+    let c = "validateConnectorBinarySpecialization";
+    satisfies(
+        "classifier C { feature x; feature y; connector k from x to y; }",
+        "C::k",
+        c,
+    );
+    violates(
+        "classifier C { feature x; feature y; feature z;
+            connector k : Links::BinaryLink (x, y, z); }",
+        "C::k",
+        c,
+    );
+}
+
+#[test]
+fn validate_connector_related_features() {
+    let c = "validateConnectorRelatedFeatures";
+    satisfies(
+        "classifier C { feature x; feature y; connector k from x to y; abstract connector n; }",
+        "C::n",
+        c,
+    );
+    violates("classifier C { connector k; }", "C::k", c);
+}
+
+#[test]
+fn validate_binding_connector_is_binary() {
+    // the grammar writes two ends
+    satisfies(
+        "classifier C { feature x; feature y; binding b of x = y; }",
+        "C::b",
+        "validateBindingConnectorIsBinary",
+    );
+}
+
+#[test]
+fn validate_behavior_specialization() {
+    satisfies(
+        "behavior A; behavior B specializes A;",
+        "B",
+        "validateBehaviorSpecialization",
+    );
+    violates(
+        "struct S; behavior B specializes S;",
+        "B",
+        "validateBehaviorSpecialization",
+    );
+}
+
+#[test]
+fn validate_parameter_membership_parameter_direction() {
+    // the lowering gives a parameter the direction its membership requires
+    relationship_satisfies(
+        "function F { in x; return r; } feature v = F(1);",
+        "v::InvocationExpression#1",
+        Metaclass::ParameterMembership,
+        1,
+        "validateParameterMembershipParameterDirection",
+    );
+}
+
+#[test]
+fn validate_parameter_membership_owning_type() {
+    // the grammar writes parameters in behaviors, steps and constructor results
+    relationship_satisfies(
+        "function F { in x; return r; } feature v = F(1);",
+        "v::InvocationExpression#1",
+        Metaclass::ParameterMembership,
+        1,
+        "validateParameterMembershipOwningType",
+    );
+}
+
+const FUNCTIONS: &str = "function F { in x; x } function G specializes F { in y; y }";
+
+#[test]
+fn validate_function_result_parameter_membership() {
+    let c = "validateFunctionResultParameterMembership";
+    satisfies("function F { return r; }", "F", c);
+    violates("function F { return a; return b; }", "F", c);
+}
+
+#[test]
+fn validate_function_result_expression_membership() {
+    // at most one, owned or inherited
+    let c = "validateFunctionResultExpressionMembership";
+    satisfies(FUNCTIONS, "F", c);
+    violates(FUNCTIONS, "G", c);
+}
+
+#[test]
+fn validate_expression_result_parameter_membership() {
+    let c = "validateExpressionResultParameterMembership";
+    satisfies("expr e { return r; }", "e", c);
+    violates("expr e { return a; return b; }", "e", c);
+}
+
+#[test]
+fn validate_expression_result_expression_membership() {
+    let c = "validateExpressionResultExpressionMembership";
+    satisfies("expr e { 1 }", "e", c);
+    violates("expr e { 1 } expr f :> e { 2 }", "f", c);
+}
+
+#[test]
+fn validate_result_expression_membership_owning_type() {
+    // the grammar writes result expressions in functions and expressions
+    relationship_satisfies(
+        "function F { 1 }",
+        "F",
+        Metaclass::ResultExpressionMembership,
+        1,
+        "validateResultExpressionMembershipOwningType",
+    );
+}
+
+#[test]
+fn validate_return_parameter_membership_owning_type() {
+    // the grammar writes results in functions and expressions
+    relationship_satisfies(
+        "function F { return r; }",
+        "F",
+        Metaclass::ReturnParameterMembership,
+        1,
+        "validateReturnParameterMembershipOwningType",
+    );
+}
+
+#[test]
+fn validate_instantiation_expression_instantiated_type() {
+    let c = "validateInstantiationExpressionInstantiatedType";
+    satisfies(
+        "function F { in x; return r; } feature v = F(1);",
+        "v::InvocationExpression#1",
+        c,
+    );
+    // an invoked feature chain is the instantiated type (KerML 8.2.5.8.3)
+    satisfies(
+        "classifier S { bool c; } feature s : S; feature v = s.c();",
+        "v::InvocationExpression#1",
+        c,
+    );
+    violates(
+        "package P; feature v = P();",
+        "v::InvocationExpression#1",
+        c,
+    );
+}
+
+#[test]
+fn validate_instantiation_expression_result() {
+    // the grammar writes the result
+    satisfies(
+        "function F { in x; return r; } feature v = F(1);",
+        "v::InvocationExpression#1",
+        "validateInstantiationExpressionResult",
+    );
+}
+
+#[test]
+fn validate_invocation_expression_instantiated_type() {
+    // a Behavior, or a Feature typed by one
+    let c = "validateInvocationExpressionInstantiatedType";
+    satisfies(
+        "behavior B { in x; } feature v = B(1);",
+        "v::InvocationExpression#1",
+        c,
+    );
+    satisfies(
+        "behavior B { in x; } step s : B; feature v = s(1);",
+        "v::InvocationExpression#1",
+        c,
+    );
+    violates(
+        "classifier C; feature v = C();",
+        "v::InvocationExpression#1",
+        c,
+    );
+}
+
+#[test]
+fn validate_invocation_expression_owned_features() {
+    // the grammar writes inputs; the implied binding connector does not count (ADR 0023)
+    satisfies(
+        "behavior B { in x; } feature v = B(1);",
+        "v::InvocationExpression#1",
+        "validateInvocationExpressionOwnedFeatures",
+    );
+}
+
+#[test]
+fn validate_invocation_expression_parameter_redefinition() {
+    // each argument redefines exactly one input; an argument left to its default is none
+    let c = "validateInvocationExpressionParameterRedefinition";
+    let f = "function F { in x; in y default 0; return r; }";
+    satisfies(
+        &format!("{f} feature v = F(1);"),
+        "v::InvocationExpression#1",
+        c,
+    );
+    // an invoked feature typed by a behavior has that behavior's parameters (ADR 0023)
+    satisfies(
+        &format!("{f} feature g : F; feature v = g(1, 2);"),
+        "v::InvocationExpression#1",
+        c,
+    );
+    violates(
+        &format!("{f} feature v = F(1, 2, 3);"),
+        "v::InvocationExpression#1",
+        c,
+    );
+}
+
+#[test]
+fn validate_invocation_expression_no_duplicate_parameter_redefinition() {
+    let c = "validateInvocationExpressionNoDuplicateParameterRedefinition";
+    let f = "function F { in x; in y; return r; }";
+    satisfies(
+        &format!("{f} feature v = F(x = 1, y = 2);"),
+        "v::InvocationExpression#1",
+        c,
+    );
+    violates(
+        &format!("{f} feature v = F(x = 1, x = 2);"),
+        "v::InvocationExpression#1",
+        c,
+    );
+}
+
+#[test]
+fn validate_constructor_expression_owned_features() {
+    // the grammar owns the arguments by the result
+    satisfies(
+        "class T { feature a; } feature n = new T(1);",
+        "n::ConstructorExpression#1",
+        "validateConstructorExpressionOwnedFeatures",
+    );
+}
+
+#[test]
+fn validate_constructor_expression_no_duplicate_feature_redefinition() {
+    let c = "validateConstructorExpressionNoDuplicateFeatureRedefinition";
+    let t = "class T { feature a; feature b; }";
+    satisfies(
+        &format!("{t} feature n = new T(a = 1, b = 2);"),
+        "n::ConstructorExpression#1",
+        c,
+    );
+    violates(
+        &format!("{t} feature n = new T(a = 1, a = 2);"),
+        "n::ConstructorExpression#1",
+        c,
+    );
+}
+
+#[test]
+fn validate_feature_reference_expression_referent_is_feature() {
+    let c = "validateFeatureReferenceExpressionReferentIsFeature";
+    satisfies(
+        "feature a; feature v = a;",
+        "v::FeatureReferenceExpression#1",
+        c,
+    );
+    violates(
+        "classifier C; feature v = C;",
+        "v::FeatureReferenceExpression#1",
+        c,
+    );
+}
+
+#[test]
+fn validate_feature_reference_expression_result() {
+    // the grammar writes the result
+    satisfies(
+        "feature a; feature v = a;",
+        "v::FeatureReferenceExpression#1",
+        "validateFeatureReferenceExpressionResult",
+    );
+}
+
+#[test]
+fn validate_feature_chain_expression_operator() {
+    // the grammar sets the operator
+    satisfies(
+        "classifier C { feature d; } feature c : C; feature e = c.d;",
+        "e::FeatureChainExpression#1",
+        "validateFeatureChainExpressionOperator",
+    );
+}
+
+#[test]
+fn validate_feature_chain_expression_conformance() {
+    // the target feature is featured within the source's result; name resolution finds it there
+    let c = "validateFeatureChainExpressionConformance";
+    satisfies(
+        "classifier C { feature d; } feature c : C; feature e = c.d;",
+        "e::FeatureChainExpression#1",
+        c,
+    );
+}
+
+#[test]
+fn validate_select_expression_operator() {
+    satisfies(
+        "feature s[*]; feature e = s.?{in x; true};",
+        "e::SelectExpression#1",
+        "validateSelectExpressionOperator",
+    );
+}
+
+#[test]
+fn validate_collect_expression_operator() {
+    satisfies(
+        "feature s[*]; feature e = s.{in x; x};",
+        "e::CollectExpression#1",
+        "validateCollectExpressionOperator",
+    );
+}
+
+#[test]
+fn validate_index_expression_operator() {
+    satisfies(
+        "feature s[*]; feature e = s#(1);",
+        "e::IndexExpression#1",
+        "validateIndexExpressionOperator",
+    );
+}
+
+#[test]
+fn validate_metadata_access_expression_referenced_element() {
+    // the grammar writes the referenced element
+    satisfies(
+        "classifier C; feature f = C.metadata;",
+        "f::MetadataAccessExpression#1",
+        "validateMetadataAccessExpressionReferencedElement",
+    );
+}
+
+const FLOWS: &str = "behavior B { step s { out o; } step t { in i; }
+    flow of ScalarValues::Integer from s.o to t.i; }";
+
+#[test]
+fn validate_flow_payload_feature() {
+    // the grammar writes at most one payload
+    satisfies(FLOWS, "B::Flow#1", "validateFlowPayloadFeature");
+}
+
+#[test]
+fn validate_flow_end_is_end() {
+    satisfies(FLOWS, "B::Flow#1::FlowEnd#1", "validateFlowEndIsEnd");
+}
+
+#[test]
+fn validate_flow_end_nested_feature() {
+    satisfies(
+        FLOWS,
+        "B::Flow#1::FlowEnd#1",
+        "validateFlowEndNestedFeature",
+    );
+}
+
+#[test]
+fn validate_flow_end_owning_type() {
+    satisfies(FLOWS, "B::Flow#1::FlowEnd#1", "validateFlowEndOwningType");
+}
+
+#[test]
+fn validate_feature_value_is_initial() {
+    // an initial value is of a variable feature
+    let c = "validateFeatureValueIsInitial";
+    relationship_satisfies(
+        "class K { var feature v := 1; }",
+        "K::v",
+        Metaclass::FeatureValue,
+        1,
+        c,
+    );
+    relationship_violates(
+        "class K { feature v := 1; }",
+        "K::v",
+        Metaclass::FeatureValue,
+        1,
+        c,
+    );
+}
+
+#[test]
+fn validate_feature_value_overriding() {
+    // a redefined feature's value is a default one
+    let c = "validateFeatureValueOverriding";
+    relationship_satisfies(
+        "classifier C { feature a default = 1; }
+        classifier D specializes C { feature a2 redefines a = 2; }",
+        "D::a2",
+        Metaclass::FeatureValue,
+        1,
+        c,
+    );
+    relationship_violates(
+        "classifier C { feature a = 1; }
+        classifier D specializes C { feature a2 redefines a = 2; }",
+        "D::a2",
+        Metaclass::FeatureValue,
+        1,
+        c,
+    );
+}
+
+#[test]
+fn validate_multiplicity_range_bounds() {
+    // the grammar owns the bounds in order
+    satisfies(
+        "feature f[1..2];",
+        "f::MultiplicityRange#1",
+        "validateMultiplicityRangeBounds",
+    );
+}
+
+#[test]
+fn validate_multiplicity_range_bound_result_types() {
+    // the bounds are integers, not negative (ADR 0023)
+    let c = "validateMultiplicityRangeBoundResultTypes";
+    satisfies("feature f[1..*];", "f::MultiplicityRange#1", c);
+    violates("feature f[\"a\"];", "f::MultiplicityRange#1", c);
+    violates(
+        "feature n : ScalarValues::Integer = -1; feature f[n];",
+        "f::MultiplicityRange#1",
+        c,
+    );
+}
+
+#[test]
+fn validate_element_filter_membership_condition_is_boolean() {
+    let c = "validateElementFilterMembershipConditionIsBoolean";
+    relationship_satisfies(
+        "package P { filter true; }",
+        "P",
+        Metaclass::ElementFilterMembership,
+        1,
+        c,
+    );
+    relationship_violates(
+        "package P { filter 1; }",
+        "P",
+        Metaclass::ElementFilterMembership,
+        1,
+        c,
+    );
+}
+
+#[test]
+fn validate_element_filter_membership_condition_is_model_level_evaluable() {
+    let c = "validateElementFilterMembershipConditionIsModelLevelEvaluable";
+    relationship_satisfies(
+        "package P { filter true; }",
+        "P",
+        Metaclass::ElementFilterMembership,
+        1,
+        c,
+    );
+    relationship_violates(
+        "function F { return b : ScalarValues::Boolean; } package P { filter F(); }",
+        "P",
+        Metaclass::ElementFilterMembership,
+        1,
+        c,
+    );
+}
+
+#[test]
+fn validate_metadata_feature_metaclass() {
+    // the grammar types a metadata feature by one type
+    let c = "validateMetadataFeatureMetaclass";
+    satisfies(
+        "metaclass M; classifier C { @M; }",
+        "C::MetadataFeature#1",
+        c,
+    );
+}
+
+#[test]
+fn validate_metadata_feature_metaclass_not_abstract() {
+    let c = "validateMetadataFeatureMetaclassNotAbstract";
+    satisfies(
+        "metaclass M; classifier C { @M; }",
+        "C::MetadataFeature#1",
+        c,
+    );
+    violates(
+        "abstract metaclass M; classifier C { @M; }",
+        "C::MetadataFeature#1",
+        c,
+    );
+}
+
+#[test]
+fn validate_metadata_feature_body() {
+    // each feature of the body is unnamed, redefines one feature, and has an evaluable value
+    let c = "validateMetadataFeatureBody";
+    satisfies(
+        "metaclass M { feature x : ScalarValues::Integer; } classifier C { @M { x = 1; } }",
+        "C::MetadataFeature#1",
+        c,
+    );
+    violates(
+        "metaclass M { feature x; } classifier C { @M { feature y; } }",
+        "C::MetadataFeature#1",
+        c,
+    );
+}
+
+#[test]
+fn validate_metadata_feature_annotated_element() {
+    // the annotated element's metaclass is one its annotatedElement features allow
+    let c = "validateMetadataFeatureAnnotatedElement";
+    let m = "metaclass M { :>> annotatedElement : KerML::Core::Classifier; }";
+    satisfies(
+        &format!("{m} classifier C {{ @M; }}"),
+        "C::MetadataFeature#1",
+        c,
+    );
+    violates(
+        &format!("{m} feature f {{ @M; }}"),
+        "f::MetadataFeature#1",
+        c,
     );
 }
 

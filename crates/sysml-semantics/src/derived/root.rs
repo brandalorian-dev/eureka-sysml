@@ -436,14 +436,18 @@ pub fn imported_membership(db: &dyn salsa::Database, project: Project, ns: Globa
 }
 
 /// `membership` (KerML 8.3.2.4.5): the owned, imported and, for a type, inherited memberships,
-/// without those a redefinition removes (8.3.3.1.10).
+/// without those a redefinition removes (8.3.3.1.10). Unnamed memberships count too, such as a
+/// result expression's; name resolution's memberships hold only those with names.
 pub fn membership(db: &dyn salsa::Database, project: Project, ns: Global) -> Vec<Global> {
-    unique(
-        memberships(db, project, ns)
-            .into_iter()
-            .filter(|e| !e.hidden)
-            .map(|e| e.membership),
-    )
+    let mut out = owned_membership(db, project, ns);
+    out.extend(imported_membership(db, project, ns));
+    if view(db, project, ns.file)
+        .metaclass(ns.ix())
+        .specializes(M::Type)
+    {
+        out.extend(super::types::inherited_membership(db, project, ns));
+    }
+    unique(out)
 }
 
 /// `member` (deriveNamespaceMembers): `membership.memberElement`, for each membership once.

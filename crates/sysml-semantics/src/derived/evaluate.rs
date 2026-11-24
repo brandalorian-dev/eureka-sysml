@@ -75,7 +75,7 @@ fn has_featuring_types(db: &dyn salsa::Database, project: Project, f: Global) ->
         .any(|t| !matches!(t, crate::implied::Featuring::Default(_)))
 }
 
-fn valuation(db: &dyn salsa::Database, project: Project, f: Global) -> Option<Global> {
+pub(crate) fn valuation(db: &dyn salsa::Database, project: Project, f: Global) -> Option<Global> {
     let g = view(db, project, f.file);
     let r = g
         .all_owned_relationships(f.ix())
@@ -552,7 +552,11 @@ fn metadata_of(db: &dyn salsa::Database, project: Project, e: Global) -> Vec<Ite
 }
 
 /// The metaclass of an element in the KerML library model (`KerML::Classifier` …, 9.2.17).
-fn reflective_metaclass(db: &dyn salsa::Database, project: Project, e: Global) -> Option<Global> {
+pub(crate) fn reflective_metaclass(
+    db: &dyn salsa::Database,
+    project: Project,
+    e: Global,
+) -> Option<Global> {
     library(
         db,
         project,

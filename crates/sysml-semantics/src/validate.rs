@@ -264,6 +264,301 @@ pub const VALIDATIONS: &[(M, &str, &str, Validation)] = &[
         "KerML 8.3.3.3.2",
         validate_cross_subsetting_crossed_feature,
     ),
+    // ---- Kernel (KerML 8.3.4) ----
+    (
+        M::Behavior,
+        "validateBehaviorSpecialization",
+        "KerML 8.3.4.6.2",
+        validate_behavior_specialization,
+    ),
+    (
+        M::ParameterMembership,
+        "validateParameterMembershipParameterDirection",
+        "KerML 8.3.4.6.4",
+        validate_parameter_membership_parameter_direction,
+    ),
+    (
+        M::ParameterMembership,
+        "validateParameterMembershipOwningType",
+        "KerML 8.3.4.6.4",
+        validate_parameter_membership_owning_type,
+    ),
+    (
+        M::Function,
+        "validateFunctionResultParameterMembership",
+        "KerML 8.3.4.7.4",
+        validate_function_result_parameter_membership,
+    ),
+    (
+        M::Function,
+        "validateFunctionResultExpressionMembership",
+        "KerML 8.3.4.7.4",
+        validate_function_result_expression_membership,
+    ),
+    (
+        M::Expression,
+        "validateExpressionResultParameterMembership",
+        "KerML 8.3.4.7.3",
+        validate_expression_result_parameter_membership,
+    ),
+    (
+        M::Expression,
+        "validateExpressionResultExpressionMembership",
+        "KerML 8.3.4.7.3",
+        validate_expression_result_expression_membership,
+    ),
+    (
+        M::ResultExpressionMembership,
+        "validateResultExpressionMembershipOwningType",
+        "KerML 8.3.4.7.7",
+        validate_result_expression_membership_owning_type,
+    ),
+    (
+        M::ReturnParameterMembership,
+        "validateReturnParameterMembershipOwningType",
+        "KerML 8.3.4.7.8",
+        validate_return_parameter_membership_owning_type,
+    ),
+    (
+        M::InstantiationExpression,
+        "validateInstantiationExpressionInstantiatedType",
+        "KerML 8.3.4.8.7",
+        validate_instantiation_expression_instantiated_type,
+    ),
+    (
+        M::InstantiationExpression,
+        "validateInstantiationExpressionResult",
+        "KerML 8.3.4.8.7",
+        validate_instantiation_expression_result,
+    ),
+    (
+        M::InvocationExpression,
+        "validateInvocationExpressionInstantiatedType",
+        "KerML 8.3.4.8.8",
+        validate_invocation_expression_instantiated_type,
+    ),
+    (
+        M::InvocationExpression,
+        "validateInvocationExpressionOwnedFeatures",
+        "KerML 8.3.4.8.8",
+        validate_invocation_expression_owned_features,
+    ),
+    (
+        M::InvocationExpression,
+        "validateInvocationExpressionParameterRedefinition",
+        "KerML 8.3.4.8.8",
+        validate_invocation_expression_parameter_redefinition,
+    ),
+    (
+        M::InvocationExpression,
+        "validateInvocationExpressionNoDuplicateParameterRedefinition",
+        "KerML 8.3.4.8.8",
+        validate_invocation_expression_no_duplicate_parameter_redefinition,
+    ),
+    (
+        M::ConstructorExpression,
+        "validateConstructorExpressionOwnedFeatures",
+        "KerML 8.3.4.8.3",
+        validate_constructor_expression_owned_features,
+    ),
+    (
+        M::ConstructorExpression,
+        "validateConstructorExpressionNoDuplicateFeatureRedefinition",
+        "KerML 8.3.4.8.3",
+        validate_constructor_expression_no_duplicate_feature_redefinition,
+    ),
+    (
+        M::FeatureReferenceExpression,
+        "validateFeatureReferenceExpressionReferentIsFeature",
+        "KerML 8.3.4.8.5",
+        validate_feature_reference_expression_referent_is_feature,
+    ),
+    (
+        M::FeatureReferenceExpression,
+        "validateFeatureReferenceExpressionResult",
+        "KerML 8.3.4.8.5",
+        validate_feature_reference_expression_result,
+    ),
+    (
+        M::FeatureChainExpression,
+        "validateFeatureChainExpressionOperator",
+        "KerML 8.3.4.8.4",
+        validate_feature_chain_expression_operator,
+    ),
+    (
+        M::FeatureChainExpression,
+        "validateFeatureChainExpressionConformance",
+        "KerML 8.3.4.8.4",
+        validate_feature_chain_expression_conformance,
+    ),
+    (
+        M::SelectExpression,
+        "validateSelectExpressionOperator",
+        "KerML 8.3.4.8.18",
+        validate_select_expression_operator,
+    ),
+    (
+        M::CollectExpression,
+        "validateCollectExpressionOperator",
+        "KerML 8.3.4.8.2",
+        validate_collect_expression_operator,
+    ),
+    (
+        M::IndexExpression,
+        "validateIndexExpressionOperator",
+        "KerML 8.3.4.8.6",
+        validate_index_expression_operator,
+    ),
+    (
+        M::MetadataAccessExpression,
+        "validateMetadataAccessExpressionReferencedElement",
+        "KerML 8.3.4.8.15",
+        validate_metadata_access_expression_referenced_element,
+    ),
+    (
+        M::Flow,
+        "validateFlowPayloadFeature",
+        "KerML 8.3.4.9.2",
+        validate_flow_payload_feature,
+    ),
+    (
+        M::FlowEnd,
+        "validateFlowEndIsEnd",
+        "KerML 8.3.4.9.3",
+        validate_flow_end_is_end,
+    ),
+    (
+        M::FlowEnd,
+        "validateFlowEndNestedFeature",
+        "KerML 8.3.4.9.3",
+        validate_flow_end_nested_feature,
+    ),
+    (
+        M::FlowEnd,
+        "validateFlowEndOwningType",
+        "KerML 8.3.4.9.3",
+        validate_flow_end_owning_type,
+    ),
+    (
+        M::FeatureValue,
+        "validateFeatureValueIsInitial",
+        "KerML 8.3.4.10.2",
+        validate_feature_value_is_initial,
+    ),
+    (
+        M::FeatureValue,
+        "validateFeatureValueOverriding",
+        "KerML 8.3.4.10.2",
+        validate_feature_value_overriding,
+    ),
+    (
+        M::MultiplicityRange,
+        "validateMultiplicityRangeBounds",
+        "KerML 8.3.4.11.2",
+        validate_multiplicity_range_bounds,
+    ),
+    (
+        M::MultiplicityRange,
+        "validateMultiplicityRangeBoundResultTypes",
+        "KerML 8.3.4.11.2",
+        validate_multiplicity_range_bound_result_types,
+    ),
+    (
+        M::ElementFilterMembership,
+        "validateElementFilterMembershipConditionIsBoolean",
+        "KerML 8.3.4.13.2",
+        validate_element_filter_membership_condition_is_boolean,
+    ),
+    (
+        M::ElementFilterMembership,
+        "validateElementFilterMembershipConditionIsModelLevelEvaluable",
+        "KerML 8.3.4.13.2",
+        validate_element_filter_membership_condition_is_model_level_evaluable,
+    ),
+    (
+        M::DataType,
+        "validateDataTypeSpecialization",
+        "KerML 8.3.4.1.2",
+        validate_data_type_specialization,
+    ),
+    (
+        M::Class,
+        "validateClassSpecialization",
+        "KerML 8.3.4.2.2",
+        validate_class_specialization,
+    ),
+    (
+        M::Structure,
+        "validateStructureSpecialization",
+        "KerML 8.3.4.3.2",
+        validate_structure_specialization,
+    ),
+    (
+        M::Association,
+        "validateAssociationStructureIntersection",
+        "KerML 8.3.4.4.2",
+        validate_association_structure_intersection,
+    ),
+    (
+        M::Association,
+        "validateAssociationBinarySpecialization",
+        "KerML 8.3.4.4.2",
+        validate_association_binary_specialization,
+    ),
+    (
+        M::Association,
+        "validateAssociationRelatedTypes",
+        "KerML 8.3.4.4.2",
+        validate_association_related_types,
+    ),
+    (
+        M::Association,
+        "validateAssociationEndTypes",
+        "KerML 8.3.4.4.2",
+        validate_association_end_types,
+    ),
+    (
+        M::Connector,
+        "validateConnectorBinarySpecialization",
+        "KerML 8.3.4.5.3",
+        validate_connector_binary_specialization,
+    ),
+    (
+        M::Connector,
+        "validateConnectorRelatedFeatures",
+        "KerML 8.3.4.5.3",
+        validate_connector_related_features,
+    ),
+    (
+        M::BindingConnector,
+        "validateBindingConnectorIsBinary",
+        "KerML 8.3.4.5.2",
+        validate_binding_connector_is_binary,
+    ),
+    (
+        M::MetadataFeature,
+        "validateMetadataFeatureMetaclass",
+        "KerML 8.3.4.12.3",
+        validate_metadata_feature_metaclass,
+    ),
+    (
+        M::MetadataFeature,
+        "validateMetadataFeatureMetaclassNotAbstract",
+        "KerML 8.3.4.12.3",
+        validate_metadata_feature_metaclass_not_abstract,
+    ),
+    (
+        M::MetadataFeature,
+        "validateMetadataFeatureBody",
+        "KerML 8.3.4.12.3",
+        validate_metadata_feature_body,
+    ),
+    (
+        M::MetadataFeature,
+        "validateMetadataFeatureAnnotatedElement",
+        "KerML 8.3.4.12.3",
+        validate_metadata_feature_annotated_element,
+    ),
 ];
 
 /// A constraint an element violates.
@@ -1006,4 +1301,835 @@ pub fn validate_cross_subsetting_crossed_feature(
     let ends = d::end_feature(db, project, t);
     let chaining = d::chaining_feature(db, project, crossed);
     chaining.len() == 2 && (ends.len() != 2 || ends.iter().find(|e| **e != s) == Some(&chaining[0]))
+}
+
+// ---- Kernel (KerML 8.3.4) ----
+
+/// The generals of a type's owned specializations, written and implied.
+fn generals(db: &dyn salsa::Database, project: Project, t: Global) -> Vec<Global> {
+    d::owned_specialization(db, project, t)
+        .into_iter()
+        .filter_map(|r| end(db, project, r, Slot::Target, 0))
+        .filter(|g| *g != t)
+        .collect()
+}
+
+/// `owningType` of a membership: its owning namespace, if a Type (KerML 8.3.3.1.5).
+fn membership_owning_type(db: &dyn salsa::Database, project: Project, m: Global) -> Option<Global> {
+    let v = crate::view(db, project, m.file);
+    v.owning_related_element(m.ix())
+        .map(|e| Global {
+            file: m.file,
+            index: e.index() as u32,
+        })
+        .filter(|t| is(db, project, *t, M::Type))
+}
+
+fn owned_related(db: &dyn salsa::Database, project: Project, r: Global) -> Option<Global> {
+    let v = crate::view(db, project, r.file);
+    v.owned_related_elements(r.ix()).first().map(|e| Global {
+        file: r.file,
+        index: e.index() as u32,
+    })
+}
+
+fn operator(db: &dyn salsa::Database, project: Project, x: Global) -> Option<&str> {
+    crate::view(db, project, x.file).string(x.ix(), Attr::Operator)
+}
+
+/// The owned features of an expression, without the binding connectors that the
+/// binding-connector constraints imply (ADR 0023).
+fn written_features(db: &dyn salsa::Database, project: Project, x: Global) -> Vec<Global> {
+    let v = crate::view(db, project, x.file);
+    d::owned_feature(db, project, x)
+        .into_iter()
+        .filter(|f| !(v.is_implied(f.ix()) && v.metaclass(f.ix()).specializes(M::BindingConnector)))
+        .collect()
+}
+
+/// The features a feature redefines with its owned redefinitions (the OCL's `redefinition`).
+fn redefined(db: &dyn salsa::Database, project: Project, f: Global) -> Vec<Global> {
+    d::owned_redefinition(db, project, f)
+        .into_iter()
+        .filter_map(|r| end(db, project, r, Slot::Target, 0))
+        .collect()
+}
+
+/// KerML 8.3.4.6.2 validateBehaviorSpecialization: a behavior specializes no Structure.
+pub fn validate_behavior_specialization(
+    db: &dyn salsa::Database,
+    project: Project,
+    x: Global,
+) -> bool {
+    !is(db, project, x, M::Behavior)
+        || generals(db, project, x)
+            .into_iter()
+            .all(|g| !is(db, project, g, M::Structure))
+}
+
+/// KerML 8.3.4.6.4 validateParameterMembershipParameterDirection: the parameter has the
+/// membership's `parameterDirection()`.
+pub fn validate_parameter_membership_parameter_direction(
+    db: &dyn salsa::Database,
+    project: Project,
+    x: Global,
+) -> bool {
+    if !is(db, project, x, M::ParameterMembership) {
+        return true;
+    }
+    owned_related(db, project, x)
+        .is_none_or(|p| direction(db, project, p) == Some(d::parameter_direction(db, project, x)))
+}
+
+/// KerML 8.3.4.6.4 validateParameterMembershipOwningType: a parameter is owned by a Behavior or a
+/// Step, or by the result of a ConstructorExpression.
+pub fn validate_parameter_membership_owning_type(
+    db: &dyn salsa::Database,
+    project: Project,
+    x: Global,
+) -> bool {
+    if !is(db, project, x, M::ParameterMembership) {
+        return true;
+    }
+    let Some(t) = membership_owning_type(db, project, x) else {
+        return false;
+    };
+    is(db, project, t, M::Behavior)
+        || is(db, project, t, M::Step)
+        || (d::owning_membership(db, project, t)
+            .is_some_and(|m| is(db, project, m, M::ReturnParameterMembership))
+            && d::owning_namespace(db, project, t)
+                .is_some_and(|n| is(db, project, n, M::ConstructorExpression)))
+}
+
+fn result_parameter_memberships(db: &dyn salsa::Database, project: Project, x: Global) -> usize {
+    d::feature_membership(db, project, x)
+        .into_iter()
+        .filter(|m| is(db, project, *m, M::ReturnParameterMembership))
+        .count()
+}
+
+fn result_expression_memberships(db: &dyn salsa::Database, project: Project, x: Global) -> usize {
+    d::membership(db, project, x)
+        .into_iter()
+        .filter(|m| is(db, project, *m, M::ResultExpressionMembership))
+        .count()
+}
+
+/// KerML 8.3.4.7.4 validateFunctionResultParameterMembership: exactly one
+/// ReturnParameterMembership, owned or inherited.
+pub fn validate_function_result_parameter_membership(
+    db: &dyn salsa::Database,
+    project: Project,
+    x: Global,
+) -> bool {
+    !is(db, project, x, M::Function) || result_parameter_memberships(db, project, x) == 1
+}
+
+/// KerML 8.3.4.7.4 validateFunctionResultExpressionMembership: at most one
+/// ResultExpressionMembership.
+pub fn validate_function_result_expression_membership(
+    db: &dyn salsa::Database,
+    project: Project,
+    x: Global,
+) -> bool {
+    !is(db, project, x, M::Function) || result_expression_memberships(db, project, x) <= 1
+}
+
+/// KerML 8.3.4.7.3 validateExpressionResultParameterMembership: exactly one
+/// ReturnParameterMembership, owned or inherited.
+pub fn validate_expression_result_parameter_membership(
+    db: &dyn salsa::Database,
+    project: Project,
+    x: Global,
+) -> bool {
+    !is(db, project, x, M::Expression) || result_parameter_memberships(db, project, x) == 1
+}
+
+/// KerML 8.3.4.7.3 validateExpressionResultExpressionMembership: at most one
+/// ResultExpressionMembership.
+pub fn validate_expression_result_expression_membership(
+    db: &dyn salsa::Database,
+    project: Project,
+    x: Global,
+) -> bool {
+    !is(db, project, x, M::Expression) || result_expression_memberships(db, project, x) <= 1
+}
+
+fn owned_by_function_or_expression(db: &dyn salsa::Database, project: Project, m: Global) -> bool {
+    membership_owning_type(db, project, m)
+        .is_some_and(|t| is(db, project, t, M::Function) || is(db, project, t, M::Expression))
+}
+
+/// KerML 8.3.4.7.7 validateResultExpressionMembershipOwningType: owned by a Function or an
+/// Expression.
+pub fn validate_result_expression_membership_owning_type(
+    db: &dyn salsa::Database,
+    project: Project,
+    x: Global,
+) -> bool {
+    !is(db, project, x, M::ResultExpressionMembership)
+        || owned_by_function_or_expression(db, project, x)
+}
+
+/// KerML 8.3.4.7.8 validateReturnParameterMembershipOwningType: owned by a Function or an
+/// Expression.
+pub fn validate_return_parameter_membership_owning_type(
+    db: &dyn salsa::Database,
+    project: Project,
+    x: Global,
+) -> bool {
+    !is(db, project, x, M::ReturnParameterMembership)
+        || owned_by_function_or_expression(db, project, x)
+}
+
+/// KerML 8.3.4.8.7 validateInstantiationExpressionInstantiatedType: `instantiatedType() <> null`.
+pub fn validate_instantiation_expression_instantiated_type(
+    db: &dyn salsa::Database,
+    project: Project,
+    x: Global,
+) -> bool {
+    !is(db, project, x, M::InstantiationExpression)
+        || d::instantiated_type(db, project, x).is_some()
+}
+
+/// KerML 8.3.4.8.7 validateInstantiationExpressionResult: `result.owningType = self`.
+pub fn validate_instantiation_expression_result(
+    db: &dyn salsa::Database,
+    project: Project,
+    x: Global,
+) -> bool {
+    !is(db, project, x, M::InstantiationExpression)
+        || d::result(db, project, x).is_some_and(|r| d::owning_type(db, project, r) == Some(x))
+}
+
+/// KerML 8.3.4.8.8 validateInvocationExpressionInstantiatedType: the instantiated type is a
+/// Behavior, or a Feature with one type, a Behavior (the OCL's `type->size(1)`, read as
+/// `type->size() = 1`).
+pub fn validate_invocation_expression_instantiated_type(
+    db: &dyn salsa::Database,
+    project: Project,
+    x: Global,
+) -> bool {
+    if !is(db, project, x, M::InvocationExpression) {
+        return true;
+    }
+    let Some(t) = d::instantiated_type(db, project, x) else {
+        return true;
+    };
+    let types = || d::r#type(db, project, t);
+    is(db, project, t, M::Behavior)
+        || (is(db, project, t, M::Feature)
+            && types().len() == 1
+            && types().into_iter().any(|y| is(db, project, y, M::Behavior)))
+}
+
+/// KerML 8.3.4.8.8 validateInvocationExpressionOwnedFeatures: every owned feature other than the
+/// result is an `in` parameter, or a named argument, which the grammar gives no direction. The
+/// binding connector that checkInvocationExpressionBehaviorBindingConnector implies is not counted
+/// (ADR 0023).
+pub fn validate_invocation_expression_owned_features(
+    db: &dyn salsa::Database,
+    project: Project,
+    x: Global,
+) -> bool {
+    if !is(db, project, x, M::InvocationExpression) {
+        return true;
+    }
+    let result = d::result(db, project, x);
+    written_features(db, project, x).into_iter().all(|f| {
+        Some(f) == result
+            || direction(db, project, f) == Some(Direction::In)
+            || named_argument(db, project, x, f)
+    })
+}
+
+/// The inputs of an invocation as the parameter-redefinition constraints read them: its
+/// arguments, the owned features with direction `in` or `inout` and the named arguments. `input`
+/// would also take the inputs it inherits from the instantiated type, which redefine nothing, as
+/// an argument left to its default does (ADR 0023).
+fn owned_inputs(db: &dyn salsa::Database, project: Project, x: Global) -> Vec<Global> {
+    written_features(db, project, x)
+        .into_iter()
+        .filter(|f| {
+            matches!(
+                direction(db, project, *f),
+                Some(Direction::In | Direction::Inout)
+            ) || named_argument(db, project, x, *f)
+        })
+        .collect()
+}
+
+/// Whether an owned feature of an invocation is a named argument (KerML 8.2.5.8.3
+/// NamedArgument): one without a direction, which the grammar does not give it, that redefines an
+/// input of the instantiated type. It is read as an input (ADR 0023).
+fn named_argument(db: &dyn salsa::Database, project: Project, x: Global, f: Global) -> bool {
+    direction(db, project, f).is_none()
+        && d::instantiated_type(db, project, x).is_some_and(|t| {
+            let inputs = set(d::input(db, project, t));
+            redefined(db, project, f).iter().any(|r| inputs.contains(r))
+        })
+}
+
+/// KerML 8.3.4.8.8 validateInvocationExpressionParameterRedefinition: each input redefines exactly
+/// one input of the instantiated type.
+pub fn validate_invocation_expression_parameter_redefinition(
+    db: &dyn salsa::Database,
+    project: Project,
+    x: Global,
+) -> bool {
+    if !is(db, project, x, M::InvocationExpression) {
+        return true;
+    }
+    let Some(t) = d::instantiated_type(db, project, x) else {
+        return true;
+    };
+    let parameters = set(d::input(db, project, t));
+    owned_inputs(db, project, x).into_iter().all(|inp| {
+        set(redefined(db, project, inp))
+            .intersection(&parameters)
+            .count()
+            == 1
+    })
+}
+
+/// No two features redefine a common feature of `features`.
+fn no_common_redefinition(
+    db: &dyn salsa::Database,
+    project: Project,
+    xs: &[Global],
+    features: &HashSet<Global>,
+) -> bool {
+    let mut seen: HashSet<Global> = HashSet::new();
+    xs.iter().all(|f| {
+        set(redefined(db, project, *f))
+            .intersection(features)
+            .all(|r| seen.insert(*r))
+    })
+}
+
+/// KerML 8.3.4.8.8 validateInvocationExpressionNoDuplicateParameterRedefinition: no two inputs
+/// redefine a common feature of the instantiated type.
+pub fn validate_invocation_expression_no_duplicate_parameter_redefinition(
+    db: &dyn salsa::Database,
+    project: Project,
+    x: Global,
+) -> bool {
+    if !is(db, project, x, M::InvocationExpression) {
+        return true;
+    }
+    let Some(t) = d::instantiated_type(db, project, x) else {
+        return true;
+    };
+    let features = set(d::feature(db, project, t));
+    no_common_redefinition(db, project, &owned_inputs(db, project, x), &features)
+}
+
+/// KerML 8.3.4.8.3 validateConstructorExpressionOwnedFeatures: no owned feature but the result
+/// (the OCL's `ownedFeatures` read as `ownedFeature`).
+pub fn validate_constructor_expression_owned_features(
+    db: &dyn salsa::Database,
+    project: Project,
+    x: Global,
+) -> bool {
+    if !is(db, project, x, M::ConstructorExpression) {
+        return true;
+    }
+    let result = d::result(db, project, x);
+    written_features(db, project, x)
+        .into_iter()
+        .all(|f| Some(f) == result)
+}
+
+/// KerML 8.3.4.8.3 validateConstructorExpressionNoDuplicateFeatureRedefinition: no two features of
+/// the result redefine a common public feature of the instantiated type.
+pub fn validate_constructor_expression_no_duplicate_feature_redefinition(
+    db: &dyn salsa::Database,
+    project: Project,
+    x: Global,
+) -> bool {
+    if !is(db, project, x, M::ConstructorExpression) {
+        return true;
+    }
+    let (Some(t), Some(r)) = (
+        d::instantiated_type(db, project, x),
+        d::result(db, project, x),
+    ) else {
+        return true;
+    };
+    let features: HashSet<Global> = d::feature(db, project, t)
+        .into_iter()
+        .filter(|f| {
+            d::owning_membership(db, project, *f).is_some_and(|m| {
+                crate::view(db, project, m.file).visibility(m.ix()) == crate::Visibility::Public
+            })
+        })
+        .collect();
+    no_common_redefinition(db, project, &d::owned_feature(db, project, r), &features)
+}
+
+/// KerML 8.3.4.8.5 validateFeatureReferenceExpressionReferentIsFeature: the member element of the
+/// first owned membership that is not a ParameterMembership is a Feature.
+pub fn validate_feature_reference_expression_referent_is_feature(
+    db: &dyn salsa::Database,
+    project: Project,
+    x: Global,
+) -> bool {
+    if !is(db, project, x, M::FeatureReferenceExpression) {
+        return true;
+    }
+    d::owned_membership(db, project, x)
+        .into_iter()
+        .find(|m| !is(db, project, *m, M::ParameterMembership))
+        .and_then(|m| crate::derived::membership_element(db, project, m))
+        .is_some_and(|e| is(db, project, e, M::Feature))
+}
+
+/// KerML 8.3.4.8.5 validateFeatureReferenceExpressionResult: `result.owningType = self`.
+pub fn validate_feature_reference_expression_result(
+    db: &dyn salsa::Database,
+    project: Project,
+    x: Global,
+) -> bool {
+    !is(db, project, x, M::FeatureReferenceExpression)
+        || d::result(db, project, x).is_some_and(|r| d::owning_type(db, project, r) == Some(x))
+}
+
+/// KerML 8.3.4.8.4 validateFeatureChainExpressionOperator: `operator = '.'`.
+pub fn validate_feature_chain_expression_operator(
+    db: &dyn salsa::Database,
+    project: Project,
+    x: Global,
+) -> bool {
+    !is(db, project, x, M::FeatureChainExpression) || operator(db, project, x) == Some(".")
+}
+
+/// KerML 8.3.4.8.4 validateFeatureChainExpressionConformance: the target feature is featured
+/// within the result of the first argument.
+pub fn validate_feature_chain_expression_conformance(
+    db: &dyn salsa::Database,
+    project: Project,
+    x: Global,
+) -> bool {
+    if !is(db, project, x, M::FeatureChainExpression) {
+        return true;
+    }
+    let Some(a) = d::argument(db, project, x).first().copied() else {
+        return true;
+    };
+    match (
+        d::chain_target_feature(db, project, x),
+        d::result(db, project, a),
+    ) {
+        (Some(t), Some(r)) => d::is_featured_within(db, project, t, Some(r)),
+        _ => true,
+    }
+}
+
+/// KerML 8.3.4.8.18 validateSelectExpressionOperator: `operator = 'select'`.
+pub fn validate_select_expression_operator(
+    db: &dyn salsa::Database,
+    project: Project,
+    x: Global,
+) -> bool {
+    !is(db, project, x, M::SelectExpression) || operator(db, project, x) == Some("select")
+}
+
+/// KerML 8.3.4.8.2 validateCollectExpressionOperator: `operator = 'collect'`.
+pub fn validate_collect_expression_operator(
+    db: &dyn salsa::Database,
+    project: Project,
+    x: Global,
+) -> bool {
+    !is(db, project, x, M::CollectExpression) || operator(db, project, x) == Some("collect")
+}
+
+/// KerML 8.3.4.8.6 validateIndexExpressionOperator: `operator = '#'`.
+pub fn validate_index_expression_operator(
+    db: &dyn salsa::Database,
+    project: Project,
+    x: Global,
+) -> bool {
+    !is(db, project, x, M::IndexExpression) || operator(db, project, x) == Some("#")
+}
+
+/// KerML 8.3.4.8.15 validateMetadataAccessExpressionReferencedElement: an owned membership that is
+/// not a FeatureMembership.
+pub fn validate_metadata_access_expression_referenced_element(
+    db: &dyn salsa::Database,
+    project: Project,
+    x: Global,
+) -> bool {
+    !is(db, project, x, M::MetadataAccessExpression)
+        || d::owned_membership(db, project, x)
+            .into_iter()
+            .any(|m| !is(db, project, m, M::FeatureMembership))
+}
+
+/// KerML 8.3.4.9.2 validateFlowPayloadFeature: at most one owned PayloadFeature.
+pub fn validate_flow_payload_feature(
+    db: &dyn salsa::Database,
+    project: Project,
+    x: Global,
+) -> bool {
+    !is(db, project, x, M::Flow)
+        || d::owned_feature(db, project, x)
+            .into_iter()
+            .filter(|f| is(db, project, *f, M::PayloadFeature))
+            .count()
+            <= 1
+}
+
+/// KerML 8.3.4.9.3 validateFlowEndIsEnd: `isEnd`.
+pub fn validate_flow_end_is_end(db: &dyn salsa::Database, project: Project, x: Global) -> bool {
+    !is(db, project, x, M::FlowEnd) || flag(db, project, x, Attr::IsEnd)
+}
+
+/// KerML 8.3.4.9.3 validateFlowEndNestedFeature: exactly one owned feature.
+pub fn validate_flow_end_nested_feature(
+    db: &dyn salsa::Database,
+    project: Project,
+    x: Global,
+) -> bool {
+    !is(db, project, x, M::FlowEnd) || d::owned_feature(db, project, x).len() == 1
+}
+
+/// KerML 8.3.4.9.3 validateFlowEndOwningType: the owning type is a Flow.
+pub fn validate_flow_end_owning_type(
+    db: &dyn salsa::Database,
+    project: Project,
+    x: Global,
+) -> bool {
+    !is(db, project, x, M::FlowEnd)
+        || d::owning_type(db, project, x).is_some_and(|t| is(db, project, t, M::Flow))
+}
+
+/// `featureWithValue` of a FeatureValue: its owning related element.
+fn feature_with_value(db: &dyn salsa::Database, project: Project, fv: Global) -> Option<Global> {
+    let v = crate::view(db, project, fv.file);
+    v.owning_related_element(fv.ix()).map(|e| Global {
+        file: fv.file,
+        index: e.index() as u32,
+    })
+}
+
+/// KerML 8.3.4.10.2 validateFeatureValueIsInitial: an initial value is of a variable feature.
+pub fn validate_feature_value_is_initial(
+    db: &dyn salsa::Database,
+    project: Project,
+    x: Global,
+) -> bool {
+    !is(db, project, x, M::FeatureValue)
+        || !flag(db, project, x, Attr::IsInitial)
+        || feature_with_value(db, project, x)
+            .is_some_and(|f| flag(db, project, f, Attr::IsVariable))
+}
+
+/// KerML 8.3.4.10.2 validateFeatureValueOverriding: every feature that the feature with the value
+/// redefines, directly or indirectly, has only default values (the OCL's `redefinition`, read as
+/// `ownedRedefinition`).
+pub fn validate_feature_value_overriding(
+    db: &dyn salsa::Database,
+    project: Project,
+    x: Global,
+) -> bool {
+    if !is(db, project, x, M::FeatureValue) {
+        return true;
+    }
+    let Some(f) = feature_with_value(db, project, x) else {
+        return true;
+    };
+    let mut seen: HashSet<Global> = HashSet::new();
+    let mut stack = redefined(db, project, f);
+    while let Some(r) = stack.pop() {
+        if !seen.insert(r) {
+            continue;
+        }
+        let v = crate::view(db, project, r.file);
+        let non_default = v
+            .all_owned_relationships(r.ix())
+            .any(|fv| v.metaclass(fv).specializes(M::FeatureValue) && !v.flag(fv, Attr::IsDefault));
+        if non_default {
+            return false;
+        }
+        stack.extend(redefined(db, project, r));
+    }
+    true
+}
+
+/// KerML 8.3.4.11.2 validateMultiplicityRangeBounds: the owned members begin with the lower bound,
+/// if any, then the upper bound.
+pub fn validate_multiplicity_range_bounds(
+    db: &dyn salsa::Database,
+    project: Project,
+    x: Global,
+) -> bool {
+    if !is(db, project, x, M::MultiplicityRange) {
+        return true;
+    }
+    let members = d::owned_member(db, project, x);
+    let upper = d::upper_bound(db, project, x);
+    match d::lower_bound(db, project, x) {
+        None => !members.is_empty() && Some(members[0]) == upper,
+        Some(l) => members.len() > 1 && members[0] == l && Some(members[1]) == upper,
+    }
+}
+
+/// KerML 8.3.4.11.2 validateMultiplicityRangeBoundResultTypes: each bound's result is an Integer,
+/// and not negative. The OCL takes the value as an UnlimitedNatural, which a negative number is
+/// not, so the value the bound evaluates to is read instead (ADR 0023).
+pub fn validate_multiplicity_range_bound_result_types(
+    db: &dyn salsa::Database,
+    project: Project,
+    x: Global,
+) -> bool {
+    if !is(db, project, x, M::MultiplicityRange) {
+        return true;
+    }
+    d::bound(db, project, x).into_iter().all(|b| {
+        d::result(db, project, b)
+            .is_some_and(|r| d::specializes_from_library(db, project, r, "ScalarValues::Integer"))
+            && !matches!(d::evaluate(db, project, b, None)[..], [d::Item::Integer(n)] if n < 0)
+    })
+}
+
+fn condition(db: &dyn salsa::Database, project: Project, m: Global) -> Option<Global> {
+    owned_related(db, project, m)
+}
+
+/// KerML 8.3.4.13.2 validateElementFilterMembershipConditionIsBoolean: the condition's result is a
+/// Boolean.
+pub fn validate_element_filter_membership_condition_is_boolean(
+    db: &dyn salsa::Database,
+    project: Project,
+    x: Global,
+) -> bool {
+    !is(db, project, x, M::ElementFilterMembership)
+        || condition(db, project, x).is_some_and(|c| {
+            d::result(db, project, c).is_some_and(|r| {
+                d::specializes_from_library(db, project, r, "ScalarValues::Boolean")
+            })
+        })
+}
+
+/// KerML 8.3.4.13.2 validateElementFilterMembershipConditionIsModelLevelEvaluable: the condition is
+/// model-level evaluable.
+pub fn validate_element_filter_membership_condition_is_model_level_evaluable(
+    db: &dyn salsa::Database,
+    project: Project,
+    x: Global,
+) -> bool {
+    !is(db, project, x, M::ElementFilterMembership)
+        || condition(db, project, x).is_some_and(|c| d::is_model_level_evaluable(db, project, c))
+}
+
+/// KerML 8.3.4.1.2 validateDataTypeSpecialization: a data type specializes no Class or
+/// Association.
+pub fn validate_data_type_specialization(
+    db: &dyn salsa::Database,
+    project: Project,
+    x: Global,
+) -> bool {
+    !is(db, project, x, M::DataType)
+        || generals(db, project, x)
+            .into_iter()
+            .all(|g| !is(db, project, g, M::Class) && !is(db, project, g, M::Association))
+}
+
+/// KerML 8.3.4.2.2 validateClassSpecialization: a class specializes no DataType and, unless it is
+/// an Association, no Association.
+pub fn validate_class_specialization(
+    db: &dyn salsa::Database,
+    project: Project,
+    x: Global,
+) -> bool {
+    if !is(db, project, x, M::Class) {
+        return true;
+    }
+    let association = is(db, project, x, M::Association);
+    generals(db, project, x).into_iter().all(|g| {
+        !is(db, project, g, M::DataType) && (association || !is(db, project, g, M::Association))
+    })
+}
+
+/// KerML 8.3.4.3.2 validateStructureSpecialization: a structure specializes no Behavior.
+pub fn validate_structure_specialization(
+    db: &dyn salsa::Database,
+    project: Project,
+    x: Global,
+) -> bool {
+    !is(db, project, x, M::Structure)
+        || generals(db, project, x)
+            .into_iter()
+            .all(|g| !is(db, project, g, M::Behavior))
+}
+
+/// KerML 8.3.4.4.2 validateAssociationStructureIntersection: an association is a Structure only as
+/// an AssociationStructure.
+pub fn validate_association_structure_intersection(
+    db: &dyn salsa::Database,
+    project: Project,
+    x: Global,
+) -> bool {
+    !is(db, project, x, M::Association)
+        || is(db, project, x, M::Structure) == is(db, project, x, M::AssociationStructure)
+}
+
+/// KerML 8.3.4.4.2 validateAssociationBinarySpecialization: one with more than two ends does not
+/// specialize `Links::BinaryLink`.
+pub fn validate_association_binary_specialization(
+    db: &dyn salsa::Database,
+    project: Project,
+    x: Global,
+) -> bool {
+    !is(db, project, x, M::Association)
+        || d::end_feature(db, project, x).len() <= 2
+        || !d::specializes_from_library(db, project, x, "Links::BinaryLink")
+}
+
+/// KerML 8.3.4.4.2 validateAssociationRelatedTypes: a concrete association relates two types or
+/// more.
+pub fn validate_association_related_types(
+    db: &dyn salsa::Database,
+    project: Project,
+    x: Global,
+) -> bool {
+    !is(db, project, x, M::Association)
+        || flag(db, project, x, Attr::IsAbstract)
+        || d::related_type(db, project, x).len() >= 2
+}
+
+/// KerML 8.3.4.4.2 validateAssociationEndTypes: each owned end has exactly one type.
+pub fn validate_association_end_types(
+    db: &dyn salsa::Database,
+    project: Project,
+    x: Global,
+) -> bool {
+    !is(db, project, x, M::Association)
+        || d::owned_end_feature(db, project, x)
+            .into_iter()
+            .all(|e| d::r#type(db, project, e).len() == 1)
+}
+
+/// KerML 8.3.4.5.3 validateConnectorBinarySpecialization: one with more than two ends does not
+/// specialize `Links::BinaryLink`.
+pub fn validate_connector_binary_specialization(
+    db: &dyn salsa::Database,
+    project: Project,
+    x: Global,
+) -> bool {
+    !is(db, project, x, M::Connector)
+        || d::end_feature(db, project, x).len() <= 2
+        || !d::specializes_from_library(db, project, x, "Links::BinaryLink")
+}
+
+/// KerML 8.3.4.5.3 validateConnectorRelatedFeatures: a concrete connector relates two features or
+/// more.
+pub fn validate_connector_related_features(
+    db: &dyn salsa::Database,
+    project: Project,
+    x: Global,
+) -> bool {
+    !is(db, project, x, M::Connector)
+        || flag(db, project, x, Attr::IsAbstract)
+        || d::related_feature(db, project, x).len() >= 2
+}
+
+/// KerML 8.3.4.5.2 validateBindingConnectorIsBinary: exactly two related features.
+pub fn validate_binding_connector_is_binary(
+    db: &dyn salsa::Database,
+    project: Project,
+    x: Global,
+) -> bool {
+    !is(db, project, x, M::BindingConnector) || d::related_feature(db, project, x).len() == 2
+}
+
+/// KerML 8.3.4.12.3 validateMetadataFeatureMetaclass: exactly one of its types is a Metaclass
+/// (the OCL's `.size()`, read as `->size()`).
+pub fn validate_metadata_feature_metaclass(
+    db: &dyn salsa::Database,
+    project: Project,
+    x: Global,
+) -> bool {
+    !is(db, project, x, M::MetadataFeature)
+        || d::r#type(db, project, x)
+            .into_iter()
+            .filter(|t| is(db, project, *t, M::Metaclass))
+            .count()
+            == 1
+}
+
+/// KerML 8.3.4.12.3 validateMetadataFeatureMetaclassNotAbstract: its metaclass is not abstract.
+pub fn validate_metadata_feature_metaclass_not_abstract(
+    db: &dyn salsa::Database,
+    project: Project,
+    x: Global,
+) -> bool {
+    !is(db, project, x, M::MetadataFeature)
+        || d::metaclass_of(db, project, x).is_none_or(|m| !flag(db, project, m, Attr::IsAbstract))
+}
+
+/// KerML 8.3.4.12.3 validateMetadataFeatureBody: each feature in the body, at any depth, has no
+/// declared name, redefines one feature, and has no value or one that is model-level evaluable.
+/// The text is followed where the OCL's precedence would make the names imply the rest (ADR 0023).
+pub fn validate_metadata_feature_body(
+    db: &dyn salsa::Database,
+    project: Project,
+    x: Global,
+) -> bool {
+    if !is(db, project, x, M::MetadataFeature) {
+        return true;
+    }
+    let mut stack = d::owned_feature(db, project, x);
+    let mut seen: HashSet<Global> = HashSet::new();
+    while let Some(f) = stack.pop() {
+        if !seen.insert(f) {
+            continue;
+        }
+        let v = crate::view(db, project, f.file);
+        if v.is_implied(f.ix()) {
+            continue;
+        }
+        let named = v.string(f.ix(), Attr::DeclaredName).is_some()
+            || v.string(f.ix(), Attr::DeclaredShortName).is_some();
+        let value_ok = d::valuation(db, project, f)
+            .is_none_or(|value| d::is_model_level_evaluable(db, project, value));
+        if named || !value_ok || set(redefined(db, project, f)).len() != 1 {
+            return false;
+        }
+        stack.extend(d::owned_feature(db, project, f));
+    }
+    true
+}
+
+/// KerML 8.3.4.12.3 validateMetadataFeatureAnnotatedElement: if the metadata has features that
+/// specialize `Metaobjects::Metaobject::annotatedElement`, the metaclass of each annotated element
+/// specializes one of their types.
+pub fn validate_metadata_feature_annotated_element(
+    db: &dyn salsa::Database,
+    project: Project,
+    x: Global,
+) -> bool {
+    if !is(db, project, x, M::MetadataFeature) {
+        return true;
+    }
+    let Some(base) = d::library(db, project, "Metaobjects::Metaobject::annotatedElement") else {
+        return true;
+    };
+    let features: Vec<Global> = d::feature(db, project, x)
+        .into_iter()
+        .filter(|f| *f != base && d::specializes(db, project, *f, base))
+        .collect();
+    if features.is_empty() {
+        return true;
+    }
+    let types: Vec<Global> = features
+        .into_iter()
+        .flat_map(|f| d::owned_typing(db, project, f))
+        .filter_map(|r| end(db, project, r, Slot::Target, 0))
+        .collect();
+    d::annotated_element(db, project, x).into_iter().all(|e| {
+        crate::derived::reflective_metaclass(db, project, e)
+            .is_none_or(|m| types.iter().any(|t| d::specializes(db, project, m, *t)))
+    })
 }

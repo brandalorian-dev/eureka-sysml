@@ -8,7 +8,7 @@
 //!   `tests/validate.rs` of the same name.
 //! - That test has a model that violates the constraint, unless the entry's `negative` says why no
 //!   text can and that its negative test comes with interchange input in step 1b.6.
-//! - An `open` entry says what it waits for.
+//! - No entry is open: all 88 constraints are done.
 
 use std::collections::BTreeSet;
 use sysml_model::CONSTRAINTS;
@@ -91,7 +91,6 @@ fn the_inventory_lists_every_validation_with_its_status() {
                     },
                 }
             }
-            "open" if text("pending").is_some() => {}
             s => problems.push(format!("{key}: status `{s}` without what it needs")),
         }
     }
