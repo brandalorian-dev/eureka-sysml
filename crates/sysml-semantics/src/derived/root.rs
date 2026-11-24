@@ -452,14 +452,11 @@ pub fn membership(db: &dyn salsa::Database, project: Project, ns: Global) -> Vec
 
 /// `member` (deriveNamespaceMembers): `membership.memberElement`, for each membership once.
 pub fn member(db: &dyn salsa::Database, project: Project, ns: Global) -> Vec<Global> {
-    let mut seen = std::collections::HashSet::new();
-    let mut out = Vec::new();
-    for e in memberships(db, project, ns) {
-        if !e.hidden && seen.insert(e.membership) {
-            out.extend(member_element(db, project, &e));
-        }
-    }
-    out
+    // `membership.memberElement`, unnamed memberships included (ADR 0021).
+    membership(db, project, ns)
+        .into_iter()
+        .filter_map(|m| membership_element(db, project, m))
+        .collect()
 }
 
 /// `Namespace::importedMemberships(excluded)` (KerML 8.3.2.4.5): the memberships of the owned

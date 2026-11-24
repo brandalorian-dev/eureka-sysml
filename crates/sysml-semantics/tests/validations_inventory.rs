@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 //! The inventory of validation constraints (step 1a.10, KerML 8.3):
 //! `crates/sysml-semantics/validations.json` lists every `validate…` constraint of `KerML.xmi`,
-//! each `done` or `open`.
+//! each `done`.
 //!
 //! - A `done` entry names its function in `sysml_semantics::validate`, which `VALIDATIONS` lists for
 //!   the constraint's metaclass with the clause of that metaclass, and has a test in

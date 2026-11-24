@@ -1409,8 +1409,12 @@ fn result_parameter_memberships(db: &dyn salsa::Database, project: Project, x: G
         .count()
 }
 
+/// The ResultExpressionMemberships a type declares. The OCL counts `membership`, which also has
+/// the inherited ones; a function with a body that specializes another with a body, as a SysML
+/// calculation usage typed by a definition with one does, would then be invalid. Only the owned
+/// ones are counted (ADR 0023).
 fn result_expression_memberships(db: &dyn salsa::Database, project: Project, x: Global) -> usize {
-    d::membership(db, project, x)
+    d::owned_membership(db, project, x)
         .into_iter()
         .filter(|m| is(db, project, *m, M::ResultExpressionMembership))
         .count()
@@ -1527,7 +1531,8 @@ pub fn validate_invocation_expression_instantiated_type(
 /// KerML 8.3.4.8.8 validateInvocationExpressionOwnedFeatures: every owned feature other than the
 /// result is an `in` parameter, or a named argument, which the grammar gives no direction. The
 /// binding connector that checkInvocationExpressionBehaviorBindingConnector implies is not counted
-/// (ADR 0023).
+/// (ADR 0023). An `inout` feature is not `in`, as the OCL says, though the parameter-redefinition
+/// constraints take it as an input (`owned_inputs`, which follows `Type::input`).
 pub fn validate_invocation_expression_owned_features(
     db: &dyn salsa::Database,
     project: Project,
@@ -2123,10 +2128,12 @@ pub fn validate_metadata_feature_annotated_element(
     if features.is_empty() {
         return true;
     }
+    // The OCL's `typing.type`, read as the features' types, inherited ones included: a feature
+    // that redefines `annotatedElement` without retyping it keeps the types it redefines
+    // (ADR 0023).
     let types: Vec<Global> = features
         .into_iter()
-        .flat_map(|f| d::owned_typing(db, project, f))
-        .filter_map(|r| end(db, project, r, Slot::Target, 0))
+        .flat_map(|f| d::r#type(db, project, f))
         .collect();
     d::annotated_element(db, project, x).into_iter().all(|e| {
         crate::derived::reflective_metaclass(db, project, e)
