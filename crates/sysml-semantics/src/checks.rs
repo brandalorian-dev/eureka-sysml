@@ -629,14 +629,14 @@ pub fn check_feature_crossing_specialization(
     project: Project,
     x: Global,
 ) -> bool {
-    // An end that is its owning type's only end has no CrossSubsetting, which
-    // validateCrossSubsettingCrossingFeature forbids it (ADR 0023).
-    let only = || {
-        d::owning_type(db, project, x).is_some_and(|t| d::end_feature(db, project, t).len() <= 1)
-    };
+    // An end without another end of its owning type has no CrossSubsetting, which
+    // validateCrossSubsettingCrossingFeature forbids it (ADR 0023): the same test as the
+    // implied relationship's.
     !is(db, project, x, M::Feature)
-        || d::owned_cross_feature(db, project, x)
-            .is_none_or(|c| only() || d::cross_feature(db, project, x) == Some(c))
+        || d::owned_cross_feature(db, project, x).is_none_or(|c| {
+            crate::implied::other_ends(db, project, c).is_empty()
+                || d::cross_feature(db, project, x) == Some(c)
+        })
 }
 
 /// KerML 8.3.3.3.4 checkFeatureOwnedCrossFeatureSpecialization: an owned cross feature

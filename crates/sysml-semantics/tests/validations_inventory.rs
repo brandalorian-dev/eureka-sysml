@@ -29,7 +29,8 @@ fn test_body(name: &str) -> Option<&'static str> {
 
 /// Whether a test has a model that violates its constraint.
 fn has_negative(body: &str) -> bool {
-    body.contains("violates(") || body.contains("false,") || body.contains("assert!(violated(")
+    // `violates(`, `relationship_violates(`, or an assertion that an element violates it
+    body.contains("violates(") || body.contains("assert!(violated(")
 }
 
 #[test]

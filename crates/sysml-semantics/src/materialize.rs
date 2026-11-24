@@ -472,11 +472,10 @@ impl Build {
 
     /// The target of the implied CrossSubsetting `r` of the end `x` (KerML 8.3.3.3.4
     /// checkFeatureCrossingSpecialization; 8.4.3.1 Table 9 Note 2, 8.4.4.5.1): a chain of two
-    /// features, owned by the CrossSubsetting. The first is owned by the chain, typed by the
-    /// featuring type of the owned cross feature and featured by the end's owning type; the second
-    /// is the owned cross feature. For a binary owning type that featuring type is the types of
-    /// the other end (Table 9 Note 3); for more ends it is a Cartesian product, which the
-    /// type-featuring constraints build, and the first feature is not typed here.
+    /// features, owned by the CrossSubsetting, whose second is the owned cross feature. For a
+    /// binary owning type the first is the other end, which validateCrossSubsettingCrossedFeature
+    /// requires (ADR 0023). For more ends it is a feature the chain owns, typed by the Cartesian
+    /// product the overlay constructs for the cross feature and featured by the end's owning type.
     fn crossing(
         &mut self,
         db: &dyn salsa::Database,
