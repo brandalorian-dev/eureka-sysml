@@ -813,11 +813,11 @@ pub fn check_feature_parameter_redefinition(
     else {
         return true;
     };
-    // The generals that are Behaviors or Steps, whose parameters Table 9 names (ADR 0020).
-    let behavior = |s: &Global| is(db, project, *s, M::Behavior) || is(db, project, *s, M::Step);
+    // The generals that are Behaviors or Steps, whose parameters Table 9 names (ADR 0020), or the
+    // Behavior that types a general feature (ADR 0023): the implied relationship's reading.
     owned_generals(db, project, t)
         .into_iter()
-        .filter(behavior)
+        .filter_map(|s| crate::implied::parameter_general(db, project, s))
         .all(|s| {
             owned_parameters(db, project, s)
                 .get(i)
