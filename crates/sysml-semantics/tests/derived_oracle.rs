@@ -1,8 +1,9 @@
 // SPDX-License-Identifier: Apache-2.0
-//! `path()`, `qualifiedName` and `escapedName` (KerML 8.3.2) on the KerML libraries, against the
+//! The library element ids (KerML 9.1; `sysml_semantics::identity`, step 1a.11), and through them
+//! `path()`, `qualifiedName` and `escapedName` (KerML 8.3.2), on the KerML libraries, against the
 //! element ids of the OMG pilot implementation's XMI (ADR 0009): KerML 9.1 makes the id of each
 //! element of a library package a v5 UUID of the package's id and the element's `path()`, and that
-//! of the package a v5 UUID of its URL. So if our paths are right, so are these ids, for every
+//! of the package a v5 UUID of its URL. So if our ids are right, so are our paths, for every
 //! element, including those named only by an implied redefinition (ADR 0020).
 //!
 //! Elements are matched by their position in the ownership walk of their file, on both sides
@@ -13,9 +14,8 @@
 mod xmi;
 
 use sysml_model::{ElementIx, FileId, Graph};
-use sysml_semantics::{derived, lowered, Database, Global, Project, SourceFile};
+use sysml_semantics::{derived, identity, lowered, Database, Global, Project, SourceFile};
 use sysml_syntax::Language;
-use uuid::Uuid;
 #[cfg(target_arch = "wasm32")]
 use wasm_bindgen_test::wasm_bindgen_test as test;
 
@@ -40,7 +40,7 @@ fn walk_xmi<'a>(n: &'a xmi::Node, out: &mut Vec<&'a xmi::Node>) {
 }
 
 #[test]
-fn every_kerml_library_path_gives_the_pilots_element_id() {
+fn every_kerml_library_element_has_the_pilots_element_id() {
     let corpus = sysml_corpus::Corpus::load().unwrap();
     let db = Database::default();
     let sources: Vec<_> = corpus
@@ -76,18 +76,8 @@ fn every_kerml_library_path_gives_the_pilots_element_id() {
         for (i, x) in ours.iter().enumerate() {
             let element = at(*x);
             // Elements of the root namespace's own, and the root itself, are not in a package.
-            let Some(package) = derived::library_namespace(&db, project, element) else {
+            let Some(expected) = identity::element_id(&db, project, element) else {
                 continue;
-            };
-            let name = derived::name(&db, project, package).unwrap();
-            let package_id = Uuid::new_v5(
-                &Uuid::NAMESPACE_URL,
-                format!("https://www.omg.org/spec/KerML/{name}").as_bytes(),
-            );
-            let expected = if element == package {
-                package_id
-            } else {
-                Uuid::new_v5(&package_id, derived::path(&db, project, element).as_bytes())
             };
             let id = theirs[i].attr("elementId").unwrap_or_default();
             if id == expected.to_string() {

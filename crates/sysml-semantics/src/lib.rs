@@ -38,6 +38,7 @@ macro_rules! settle {
 
 pub mod checks;
 pub mod derived;
+pub mod identity;
 mod implied;
 mod lower;
 mod materialize;

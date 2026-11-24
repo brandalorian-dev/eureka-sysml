@@ -1,6 +1,6 @@
 # Eureka SysML: Phase 1 execution plan
 
-Status: Draft v1.20 · 2026-11-23 · Covers PROJECT_PLAN v0.7 §6, Phases 1a and 1b (Release 0.1 "Language")
+Status: Draft v1.21 · 2026-11-23 · Covers PROJECT_PLAN v0.7 §6, Phases 1a and 1b (Release 0.1 "Language")
 
 This plan breaks Phase 1 into ordered steps, each small enough for one or a few pull requests. PROJECT_PLAN.md remains the source of truth for scope, architecture and budgets. Where this plan finds something the project plan does not settle, it is listed under [decisions](#24-decisions-and-their-recommended-defaults), and settled by the [decision methodology](#25-decision-methodology): each recommended default is evaluated during the step that first depends on it.
 
@@ -26,6 +26,7 @@ Change history:
 - v1.18: step 1a.9 done: all 78 `check…` constraints that have OCL are implemented and tested, and the KerML libraries satisfy them, implied elements included. The 2 without OCL are deferred.
 - v1.19: step 1a.10 in progress: the 39 Root and Core validation constraints, with zero diagnostics on the KerML libraries. The negative tests of 14 constraints that no text can violate move to step 1b.6, where models can be read from KerML JSON, as the owner chose. ADR 0023 records the readings.
 - v1.20: step 1a.10 done: all 88 validation constraints, and the KerML libraries produce zero diagnostics. The negative tests of 38 constraints that no text can violate move to step 1b.6.
+- v1.21: step 1a.11 in progress, in three PRs as the owner chose: the library UUIDs, then the D5 and D6 evaluation, then the snapshot, the benchmark and the gate. The UUIDs of all 24,859 written KerML library elements match the oracle.
 
 ## 1. Executive summary
 
@@ -351,6 +352,8 @@ Each step below gives its goal, the spec clauses, what it delivers, the tests to
 - **Effort:** 0.75–1
 
 #### 1a.11 Library UUIDs, the snapshot and the first budget
+- **Status:** in progress, in three PRs as the owner chose on 2026-11-23: the UUIDs, then the D5 and D6 evaluation, then the snapshot, the benchmark and the gate.
+  - **UUIDs:** `identity::element_id` gives the KerML 9.1 id of every element of a top-level standard library package, with the KerML or SysML URL prefix by the file's language. All 24,859 written elements of the KerML libraries have the pilot's ids (`tests/derived_oracle.rs`). The 53,090 implied elements get theirs from `path()` too (ADR 0022), and every id in the libraries is distinct. The top-level package ids are also tested against values computed apart from the engine.
 - **Goal:** normative library identity, and fast library loading.
 - **Evaluates:** D5 (snapshot format) and D6 (CI timing gates).
 - **Clauses:** KerML 9.1, the v5 UUID scheme: the `NameSpace_URL` namespace, the package URL `https://www.omg.org/spec/KerML/<package>`, and `path()` for the elements inside.
