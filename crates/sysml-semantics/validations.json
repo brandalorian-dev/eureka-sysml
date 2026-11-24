@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "about": "Every validate\u2026 constraint of the KerML metaclasses (KerML.xmi), with its status in sysml-semantics (step 1a.10). Kept equal to KerML.xmi by tests/validations_inventory.rs. done: implemented by the function in sysml_semantics::validate, listed in VALIDATIONS, and tested by the test of the same name in tests/validate.rs, with a model that violates it unless negative says why no text can, and that the negative test comes with interchange input in step 1b.6; open: not yet, with what it waits for.",
+  "about": "Every validate\u2026 constraint of the KerML metaclasses (KerML.xmi), with its status in sysml-semantics (step 1a.10). Kept equal to KerML.xmi by tests/validations_inventory.rs. done: implemented by the function in sysml_semantics::validate, listed in VALIDATIONS, and tested by the test of the same name in tests/validate.rs, with a model that violates it unless negative says why no text can, and that the negative test comes with interchange input in step 1b.6;",
   "validations": {
     "Annotation::validateAnnotationAnnotatedElementOwnership": {
       "status": "done",
@@ -101,7 +101,8 @@
     },
     "Expression::validateExpressionResultExpressionMembership": {
       "status": "done",
-      "function": "validate_expression_result_expression_membership"
+      "function": "validate_expression_result_expression_membership",
+      "negative": "step 1b.6: the grammar writes one result expression, and the inherited ones are not counted"
     },
     "Expression::validateExpressionResultParameterMembership": {
       "status": "done",
@@ -223,7 +224,8 @@
     },
     "Function::validateFunctionResultExpressionMembership": {
       "status": "done",
-      "function": "validate_function_result_expression_membership"
+      "function": "validate_function_result_expression_membership",
+      "negative": "step 1b.6: the grammar writes one result expression, and the inherited ones are not counted"
     },
     "Function::validateFunctionResultParameterMembership": {
       "status": "done",

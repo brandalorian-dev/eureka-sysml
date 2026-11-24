@@ -25,7 +25,7 @@ Change history:
 - v1.17: step 1a.9: the 6 type-featuring constraints done, with the constructed snapshots and Cartesian-product features. The KerML libraries satisfy all 73 implemented constraints.
 - v1.18: step 1a.9 done: all 78 `check…` constraints that have OCL are implemented and tested, and the KerML libraries satisfy them, implied elements included. The 2 without OCL are deferred.
 - v1.19: step 1a.10 in progress: the 39 Root and Core validation constraints, with zero diagnostics on the KerML libraries. The negative tests of 14 constraints that no text can violate move to step 1b.6, where models can be read from KerML JSON, as the owner chose. ADR 0023 records the readings.
-- v1.20: step 1a.10 done: all 88 validation constraints, and the KerML libraries produce zero diagnostics. The negative tests of 36 constraints that no text can violate move to step 1b.6.
+- v1.20: step 1a.10 done: all 88 validation constraints, and the KerML libraries produce zero diagnostics. The negative tests of 38 constraints that no text can violate move to step 1b.6.
 
 ## 1. Executive summary
 
@@ -341,13 +341,13 @@ Each step below gives its goal, the spec clauses, what it delivers, the tests to
 #### 1a.10 Validation constraints
 - **Status:** done 2026-11-23, in two PRs: Root and Core, then Kernel.
   - **The constraints:** all 88, each with a function in `validate.rs` and a test. The KerML libraries produce zero diagnostics, implied elements included. Every violation is an error, with the constraint's name as its code and its metaclass's clause (ADRs 0012, 0023).
-  - **Negative tests:** 36 of the constraints cannot be violated by any text; the grammar, the lowering or name resolution ensures them. Their negative tests come with interchange input in step 1b.6, as the owner chose on 2026-11-23 (`validations.json`). The Phase 1a exit therefore has them as a known exception.
+  - **Negative tests:** 38 of the constraints cannot be violated by any text; the grammar, the lowering or name resolution ensures them. Their negative tests come with interchange input in step 1b.6, as the owner chose on 2026-11-23 (`validations.json`). The Phase 1a exit therefore has them as a known exception.
   - **Readings** (ADR 0023): inherited members that redefine a common feature are one member; a general that is a feature chain is its feature target, and a feature typed by a behavior is that behavior for its parameters; a binary crossing chains through the other end; an invocation's inputs are its arguments, named ones included; and two validations do not apply to the implied relationships that the semantic constraints require.
   - **Fixes found on the way:** `membership` now has unnamed memberships, and an invoked feature chain is the instantiated type.
 - **Goal:** report every KerML well-formedness violation as a diagnostic.
 - **Clauses:** the 88 `validate…` constraints of KerML 8.3, from their OCL.
 - **Tests first:** one positive and one negative test per constraint. **The KerML libraries produce zero diagnostics.**
-- **Done when:** all 88 constraints are implemented, with the constraint name and clause in each diagnostic (D4). *They are, with the 36 negative tests of step 1b.6 as the exception.*
+- **Done when:** all 88 constraints are implemented, with the constraint name and clause in each diagnostic (D4). *They are, with the 38 negative tests of step 1b.6 as the exception.*
 - **Effort:** 0.75–1
 
 #### 1a.11 Library UUIDs, the snapshot and the first budget

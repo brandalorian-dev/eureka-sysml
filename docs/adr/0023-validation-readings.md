@@ -21,7 +21,7 @@ Run on the libraries, the constraints as written reported violations in five gro
 
 ### 2. Negative tests that no text can write
 
-The plan asks for one positive and one negative test per constraint. For 36 of the 88 constraints, 14 of the 39 Root and Core ones and 22 of the 49 Kernel ones, no valid KerML text produces a violation: the grammar, the lowering or name resolution already ensure them. One example is `validateFeatureChainingFeatureNotOne`, since the grammar writes two chaining features or more. Their positive tests are written now. The owner chose on 2026-11-23 that their negative tests come when models can be read from KerML JSON, which can express any graph: step 1b.6 (JSON and `.kpar` interchange). They are thus an exception to Phase 1a's exit. `validations.json` records each one's reason, and its inventory test checks that every other constraint has a negative test.
+The plan asks for one positive and one negative test per constraint. For 38 of the 88 constraints, 14 of the 39 Root and Core ones and 24 of the 49 Kernel ones, no valid KerML text produces a violation: the grammar, the lowering or name resolution already ensure them. One example is `validateFeatureChainingFeatureNotOne`, since the grammar writes two chaining features or more. Their positive tests are written now. The owner chose on 2026-11-23 that their negative tests come when models can be read from KerML JSON, which can express any graph: step 1b.6 (JSON and `.kpar` interchange). They are thus an exception to Phase 1a's exit. `validations.json` records each one's reason, and its inventory test checks that every other constraint has a negative test.
 
 ### 3. Inherited members that redefine a common feature
 
@@ -62,6 +62,8 @@ Both are read as applying to the relationships written, not to those the overlay
 - **The binding connector of an invocation.** `checkInvocationExpressionBehaviorBindingConnector` implies a binding connector owned by the invocation, which `validateInvocationExpressionOwnedFeatures` would count as an owned feature without a direction. The implied binding connectors are not counted, as in `modelLevelEvaluable` (ADR 0021).
 - **An invoked feature chain.** `changeSignal.signalCondition()` in `Observation` invokes a feature chain, which the grammar owns through an OwningMembership (InstantiatedTypeMember). That chain is the instantiated type; the implied relationships now read it so too.
 
+- **Result expressions are counted where they are declared.** `validateFunctionResultExpressionMembership` and `validateExpressionResultExpressionMembership` count `membership`, which also has the inherited ResultExpressionMemberships. A function with a body that specializes another with a body would then be invalid, as would a SysML calculation usage typed by a definition with a body, though such models are ordinary. The owned ones are counted: a type declares at most one result expression. The grammar writes one, so their negative tests come in step 1b.6 too.
+
 ### 9. Multiplicity bounds
 
 `validateMultiplicityRangeBoundResultTypes` requires a bound's value, as an UnlimitedNatural, to be at least 0. A negative number is no UnlimitedNatural, so `valueOf` gives none for it, and the constraint would hold. The value the bound evaluates to is read instead, so a bound of -1 violates it.
@@ -69,15 +71,17 @@ Both are read as applying to the relationships written, not to those the overlay
 ### 10. Metadata features
 
 - `validateMetadataFeatureBody` writes `f.declaredName = null and f.declaredShortName = null and f.valuation <> null implies …`. With OCL's precedence, that makes a feature's having no name a condition rather than a requirement. Its text is followed: each feature of the body, at any depth, has no declared name, redefines one feature, and has no value or a model-level evaluable one. `redefinition` is read as `ownedRedefinition`, here and in `validateFeatureValueOverriding`.
+- `validateMetadataFeatureAnnotatedElement` takes the allowed metaclasses from `annotatedElementFeatures.typing.type`. `typing` is read as the features' types, inherited ones included, so a metaclass that redefines `annotatedElement` without retyping it keeps the types of the feature it redefines.
 - `validateMetadataFeatureMetaclass` has `.size()` for `->size()`. A metadata feature typed by a classifier that is no metaclass is also typed by `Metaobjects::Metaobject`, through its implied subsetting of `Metaobjects::metaobjects`, so it has one metaclass; that one is abstract, which `validateMetadataFeatureMetaclassNotAbstract` reports.
 
 ### 11. Smaller readings
 
 - `validateInvocationExpressionInstantiatedType` has `type->size(1)`, read as `type->size() = 1`.
+- `validateClassSpecialization` writes `ownedSpecialization.general->forAll(not oclIsKindOf(DataType)) and not oclIsKindOf(Association) implies …`. With OCL's precedence, a class that is no Association would then need no check that it specializes no DataType. Its text is followed: a class specializes no DataType, and one that is no Association specializes no Association.
 - `validateConstructorExpressionOwnedFeatures` has `ownedFeatures`, read as `ownedFeature`. Neither it nor the invocation constraint counts the implied binding connectors.
 
 ## Consequences
 
 - The KerML libraries produce zero diagnostics, of the checks and of all 88 validations, their implied elements included.
 - The implied relationships of step 1a.9 change in two places: a binary crossing chain, and an only end. The step 1a.9 checks still hold on the libraries.
-- Step 1b.6 adds the 36 negative tests listed in `validations.json`.
+- Step 1b.6 adds the 38 negative tests listed in `validations.json`.

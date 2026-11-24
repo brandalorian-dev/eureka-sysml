@@ -417,6 +417,10 @@ fn derive_namespace_members() {
         m.labels(d::member(&m.db, m.project, m.get("P"))),
         ["P::A", "P::A", "Q::B"]
     );
+    // unnamed members too, as the result expression of an expression (ADR 0021)
+    let m = model("expr e { 1 }");
+    let members = d::member(&m.db, m.project, m.get("e"));
+    assert!(members.contains(&m.get("e::LiteralInteger#1")));
 }
 
 #[test]

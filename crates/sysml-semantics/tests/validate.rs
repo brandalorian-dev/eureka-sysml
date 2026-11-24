@@ -843,10 +843,10 @@ fn validate_function_result_parameter_membership() {
 
 #[test]
 fn validate_function_result_expression_membership() {
-    // at most one, owned or inherited
+    // at most one owned: a function with a body may specialize another with one (ADR 0023)
     let c = "validateFunctionResultExpressionMembership";
     satisfies(FUNCTIONS, "F", c);
-    violates(FUNCTIONS, "G", c);
+    satisfies(FUNCTIONS, "G", c);
 }
 
 #[test]
@@ -858,9 +858,10 @@ fn validate_expression_result_parameter_membership() {
 
 #[test]
 fn validate_expression_result_expression_membership() {
+    // at most one owned; the grammar writes one
     let c = "validateExpressionResultExpressionMembership";
     satisfies("expr e { 1 }", "e", c);
-    violates("expr e { 1 } expr f :> e { 2 }", "f", c);
+    satisfies("expr e { 1 } expr f :> e { 2 }", "f", c);
 }
 
 #[test]
@@ -1277,6 +1278,14 @@ fn validate_metadata_feature_annotated_element() {
     let m = "metaclass M { :>> annotatedElement : KerML::Core::Classifier; }";
     satisfies(
         &format!("{m} classifier C {{ @M; }}"),
+        "C::MetadataFeature#1",
+        c,
+    );
+    // a metaclass that redefines annotatedElement without retyping it keeps the types
+    satisfies(
+        &format!(
+            "{m} metaclass N specializes M {{ :>> annotatedElement; }} classifier C {{ @N; }}"
+        ),
         "C::MetadataFeature#1",
         c,
     );
