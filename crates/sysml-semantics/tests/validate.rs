@@ -39,14 +39,26 @@ fn violates(text: &str, path: &str, constraint: &str) {
     assert!(found.contains(&constraint), "{path} in {text}: {found:?}");
 }
 
-/// The n-th relationship of a metaclass at `path` satisfies, or violates, `constraint`.
-fn relationship(text: &str, path: &str, kind: Metaclass, n: usize, constraint: &str, holds: bool) {
+fn relationship_violated(text: &str, path: &str, kind: Metaclass, n: usize) -> Vec<&'static str> {
     let m = model_with_library(text);
     let r = m.relationship(path, kind, n);
-    let found = violated(&m, r);
-    assert_eq!(
+    violated(&m, r)
+}
+
+/// The n-th relationship of a metaclass at `path` satisfies `constraint`.
+fn relationship_satisfies(text: &str, path: &str, kind: Metaclass, n: usize, constraint: &str) {
+    let found = relationship_violated(text, path, kind, n);
+    assert!(
         !found.contains(&constraint),
-        holds,
+        "{kind:?} {n} of {path}: {found:?}"
+    );
+}
+
+/// The n-th relationship of a metaclass at `path` violates `constraint`.
+fn relationship_violates(text: &str, path: &str, kind: Metaclass, n: usize, constraint: &str) {
+    let found = relationship_violated(text, path, kind, n);
+    assert!(
+        found.contains(&constraint),
         "{kind:?} {n} of {path}: {found:?}"
     );
 }
@@ -64,13 +76,12 @@ fn validate_element_is_implied_included() {
 fn validate_annotation_annotating_element() {
     // an annotation owns its annotating element, or is owned by it
     let text = "classifier C; comment about C /* x */ classifier D { doc /* d */ }";
-    relationship(
+    relationship_satisfies(
         text,
         "Comment#1",
         Metaclass::Annotation,
         1,
         "validateAnnotationAnnotatingElement",
-        true,
     );
     let m = model_with_library(text);
     for x in v::violations(&m.db, m.project, m.file) {
@@ -92,29 +103,26 @@ fn validate_annotation_annotated_element_ownership() {
 #[test]
 fn validate_import_top_level_visibility() {
     // an import of a root namespace is private
-    relationship(
+    relationship_satisfies(
         "package P; import P::*; package Q { public import P::*; }",
         "",
         Metaclass::NamespaceImport,
         1,
         "validateImportTopLevelVisibility",
-        true,
     );
-    relationship(
+    relationship_satisfies(
         "package P; package Q { public import P::*; }",
         "Q",
         Metaclass::NamespaceImport,
         1,
         "validateImportTopLevelVisibility",
-        true,
     );
-    relationship(
+    relationship_violates(
         "package P; public import P::*;",
         "",
         Metaclass::NamespaceImport,
         1,
         "validateImportTopLevelVisibility",
-        false,
     );
 }
 
@@ -251,13 +259,12 @@ fn validate_type_differencing_types_not_self() {
 fn validate_specification_specific_not_conjugated() {
     // the specific type is not conjugated; the grammar writes no specialization of a conjugated
     // type
-    relationship(
+    relationship_satisfies(
         "type A; type B specializes A;",
         "B",
         Metaclass::Specialization,
         1,
         "validateSpecificationSpecificNotConjugated",
-        true,
     );
 }
 
@@ -467,13 +474,12 @@ fn validate_feature_cross_feature_specialization() {
 #[test]
 fn validate_end_feature_membership_is_end() {
     // the lowering makes the feature of an EndFeatureMembership an end
-    relationship(
+    relationship_satisfies(
         "classifier C { feature x; feature y; connector k from x to y; }",
         "C::k",
         Metaclass::EndFeatureMembership,
         1,
         "validateEndFeatureMembershipIsEnd",
-        true,
     );
 }
 
@@ -481,21 +487,19 @@ fn validate_end_feature_membership_is_end() {
 fn validate_subsetting_constant_conformance() {
     let kind = Metaclass::Subsetting;
     let c = "validateSubsettingConstantConformance";
-    relationship(
+    relationship_satisfies(
         "class C { const feature a; const feature b subsets a; }",
         "C::b",
         kind,
         1,
         c,
-        true,
     );
-    relationship(
+    relationship_violates(
         "class C { const feature a; var feature b subsets a; }",
         "C::b",
         kind,
         1,
         c,
-        false,
     );
 }
 
@@ -503,21 +507,13 @@ fn validate_subsetting_constant_conformance() {
 fn validate_subsetting_uniqueness_conformance() {
     let kind = Metaclass::Subsetting;
     let c = "validateSubsettingUniquenessConformance";
-    relationship(
-        "feature a[*]; feature b[*] subsets a;",
-        "b",
-        kind,
-        1,
-        c,
-        true,
-    );
-    relationship(
+    relationship_satisfies("feature a[*]; feature b[*] subsets a;", "b", kind, 1, c);
+    relationship_violates(
         "feature a[*]; feature b[*] nonunique subsets a;",
         "b",
         kind,
         1,
         c,
-        false,
     );
 }
 
@@ -526,22 +522,20 @@ fn validate_subsetting_featuring_types() {
     // the subsetting feature can access the subsetted one
     let kind = Metaclass::Subsetting;
     let c = "validateSubsettingFeaturingTypes";
-    relationship(
+    relationship_satisfies(
         "classifier C { feature a; } classifier D specializes C { feature b subsets a; }",
         "D::b",
         kind,
         1,
         c,
-        true,
     );
-    relationship("feature a; feature b subsets a;", "b", kind, 1, c, true);
-    relationship(
+    relationship_satisfies("feature a; feature b subsets a;", "b", kind, 1, c);
+    relationship_violates(
         "classifier C { feature a; } classifier D { feature b subsets C::a; }",
         "D::b",
         kind,
         1,
         c,
-        false,
     );
 }
 
@@ -550,24 +544,21 @@ fn validate_redefinition_end_conformance() {
     let kind = Metaclass::Redefinition;
     let c = "validateRedefinitionEndConformance";
     let base = "assoc A { end feature a; end feature b; }";
-    relationship(
+    relationship_satisfies(
         &format!("{base} assoc B specializes A {{ end feature c redefines a; end feature d; }}"),
         "B::c",
         kind,
         1,
         c,
-        true,
     );
-    relationship(
+    relationship_violates(
         &format!(
             "{base} assoc B specializes A {{ feature c redefines a; end feature d; end feature e; }}"
         ),
         "B::c",
         kind,
         1,
-        c,
-        false,
-    );
+        c);
 }
 
 #[test]
@@ -575,22 +566,20 @@ fn validate_redefinition_featuring_types() {
     // a redefining feature has other featuring types than the redefined one
     let kind = Metaclass::Redefinition;
     let c = "validateRedefinitionFeaturingTypes";
-    relationship(
+    relationship_satisfies(
         "classifier C { feature a; } classifier D specializes C { feature b redefines a; }",
         "D::b",
         kind,
         1,
         c,
-        true,
     );
-    relationship(
+    relationship_violates(
         // the name is resolved in C's generals first (KerML 8.2.3.5.1), so it is qualified
         "classifier C { feature a; feature b redefines C::a; }",
         "C::b",
         kind,
         1,
         c,
-        false,
     );
 }
 
@@ -599,21 +588,19 @@ fn validate_redefinition_direction_conformance() {
     let kind = Metaclass::Redefinition;
     let c = "validateRedefinitionDirectionConformance";
     let base = "behavior B { in x; }";
-    relationship(
+    relationship_satisfies(
         &format!("{base} behavior B2 specializes B {{ in y redefines x; }}"),
         "B2::y",
         kind,
         1,
         c,
-        true,
     );
-    relationship(
+    relationship_violates(
         &format!("{base} behavior B2 specializes B {{ out y redefines x; }}"),
         "B2::y",
         kind,
         1,
         c,
-        false,
     );
 }
 
@@ -622,21 +609,19 @@ fn validate_cross_subsetting_crossing_feature() {
     // the crossing feature is an end of a type with more than one end
     let kind = Metaclass::CrossSubsetting;
     let c = "validateCrossSubsettingCrossingFeature";
-    relationship(
+    relationship_satisfies(
         &format!("{CROSSES} assoc A {{ end feature e : T crosses c.x; end feature f : U; }}"),
         "A::e",
         kind,
         1,
         c,
-        true,
     );
-    relationship(
+    relationship_violates(
         &format!("{CROSSES} feature g crosses c.x;"),
         "g",
         kind,
         1,
         c,
-        false,
     );
 }
 
@@ -650,13 +635,20 @@ fn validate_cross_subsetting_crossed_feature() {
     for x in v::violations(&m.db, m.project, m.file) {
         assert_ne!(x.constraint, "validateCrossSubsettingCrossedFeature");
     }
-    relationship(
+    relationship_violates(
         &format!("{CROSSES} assoc A {{ end feature e : T crosses c.x; end feature f : U; }}"),
         "A::e",
         Metaclass::CrossSubsetting,
         1,
         "validateCrossSubsettingCrossedFeature",
-        false,
+    );
+    // the crossed feature is a chain of two features (the text of KerML 8.3.3.3.2; ADR 0023)
+    relationship_violates(
+        &format!("{CROSSES} assoc A {{ end feature e : T crosses c; end feature f : U; }}"),
+        "A::e",
+        Metaclass::CrossSubsetting,
+        1,
+        "validateCrossSubsettingCrossedFeature",
     );
 }
 
@@ -677,6 +669,21 @@ fn a_violation_is_an_error_with_its_constraint_clause_and_range() {
     assert_eq!(d.clause, Some("KerML 8.3.2.4.2"));
     let range = usize::from(d.range.start())..usize::from(d.range.end());
     assert_eq!(&text[range], "public import P::*;");
+}
+
+#[test]
+fn indistinguishable_members_are_reported_at_the_later_one() {
+    // not at the namespace, which for a root namespace is the whole file
+    let text = "classifier A; classifier A;";
+    let m = model_with_library(text);
+    let diagnostics = v::diagnostics(&m.db, m.project, m.file);
+    let d = diagnostics
+        .iter()
+        .find(|d| d.code == "validateNamespaceDistinguishibility")
+        .unwrap();
+    let range = usize::from(d.range.start())..usize::from(d.range.end());
+    assert_eq!(range.start, "classifier A; ".len());
+    assert_eq!(&text[range], "classifier A;");
 }
 
 #[test]

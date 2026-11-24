@@ -16,7 +16,7 @@ Run on the libraries, the constraints as written reported violations in five gro
 
 - Every violation is an **error**, confirming ADR 0012's open point 4: "the semantics of a model are only defined if it meets all semantic and validation constraints" (KerML 8.4.2).
 - The code is the constraint's name, and the clause is that of the constraint's metaclass, for example `KerML 8.3.2.4.2` for `validateImportTopLevelVisibility`.
-- The range is the element's span in the lowered fragment. A violation by an implied element is reported at the nearest written element that owns it.
+- The range is the element's span in the lowered fragment. A violation by an implied element is reported at the nearest written element that owns it. A namespace whose memberships are not distinguishable is reported at the later of the first two such memberships, if it is written in the file, rather than over the whole namespace.
 - The violations of a file are a query (`validate::violations`), span-free like the rest of the semantics. The diagnostics add the spans.
 
 ### 2. Negative tests that no text can write
@@ -51,6 +51,7 @@ Both are read as applying to the relationships written, not to those the overlay
 - `validateRedefinitionFeaturingTypes` compares with `redefinedFeaturingType`, read as `redefinedFeaturingTypes`, and resolves `Base::Anything` with `modelElement`, read as `memberElement`. The constraint requires the two sets to differ: a feature cannot redefine a feature in the same context.
 - `validateFeatureIsVariable` has `specializes('Occurrences::Occurrence')`, read as `specializesFromLibrary`.
 - `validateFeatureMultiplicityDomain` compares featuring types without order, as the type-featuring constraints do (ADR 0020).
+- `validateCrossSubsettingCrossedFeature` says in its text that the crossed feature "must have exactly two chainingFeatures". Its OCL asks for the other end only of a chain of two, and so lets a crossed feature that is no chain pass. The text is followed: the crossed feature of an end's CrossSubsetting is a chain of two features.
 - An end of an N-ary association must have multiplicity 1..1 as written. `validateFeatureEndMultiplicity` finds none otherwise, and KerML 8.4.4.5.1 shows the ends written `[1..1]`. A binary association's ends get it from `Links::BinaryLink`.
 
 ## Consequences

@@ -293,31 +293,20 @@ pub(crate) fn invokes_non_function(
     (!invokes_function).then_some(t)
 }
 
-/// `featureTarget` (KerML 8.3.3.3.4) of a feature in the fragments: the last chaining feature's,
+/// `featureTarget` (KerML 8.3.3.3.4) of a feature in the fragments: its last chaining feature,
 /// for a feature chain; the feature itself otherwise.
 fn chain_target(db: &dyn salsa::Database, project: Project, f: Global) -> Global {
-    let mut x = f;
-    let mut seen = vec![f];
-    loop {
-        if !crate::resolve::in_fragment(db, x.file, x.index) {
-            return x;
-        }
-        let l = structure(db, x.file);
-        let g = l.graph();
-        let last = g
-            .owned_relationships(x.ix())
-            .iter()
-            .rev()
-            .find(|r| g.metaclass(**r) == M::FeatureChaining)
-            .and_then(|r| end_of(db, project, at(x.file, *r), sysml_model::Slot::Target));
-        match last {
-            Some(t) if !seen.contains(&t) => {
-                seen.push(t);
-                x = t;
-            }
-            _ => return x,
-        }
+    if !crate::resolve::in_fragment(db, f.file, f.index) {
+        return f;
     }
+    let l = structure(db, f.file);
+    let g = l.graph();
+    g.owned_relationships(f.ix())
+        .iter()
+        .rev()
+        .find(|r| g.metaclass(**r) == M::FeatureChaining)
+        .and_then(|r| end_of(db, project, at(f.file, *r), sysml_model::Slot::Target))
+        .unwrap_or(f)
 }
 
 /// The first argument of an invocation (KerML 8.3.4.8.8 `argument->first()`): the value of the

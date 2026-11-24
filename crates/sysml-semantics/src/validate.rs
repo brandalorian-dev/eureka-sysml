@@ -324,6 +324,15 @@ pub fn diagnostics(
     violations(db, project, file)
         .iter()
         .map(|x| {
+            // A namespace whose members are not distinguishable is reported at the later of the
+            // first two, when it is written in the file (ADR 0023).
+            let at = if x.constraint == "validateNamespaceDistinguishibility" {
+                indistinguishable(db, project, x.element)
+                    .filter(|m| m.file == file)
+                    .unwrap_or(x.element)
+            } else {
+                x.element
+            };
             let message = format!(
                 "{} {} violates {}",
                 metaclass(db, project, x.element).name(),
@@ -335,7 +344,7 @@ pub fn diagnostics(
                     ),
                 x.constraint
             );
-            Diagnostic::error(x.constraint, range(x.element), message).with_clause(x.clause)
+            Diagnostic::error(x.constraint, range(at), message).with_clause(x.clause)
         })
         .collect()
 }
@@ -445,9 +454,12 @@ pub fn validate_namespace_distinguishibility(
     project: Project,
     x: Global,
 ) -> bool {
-    if !is(db, project, x, M::Namespace) {
-        return true;
-    }
+    !is(db, project, x, M::Namespace) || indistinguishable(db, project, x).is_none()
+}
+
+/// The later membership, in membership order, of the first two memberships of a namespace that
+/// are not distinguishable (validateNamespaceDistinguishibility), if any.
+pub fn indistinguishable(db: &dyn salsa::Database, project: Project, x: Global) -> Option<Global> {
     let memberships = d::membership(db, project, x);
     let mut by_name: HashMap<String, Vec<Global>> = HashMap::new();
     for m in &memberships {
@@ -478,13 +490,23 @@ pub fn validate_namespace_distinguishibility(
     let same_member = |a: Global, b: Global| {
         !owned.contains(&a) && !owned.contains(&b) && !redefined(a).is_disjoint(&redefined(b))
     };
-    by_name.values().all(|ms| {
-        ms.iter().enumerate().all(|(i, a)| {
-            ms[i + 1..].iter().all(|b| {
-                a == b || d::is_distinguishable_from(db, project, *a, *b) || same_member(*a, *b)
+    let order: HashMap<Global, usize> = memberships
+        .iter()
+        .enumerate()
+        .map(|(i, m)| (*m, i))
+        .collect();
+    by_name
+        .values()
+        .filter_map(|ms| {
+            ms.iter().enumerate().find_map(|(i, a)| {
+                ms[i + 1..].iter().copied().find(|b| {
+                    a != b
+                        && !d::is_distinguishable_from(db, project, *a, *b)
+                        && !same_member(*a, *b)
+                })
             })
         })
-    })
+        .min_by_key(|m| order.get(m).copied().unwrap_or(usize::MAX))
 }
 
 // ---- Core: types (KerML 8.3.3.1.10) ----
@@ -960,8 +982,10 @@ pub fn validate_cross_subsetting_crossing_feature(
         && d::owning_type(db, project, s).is_some_and(|t| d::end_feature(db, project, t).len() > 1)
 }
 
-/// KerML 8.3.3.3.2 validateCrossSubsettingCrossedFeature: for a binary owning type, the crossed
-/// feature is a chain of two features whose first is the other end.
+/// KerML 8.3.3.3.2 validateCrossSubsettingCrossedFeature: the crossed feature of an end's
+/// CrossSubsetting is a chain of two features, the first of them the other end for a binary owning
+/// type. The OCL asks for the other end only of a chain of two; the text also requires the two
+/// (ADR 0023).
 pub fn validate_cross_subsetting_crossed_feature(
     db: &dyn salsa::Database,
     project: Project,
@@ -981,6 +1005,5 @@ pub fn validate_cross_subsetting_crossed_feature(
     };
     let ends = d::end_feature(db, project, t);
     let chaining = d::chaining_feature(db, project, crossed);
-    !(chaining.len() == 2 && ends.len() == 2)
-        || ends.iter().find(|e| **e != s) == Some(&chaining[0])
+    chaining.len() == 2 && (ends.len() != 2 || ends.iter().find(|e| **e != s) == Some(&chaining[0]))
 }
